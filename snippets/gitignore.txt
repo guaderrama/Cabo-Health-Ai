@@ -1,0 +1,25 @@
+# Propuesta .gitignore
+.env
+.env.*
+.DS_Store
+node_modules/
+dist/
+build/
+.pnpm-store/
+logs/
+
+# Directorios internos no versionados
+.clinerules/
+memory/
+tasks/
+examples/
+
+# IDE/Editor
+.vscode/
+.idea/
+*.log
+*.tmp
+
+
+
+

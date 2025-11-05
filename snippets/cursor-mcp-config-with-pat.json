@@ -1,0 +1,18 @@
+{
+  "mcpServers": {
+    "supabase": {
+      "type": "http",
+      "url": "https://mcp.supabase.com/mcp",
+      "transport": {
+        "type": "sse",
+        "headers": {
+          "Authorization": "Bearer TU_PERSONAL_ACCESS_TOKEN_AQUI"
+        }
+      }
+    }
+  }
+}
+
+
+
+
