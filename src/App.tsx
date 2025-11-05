@@ -15,6 +15,7 @@ import SummaryPanel from './components/SummaryPanel';
 import SessionRecoveryModal from './components/SessionRecoveryModal';
 import ProgressIndicator from './components/ProgressIndicator';
 import MicrophoneDiagnostic from './components/MicrophoneDiagnostic';
+import ApiDiagnostic from './components/ApiDiagnostic';
 import { playWelcomeSound } from './services/audioService';
 import {
   saveSessionCheckpoint,
@@ -78,6 +79,7 @@ const MainApp: React.FC = () => {
   
   // Estados para diagnóstico de micrófono
   const [showMicrophoneDiagnostic, setShowMicrophoneDiagnostic] = useState(false);
+  const [showApiDiagnostic, setShowApiDiagnostic] = useState(false);
   
   const sessionPromiseRef = useRef<Promise<LiveSession> | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
@@ -656,12 +658,37 @@ const MainApp: React.FC = () => {
           onClose={handleCloseMicrophoneDiagnostic}
         />
       )}
+
+      {/* Diagnóstico de API */}
+      {showApiDiagnostic && (
+        <ApiDiagnostic
+          language={language}
+          onClose={() => setShowApiDiagnostic(false)}
+        />
+      )}
       
       <main className="container mx-auto px-4 sm:px-6 pt-28 pb-12">
         {apiKeyError ? (
-          <div className="text-center bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative" role="alert">
-            <strong className="font-bold">Error: </strong>
-            <span className="block sm:inline">{apiKeyError}</span>
+          <div className="max-w-2xl mx-auto">
+            <div className="bg-red-100 border border-red-400 text-red-700 px-6 py-4 rounded-lg" role="alert">
+              <div className="flex items-start gap-3">
+                <div className="flex-shrink-0">
+                  <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                  </svg>
+                </div>
+                <div className="flex-1">
+                  <h3 className="font-bold text-lg mb-1">Error de Configuración</h3>
+                  <p className="mb-4">{apiKeyError}</p>
+                  <button
+                    onClick={() => setShowApiDiagnostic(true)}
+                    className="px-4 py-2 bg-red-600 text-white rounded-lg font-semibold hover:bg-red-700 transition-colors"
+                  >
+                    🔍 Ejecutar Diagnóstico
+                  </button>
+                </div>
+              </div>
+            </div>
           </div>
         ) : (
           <div className="space-y-6 max-w-7xl mx-auto">
