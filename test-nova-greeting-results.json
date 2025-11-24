@@ -1,0 +1,44 @@
+{
+  "timestamp": "2025-11-24T03:03:55.571Z",
+  "testUrl": "https://localhost:9002/",
+  "tests": [
+    {
+      "name": "App Load",
+      "passed": true,
+      "screenshot": "01-app-loaded.png"
+    },
+    {
+      "name": "Authentication",
+      "passed": true,
+      "screenshot": "02-authenticated.png"
+    },
+    {
+      "name": "Start Medical Session",
+      "passed": true,
+      "screenshot": "04-connecting.png"
+    },
+    {
+      "name": "Session Connected",
+      "passed": true,
+      "screenshot": "05-listening.png"
+    },
+    {
+      "name": "Console Monitoring",
+      "passed": true,
+      "details": {
+        "sessionClosed": false,
+        "novaActivationSent": false,
+        "novaOutputDetected": false,
+        "totalConsoleMessages": 0,
+        "consoleErrors": 0
+      }
+    }
+  ],
+  "summary": {
+    "total": 5,
+    "passed": 5,
+    "failed": 0,
+    "successRate": "100.0%",
+    "criticalIssues": 0
+  }
+}

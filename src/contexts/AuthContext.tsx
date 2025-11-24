@@ -2,12 +2,15 @@ import React, { createContext, useContext, useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { User, Session } from '@supabase/supabase-js';
 
+export type UserRole = 'patient' | 'doctor';
+
 interface AuthContextType {
   user: User | null;
   session: Session | null;
   loading: boolean;
+  userRole: UserRole | null;
   signIn: (email: string, password: string) => Promise<void>;
-  signUp: (email: string, password: string) => Promise<void>;
+  signUp: (email: string, password: string, role: UserRole) => Promise<void>;
   signOut: () => Promise<void>;
 }
 
@@ -16,6 +19,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
+  const [userRole, setUserRole] = useState<UserRole | null>(null);
   const [loading, setLoading] = useState(true);
 
   // Cargar usuario al montar
@@ -26,6 +30,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const { data: { session } } = await supabase.auth.getSession();
         setSession(session);
         setUser(session?.user || null);
+
+        // Extraer rol del user_metadata
+        if (session?.user) {
+          const role = session.user.user_metadata?.role as UserRole || 'patient';
+          setUserRole(role);
+        }
       } finally {
         setLoading(false);
       }
@@ -37,6 +47,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       (_event, session) => {
         setSession(session);
         setUser(session?.user || null);
+
+        // Actualizar rol cuando cambia la sesión
+        if (session?.user) {
+          const role = session.user.user_metadata?.role as UserRole || 'patient';
+          setUserRole(role);
+        } else {
+          setUserRole(null);
+        }
       }
     );
 
@@ -49,12 +67,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (error) throw error;
   }
 
-  async function signUp(email: string, password: string) {
-    const { error } = await supabase.auth.signUp({ 
-      email, 
+  async function signUp(email: string, password: string, role: UserRole) {
+    const { error } = await supabase.auth.signUp({
+      email,
       password,
       options: {
-        emailRedirectTo: `${window.location.origin}/`
+        emailRedirectTo: `${window.location.origin}/`,
+        data: {
+          role: role
+        }
       }
     });
     if (error) throw error;
@@ -66,7 +87,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <AuthContext.Provider value={{ user, session, loading, signIn, signUp, signOut }}>
+    <AuthContext.Provider value={{ user, session, userRole, loading, signIn, signUp, signOut }}>
       {children}
     </AuthContext.Provider>
   );

@@ -337,7 +337,12 @@ const MicrophoneDiagnostic: React.FC<MicrophoneDiagnosticProps> = ({ language, o
     try {
       const devices = await navigator.mediaDevices.enumerateDevices();
       const audioInputs = devices.filter(device => device.kind === 'audioinput');
-      
+
+      // Fix: Validar que audioInputs es un array válido antes de usarlo
+      if (!Array.isArray(audioInputs)) {
+        throw new Error('Error al filtrar dispositivos de audio');
+      }
+
       if (audioInputs.length === 0) {
         setSteps(prev => prev.map(step => 
           step.id === 'hardware' ? { 

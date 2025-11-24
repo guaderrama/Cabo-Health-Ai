@@ -36,3 +36,7 @@ dist-ssr
 # Build artifacts
 .vite-temp
 mcp.json.json
+
+# Vite cache
+.vite-cache/
+NUL

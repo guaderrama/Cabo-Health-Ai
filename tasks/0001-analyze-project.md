@@ -26,3 +26,11 @@ sed -n '1,120p' .clinerules/01-project-facts.md
 
 
 
+
+
+
+
+
+
+
+

@@ -148,3 +148,11 @@ cat .env | grep VITE_GEMINI_API_KEY
 
 
 
+
+
+
+
+
+
+
+

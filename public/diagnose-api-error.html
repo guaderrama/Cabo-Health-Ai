@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Diagnóstico Completo de API - Cabo Health Nova</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+
+        h1 {
+            color: #667eea;
+            margin-bottom: 10px;
+            font-size: 2em;
+        }
+
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 1.1em;
+        }
+
+        .section {
+            margin-bottom: 30px;
+            padding: 20px;
+            border-radius: 10px;
+            background: #f8f9fa;
+        }
+
+        .section h2 {
+            color: #333;
+            margin-bottom: 15px;
+            font-size: 1.5em;
+            border-bottom: 2px solid #667eea;
+            padding-bottom: 10px;
+        }
+
+        .test-result {
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 8px;
+            border-left: 4px solid #ccc;
+        }
+
+        .success {
+            background: #d4edda;
+            border-left-color: #28a745;
+            color: #155724;
+        }
+
+        .error {
+            background: #f8d7da;
+            border-left-color: #dc3545;
+            color: #721c24;
+        }
+
+        .warning {
+            background: #fff3cd;
+            border-left-color: #ffc107;
+            color: #856404;
+        }
+
+        .info {
+            background: #d1ecf1;
+            border-left-color: #17a2b8;
+            color: #0c5460;
+        }
+
+        .code-block {
+            background: #2d2d2d;
+            color: #f8f8f2;
+            padding: 15px;
+            border-radius: 5px;
+            overflow-x: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9em;
+            margin: 10px 0;
+        }
+
+        button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            border-radius: 25px;
+            font-size: 1em;
+            cursor: pointer;
+            transition: transform 0.2s;
+            margin: 5px;
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+        }
+
+        button:active {
+            transform: translateY(0);
+        }
+
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(255,255,255,.3);
+            border-radius: 50%;
+            border-top-color: #fff;
+            animation: spin 1s ease-in-out infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .stack-trace {
+            background: #1a1a1a;
+            color: #ff6b6b;
+            padding: 10px;
+            border-radius: 5px;
+            font-family: monospace;
+            font-size: 0.85em;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        .key-display {
+            font-family: monospace;
+            background: #e9ecef;
+            padding: 5px 10px;
+            border-radius: 4px;
+            display: inline-block;
+            margin: 5px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 Diagnóstico Completo de API</h1>
+        <p class="subtitle">Herramienta de diagnóstico para identificar problemas con la API de Gemini</p>
+
+        <div style="margin-bottom: 20px;">
+            <button onclick="runFullDiagnosis()">🚀 Ejecutar Diagnóstico Completo</button>
+            <button onclick="testApiDirectly()">🔑 Probar API Directamente</button>
+            <button onclick="clearResults()">🗑️ Limpiar Resultados</button>
+        </div>
+
+        <div id="results"></div>
+    </div>
+
+    <script type="module">
+        // Capturar TODOS los errores
+        const errors = [];
+        const networkErrors = [];
+
+        window.addEventListener('error', (e) => {
+            errors.push({
+                type: 'Error',
+                message: e.message,
+                filename: e.filename,
+                lineno: e.lineno,
+                colno: e.colno,
+                stack: e.error?.stack
+            });
+        });
+
+        window.addEventListener('unhandledrejection', (e) => {
+            errors.push({
+                type: 'Unhandled Promise Rejection',
+                message: e.reason?.message || String(e.reason),
+                stack: e.reason?.stack
+            });
+        });
+
+        // Interceptar fetch para capturar errores de red
+        const originalFetch = window.fetch;
+        window.fetch = async (...args) => {
+            try {
+                const response = await originalFetch(...args);
+                if (!response.ok) {
+                    networkErrors.push({
+                        url: args[0],
+                        status: response.status,
+                        statusText: response.statusText,
+                        timestamp: new Date().toISOString()
+                    });
+                }
+                return response;
+            } catch (error) {
+                networkErrors.push({
+                    url: args[0],
+                    error: error.message,
+                    timestamp: new Date().toISOString()
+                });
+                throw error;
+            }
+        };
+
+        window.errors = errors;
+        window.networkErrors = networkErrors;
+
+        function addResult(title, content, type = 'info') {
+            const resultsDiv = document.getElementById('results');
+            const section = document.createElement('div');
+            section.className = 'section';
+            section.innerHTML = `
+                <h2>${title}</h2>
+                <div class="test-result ${type}">${content}</div>
+            `;
+            resultsDiv.appendChild(section);
+        }
+
+        function addCodeBlock(title, code) {
+            const resultsDiv = document.getElementById('results');
+            const section = document.createElement('div');
+            section.className = 'section';
+            section.innerHTML = `
+                <h2>${title}</h2>
+                <div class="code-block">${escapeHtml(code)}</div>
+            `;
+            resultsDiv.appendChild(section);
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        window.clearResults = function() {
+            document.getElementById('results').innerHTML = '';
+        };
+
+        window.runFullDiagnosis = async function() {
+            clearResults();
+
+            // 1. Verificar variables de entorno
+            addResult('📋 1. Variables de Entorno',
+                `Verificando variables de entorno disponibles...`, 'info');
+
+            const envVars = {
+                'VITE_GEMINI_API_KEY': import.meta.env.VITE_GEMINI_API_KEY,
+                'VITE_SUPABASE_URL': import.meta.env.VITE_SUPABASE_URL,
+                'VITE_SUPABASE_ANON_KEY': import.meta.env.VITE_SUPABASE_ANON_KEY,
+                'MODE': import.meta.env.MODE,
+                'DEV': import.meta.env.DEV,
+                'PROD': import.meta.env.PROD
+            };
+
+            let envHtml = '<ul style="list-style: none; padding: 0;">';
+            for (const [key, value] of Object.entries(envVars)) {
+                if (key.includes('KEY')) {
+                    const masked = value ? `${value.substring(0, 10)}...${value.substring(value.length - 4)}` : 'NO DEFINIDA';
+                    envHtml += `<li><strong>${key}:</strong> <span class="key-display">${masked}</span></li>`;
+                } else {
+                    envHtml += `<li><strong>${key}:</strong> ${value || 'NO DEFINIDA'}</li>`;
+                }
+            }
+            envHtml += '</ul>';
+
+            const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+            const hasApiKey = apiKey && apiKey.trim() !== '';
+
+            addResult('📋 Variables de Entorno', envHtml, hasApiKey ? 'success' : 'error');
+
+            // 2. Verificar errores capturados
+            if (window.errors.length > 0) {
+                let errorsHtml = '<ul>';
+                window.errors.forEach((err, idx) => {
+                    errorsHtml += `
+                        <li>
+                            <strong>Error ${idx + 1}:</strong> ${err.type}<br>
+                            <strong>Mensaje:</strong> ${err.message}<br>
+                            ${err.filename ? `<strong>Archivo:</strong> ${err.filename}:${err.lineno}:${err.colno}<br>` : ''}
+                            ${err.stack ? `<div class="stack-trace">${err.stack}</div>` : ''}
+                        </li>
+                    `;
+                });
+                errorsHtml += '</ul>';
+                addResult('❌ Errores de Consola Capturados', errorsHtml, 'error');
+            } else {
+                addResult('✅ Errores de Consola', 'No se han capturado errores hasta el momento', 'success');
+            }
+
+            // 3. Verificar errores de red
+            if (window.networkErrors.length > 0) {
+                let netHtml = '<ul>';
+                window.networkErrors.forEach((err, idx) => {
+                    netHtml += `
+                        <li>
+                            <strong>Request ${idx + 1}:</strong><br>
+                            <strong>URL:</strong> ${err.url}<br>
+                            ${err.status ? `<strong>Status:</strong> ${err.status} ${err.statusText}<br>` : ''}
+                            ${err.error ? `<strong>Error:</strong> ${err.error}<br>` : ''}
+                            <strong>Timestamp:</strong> ${err.timestamp}
+                        </li>
+                    `;
+                });
+                netHtml += '</ul>';
+                addResult('🌐 Errores de Red', netHtml, 'error');
+            } else {
+                addResult('✅ Errores de Red', 'No se han detectado errores de red', 'success');
+            }
+
+            // 4. Verificar archivos cargados
+            const scripts = Array.from(document.querySelectorAll('script'));
+            let scriptsHtml = '<ul>';
+            scripts.forEach(script => {
+                if (script.src) {
+                    scriptsHtml += `<li>${script.src}</li>`;
+                }
+            });
+            scriptsHtml += '</ul>';
+            addResult('📦 Archivos JavaScript Cargados', scriptsHtml, 'info');
+
+            // 5. Probar API de Gemini si la key existe
+            if (hasApiKey) {
+                await testGeminiApi(apiKey);
+            } else {
+                addResult('❌ API de Gemini',
+                    'No se puede probar la API porque VITE_GEMINI_API_KEY no está definida', 'error');
+            }
+
+            // 6. Información del navegador
+            const browserInfo = `
+                <ul style="list-style: none; padding: 0;">
+                    <li><strong>User Agent:</strong> ${navigator.userAgent}</li>
+                    <li><strong>Platform:</strong> ${navigator.platform}</li>
+                    <li><strong>Language:</strong> ${navigator.language}</li>
+                    <li><strong>Online:</strong> ${navigator.onLine ? 'Sí' : 'No'}</li>
+                    <li><strong>URL Actual:</strong> ${window.location.href}</li>
+                </ul>
+            `;
+            addResult('🌐 Información del Navegador', browserInfo, 'info');
+        };
+
+        async function testGeminiApi(apiKey) {
+            addResult('🔄 Probando API de Gemini', 'Enviando request a Gemini API...', 'info');
+
+            try {
+                const response = await fetch(
+                    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:generateContent?key=${apiKey}`,
+                    {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            contents: [{
+                                parts: [{
+                                    text: 'Hello, this is a test. Please respond with "API working".'
+                                }]
+                            }]
+                        })
+                    }
+                );
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    const errorDetails = `
+                        <strong>Status:</strong> ${response.status} ${response.statusText}<br>
+                        <strong>Error:</strong> ${JSON.stringify(data, null, 2)}<br>
+                        <div class="stack-trace">${JSON.stringify(data, null, 2)}</div>
+                    `;
+                    addResult('❌ API de Gemini - Error', errorDetails, 'error');
+                } else {
+                    const successDetails = `
+                        <strong>Status:</strong> ${response.status} ${response.statusText}<br>
+                        <strong>Respuesta:</strong> ${data.candidates?.[0]?.content?.parts?.[0]?.text || 'Sin respuesta'}<br>
+                        <details>
+                            <summary>Ver respuesta completa</summary>
+                            <div class="code-block">${JSON.stringify(data, null, 2)}</div>
+                        </details>
+                    `;
+                    addResult('✅ API de Gemini - Funcionando', successDetails, 'success');
+                }
+            } catch (error) {
+                const errorDetails = `
+                    <strong>Error:</strong> ${error.message}<br>
+                    ${error.stack ? `<div class="stack-trace">${error.stack}</div>` : ''}
+                `;
+                addResult('❌ API de Gemini - Excepción', errorDetails, 'error');
+            }
+        }
+
+        window.testApiDirectly = async function() {
+            clearResults();
+            const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+
+            if (!apiKey) {
+                addResult('❌ Error', 'VITE_GEMINI_API_KEY no está definida', 'error');
+                return;
+            }
+
+            await testGeminiApi(apiKey);
+        };
+
+        // Auto-ejecutar diagnóstico
+        console.log('%c🔍 Herramienta de Diagnóstico Cargada', 'font-size: 20px; color: #667eea; font-weight: bold;');
+        console.log('Para ejecutar el diagnóstico completo, haz clic en "Ejecutar Diagnóstico Completo"');
+        console.log('O ejecuta: runFullDiagnosis()');
+    </script>
+</body>
+</html>

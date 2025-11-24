@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, Suspense, lazy } from 'react';
 import { GoogleGenAI, Modality, LiveServerMessage } from '@google/genai';
 import { type AppState, type Language, type TranscriptMessage, type RecoverableSession } from './types';
 import { SYSTEM_INSTRUCTIONS, UI_TEXTS, SUMMARY_PROMPT } from './constants';
@@ -8,14 +8,18 @@ import { sanitizeHtml } from './utils/sanitizeHtml';
 import { uploadAudioFragmentWav } from './utils/audioStorage';
 import { useAuth } from './contexts/AuthContext';
 import AuthForm from './components/AuthForm';
+import DoctorDashboard from './components/DoctorDashboard';
 import Header from './components/Header';
 import ControlPanel from './components/ControlPanel';
 import TranscriptionPanel from './components/TranscriptionPanel';
 import SummaryPanel from './components/SummaryPanel';
-import SessionRecoveryModal from './components/SessionRecoveryModal';
 import ProgressIndicator from './components/ProgressIndicator';
-import MicrophoneDiagnostic from './components/MicrophoneDiagnostic';
+import ErrorBoundary from './components/ErrorBoundary';
 import { playWelcomeSound } from './services/audioService';
+
+// Lazy loading de componentes no críticos para mejorar performance inicial
+const SessionRecoveryModal = lazy(() => import('./components/SessionRecoveryModal'));
+const MicrophoneDiagnostic = lazy(() => import('./components/MicrophoneDiagnostic'));
 import {
   saveSessionCheckpoint,
   findRecoverableSessions,
@@ -33,8 +37,24 @@ type LiveSession = {
 const generateUniqueId = () => `${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
 
 const App: React.FC = () => {
-  const { user, loading } = useAuth();
-  
+  const { user, userRole, loading } = useAuth();
+  const [language, setLanguage] = useState<Language>('es');
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
+
+  // Detectar cambios en el estado de conexión
+  useEffect(() => {
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
+
   // Si está cargando, mostrar pantalla de carga
   if (loading) {
     return (
@@ -46,13 +66,24 @@ const App: React.FC = () => {
       </div>
     );
   }
-  
+
   // Si no hay usuario, mostrar formulario de login
   if (!user) {
     return <AuthForm />;
   }
-  
-  // Usuario autenticado, mostrar aplicación
+
+  // Usuario autenticado - mostrar interfaz según rol
+  if (userRole === 'doctor') {
+    // Dashboard para médicos con Header
+    return (
+      <>
+        <Header language={language} isOnline={isOnline} />
+        <DoctorDashboard language={language} />
+      </>
+    );
+  }
+
+  // Interfaz para pacientes (default)
   return <MainApp />;
 };
 
@@ -75,10 +106,32 @@ const MainApp: React.FC = () => {
   const [isSavingCheckpoint, setIsSavingCheckpoint] = useState(false);
   const [lastCheckpointTime, setLastCheckpointTime] = useState<number | null>(null);
   const [lastSavedMessageCount, setLastSavedMessageCount] = useState(0);
-  
+
   // Estados para diagnóstico de micrófono
   const [showMicrophoneDiagnostic, setShowMicrophoneDiagnostic] = useState(false);
-  
+
+  // Estados para detector de silencio
+  const [silenceWarningShown, setSilenceWarningShown] = useState(false);
+
+  // Estado para detección de conexión
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
+  const [connectionLostDuringSession, setConnectionLostDuringSession] = useState(false);
+
+  // Estado para sonido de bienvenida (cargar de localStorage)
+  const [welcomeSoundEnabled, setWelcomeSoundEnabled] = useState(() => {
+    const saved = localStorage.getItem('welcomeSoundEnabled');
+    return saved !== null ? JSON.parse(saved) : true; // Por defecto activado
+  });
+
+  // Guardar preferencia de sonido en localStorage cuando cambia
+  useEffect(() => {
+    localStorage.setItem('welcomeSoundEnabled', JSON.stringify(welcomeSoundEnabled));
+  }, [welcomeSoundEnabled]);
+
+  const handleToggleWelcomeSound = () => {
+    setWelcomeSoundEnabled((prev: boolean) => !prev);
+  };
+
   const sessionPromiseRef = useRef<Promise<LiveSession> | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
@@ -129,7 +182,7 @@ const MainApp: React.FC = () => {
   useEffect(() => {
     const saveCheckpoint = async () => {
       if (
-        appState === 'LISTENING' &&
+        (appState === 'LISTENING' || appState === 'ERROR') &&
         user?.id &&
         sessionId &&
         shouldSaveCheckpoint(transcript.length, lastSavedMessageCount)
@@ -141,7 +194,7 @@ const MainApp: React.FC = () => {
           sessionId,
           patientName,
           language,
-          appState,
+          'LISTENING', // Siempre guardar como LISTENING para permitir recuperación
           transcript,
           currentInputTranscription.current,
           currentOutputTranscription.current,
@@ -162,6 +215,122 @@ const MainApp: React.FC = () => {
     saveCheckpoint();
   }, [transcript.length, appState, user?.id, sessionId, patientName, language, sessionStartTime, lastSavedMessageCount]);
 
+  // Detector de silencio prolongado
+  useEffect(() => {
+    if (appState !== 'LISTENING') {
+      setSilenceWarningShown(false);
+      return;
+    }
+
+    const SILENCE_THRESHOLD = 5; // Frecuencia menor a 5
+    const SILENCE_DURATION = 90000; // 90 segundos de silencio (aumentado de 60)
+    const ACTIVITY_CHECK_DURATION = 120000; // 2 minutos para verificar actividad
+
+    let silenceStartTime: number | null = null;
+    const interval = setInterval(() => {
+      // Verificar si hay actividad reciente en la conversación
+      const hasRecentActivity = transcript.length > 0 && transcript.some(msg => {
+        const msgTime = msg.timestamp ? new Date(msg.timestamp).getTime() : 0;
+        return Date.now() - msgTime < ACTIVITY_CHECK_DURATION;
+      });
+
+      // Solo mostrar advertencia si NO hay actividad reciente
+      if (avgFrequency < SILENCE_THRESHOLD && !hasRecentActivity) {
+        if (!silenceStartTime) {
+          silenceStartTime = Date.now();
+        } else if (Date.now() - silenceStartTime > SILENCE_DURATION && !silenceWarningShown) {
+          const warningMsg = language === 'es'
+            ? 'No detectamos audio desde hace 1 minuto. ¿Está funcionando tu micrófono? Puedes ejecutar un diagnóstico.'
+            : 'No audio detected for 1 minute. Is your microphone working? You can run a diagnostic.';
+
+          setError(warningMsg);
+          setSilenceWarningShown(true);
+        }
+      } else {
+        silenceStartTime = null;
+        if (silenceWarningShown) {
+          setError(null);
+          setSilenceWarningShown(false);
+        }
+      }
+    }, 5000); // Verificar cada 5 segundos
+
+    return () => clearInterval(interval);
+  }, [appState, avgFrequency, language, silenceWarningShown, transcript]);
+
+  // Detector de pérdida de conexión
+  useEffect(() => {
+    const handleOnline = () => {
+      console.log('🌐 [DEBUG] Conexión restaurada');
+      setIsOnline(true);
+
+      if (connectionLostDuringSession && appState === 'ERROR') {
+        setError(language === 'es'
+          ? '✅ Conexión restaurada. Tu progreso está guardado. Puedes intentar continuar.'
+          : '✅ Connection restored. Your progress is saved. You can try to continue.');
+        setConnectionLostDuringSession(false);
+      }
+    };
+
+    const handleOffline = () => {
+      console.log('⚠️ [DEBUG] Conexión perdida');
+      setIsOnline(false);
+
+      if (appState === 'LISTENING' || appState === 'CONNECTING') {
+        setConnectionLostDuringSession(true);
+        setError(language === 'es'
+          ? '⚠️ Se perdió la conexión a internet.\n\n📋 No te preocupes:\n• Tu progreso está guardado automáticamente\n• La sesión se pausará hasta que vuelva la conexión\n• Verifica tu conexión e intenta continuar'
+          : '⚠️ Internet connection lost.\n\n📋 Don\'t worry:\n• Your progress is automatically saved\n• The session will pause until connection returns\n• Check your connection and try to continue');
+        setAppState('ERROR');
+      }
+    };
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, [appState, language, connectionLostDuringSession]);
+
+  // Protección contra recarga accidental durante sesión activa
+  useEffect(() => {
+    const handleBeforeUnload = async (e: BeforeUnloadEvent) => {
+      if ((appState === 'LISTENING' || appState === 'PROCESSING') && transcript.length > 0) {
+        // Guardar checkpoint de emergencia
+        if (user?.id && sessionId) {
+          try {
+            await saveSessionCheckpoint(
+              user.id,
+              sessionId,
+              patientName,
+              language,
+              appState,
+              transcript,
+              currentInputTranscription.current,
+              currentOutputTranscription.current,
+              sessionStartTime
+            );
+            console.log('💾 [DEBUG] Checkpoint de emergencia guardado antes de salir');
+          } catch (err) {
+            console.error('❌ [DEBUG] Error guardando checkpoint de emergencia:', err);
+          }
+        }
+
+        // Mostrar confirmación del navegador
+        e.preventDefault();
+        e.returnValue = ''; // Chrome requiere esto
+        return ''; // Algunos navegadores requieren return value
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+    };
+  }, [appState, transcript, user?.id, sessionId, patientName, language, sessionStartTime]);
 
   const handleLanguageChange = (lang: Language) => {
     // Allow language change only when not in an active session.
@@ -194,7 +363,13 @@ const MainApp: React.FC = () => {
       }
     }
     outputSourcesRef.current.clear();
-    
+
+    // 🔧 FIX MEMORY LEAK: Limpiar arrays de audio acumulados
+    // Estos arrays guardan TODOS los fragmentos de audio de la sesión
+    // Sin limpiarlos, consultas largas (>30min) acumulan +200MB y crashean
+    currentInputAudio.current = [];
+    currentOutputAudio.current = [];
+
     // Desconectar nodos de audio
     audioWorkletNodeRef.current?.disconnect();
     mediaStreamSourceRef.current?.disconnect();
@@ -370,14 +545,34 @@ const MainApp: React.FC = () => {
       if (outputAudioContextRef.current.state === 'suspended') {
         await outputAudioContextRef.current.resume();
       }
-      
-      playWelcomeSound(outputAudioContextRef.current);
+
+      playWelcomeSound(outputAudioContextRef.current, welcomeSoundEnabled);
 
       nextAudioStartTime.current = 0;
       outputSourcesRef.current.clear();
 
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       mediaStreamRef.current = stream;
+
+      // Detectar cuando el micrófono se desconecta
+      // Fix: Validar que hay audio tracks antes de acceder al primer elemento
+      const audioTracks = stream.getAudioTracks();
+      const audioTrack = audioTracks.length > 0 ? audioTracks[0] : null;
+      if (audioTrack) {
+        audioTrack.addEventListener('ended', () => {
+          console.log('Micrófono desconectado');
+          if (appStateRef.current === 'LISTENING') {
+            const errorMsg = language === 'es'
+              ? 'El micrófono se desconectó. Por favor reconecta tu micrófono y reinicia la sesión. Tu progreso está guardado.'
+              : 'Microphone disconnected. Please reconnect your microphone and restart the session. Your progress is saved.';
+
+            setError(errorMsg);
+            setAppState('ERROR');
+            cleanupAudio();
+          }
+        });
+      }
+
       audioContextRef.current = new AudioContext({ sampleRate: 16000 });
       if (audioContextRef.current.state === 'suspended') {
         await audioContextRef.current.resume();
@@ -444,13 +639,86 @@ const MainApp: React.FC = () => {
             source.connect(analyser);
             analyser.connect(workletNode);
             workletNode.connect(audioContextRef.current!.destination);
+
+            // Enviar un fragmento de audio silencioso para activar el saludo de Nova
+            // Gemini Live API requiere al menos un mensaje de audio para iniciar la conversación
+            sessionPromiseRef.current?.then((session) => {
+              try {
+                // Crear 0.5 segundos de audio silencioso (16kHz, mono, 16-bit PCM)
+                const sampleRate = 16000;
+                const duration = 0.5; // segundos
+                const numSamples = Math.floor(sampleRate * duration);
+                const silentAudio = new Int16Array(numSamples);
+
+                // Llenar con silencio (valores cercanos a 0 con mínimo ruido para parecer natural)
+                for (let i = 0; i < numSamples; i++) {
+                  silentAudio[i] = Math.floor(Math.random() * 20) - 10; // ruido muy bajo
+                }
+
+                // Convertir a base64 (mismo formato que el audio del micrófono)
+                const bytes = new Uint8Array(silentAudio.buffer);
+                let binary = '';
+                for (let i = 0; i < bytes.length; i++) {
+                  binary += String.fromCharCode(bytes[i]);
+                }
+                const base64Audio = btoa(binary);
+
+                const pcmData = {
+                  data: base64Audio,
+                  mimeType: 'audio/pcm;rate=16000',
+                };
+
+                // Enviar después de un pequeño delay para asegurar que la conexión esté lista
+                setTimeout(() => {
+                  session.sendRealtimeInput({ media: pcmData });
+                  console.log('✅ Audio de activación enviado para despertar a Nova');
+                }, 300);
+              } catch(e) {
+                console.error("❌ Failed to send activation audio:", e);
+              }
+            });
           },
           onmessage: async (message: LiveServerMessage) => {
             if (message.serverContent?.outputTranscription) {
               currentOutputTranscription.current += message.serverContent.outputTranscription.text;
             }
             if (message.serverContent?.inputTranscription) {
-              currentInputTranscription.current += message.serverContent.inputTranscription.text;
+              const transcribedText = message.serverContent.inputTranscription.text;
+
+              // FILTROS SUAVIZADOS - Solo rechazar si TODA la transcripción está en idioma incorrecto
+              // Gemini a veces transcribe mal caracteres individuales, no debemos rechazar por eso
+
+              // Rechazar solo si MAYORÍA son caracteres asiáticos (más del 30% del texto)
+              const asianChars = (transcribedText.match(/[\u0E00-\u0E7F\u4E00-\u9FFF\u3040-\u309F\u30A0-\u30FF\uAC00-\uD7AF\u0C80-\u0CFF]/g) || []).length;
+              const totalChars = transcribedText.replace(/\s/g, '').length;
+              const asianPercentage = totalChars > 0 ? (asianChars / totalChars) * 100 : 0;
+
+              if (asianPercentage > 30) {
+                console.warn('⛔ Mayoría de caracteres asiáticos detectados:', transcribedText, `(${asianPercentage.toFixed(0)}%)`);
+                return;
+              }
+
+              // Detectar español con patrones mejorados
+              const isLikelySpanish = /[áéíóúñÁÉÍÓÚÑ¿¡]/.test(transcribedText) ||
+                                      /\b(el|la|los|las|de|que|y|en|un|una|es|por|con|para|su|no|me|te|se|lo|mi|tu|si|más|del|como|este|esta|hay|son|sí|pero|bueno|hacer|puede|hacer|tener|estar|ser|muy|todo|puede|ahora|aquí|bien)\b/i.test(transcribedText);
+
+              const isLikelyEnglish = /\b(the|is|are|was|were|have|has|had|do|does|did|will|would|can|could|should|may|might|must|of|to|in|for|on|with|at|by|from|as|an|a|this|that|it|he|she|they|we|you|i|yes|no|what|when|where|how|why|who)\b/i.test(transcribedText);
+
+              // Aceptar transcripciones muy cortas (menos de 6 caracteres) ya que suelen ser válidas
+              const isVeryShort = transcribedText.trim().length < 6;
+
+              // Solo agregar si está en el idioma correcto O es muy corto O tiene pocos caracteres extraños
+              const shouldAccept = (
+                (language === 'es' && (isLikelySpanish || isVeryShort)) ||
+                (language === 'en' && (isLikelyEnglish || isVeryShort)) ||
+                (asianPercentage < 10 && totalChars > 0) // Permitir si tiene menos del 10% de caracteres asiáticos
+              );
+
+              if (shouldAccept) {
+                currentInputTranscription.current += transcribedText;
+              } else {
+                console.warn('⏭️ Filtrada transcripción en idioma incorrecto:', transcribedText);
+              }
             }
             if (message.serverContent?.turnComplete) {
               // Usar un flag local para evitar duplicados
@@ -474,22 +742,29 @@ const MainApp: React.FC = () => {
                       timestamp: new Date().toISOString()
                     });
                     
-                    // Subir audio de entrada si existe
+                    // DESHABILITADO: Upload de audio a Supabase Storage
+                    // Causa errores RLS y consume storage innecesariamente
+                    // La transcripción y resumen se guardan en la base de datos
                     if (currentInputAudio.current.length > 0) {
-                      const audioData = concatenateUint8Arrays(currentInputAudio.current);
-                      audioUploadPromises.push(
-                        uploadAudioFragmentWav(audioData, sessionId, messageId, 'You', 16000)
-                          .then(url => {
-                            if (url) {
-                              // Actualizar el mensaje con la URL del audio
-                              setTranscript(t => t.map(m => 
-                                m.id === messageId ? { ...m, audioUrl: url } : m
-                              ));
-                            }
-                          })
-                      );
+                      console.log('🔇 Audio del usuario capturado pero NO subido a storage (ahorro de costos)');
                       currentInputAudio.current = [];
                     }
+
+                    // CÓDIGO ANTERIOR (comentado para referencia):
+                    // if (currentInputAudio.current.length > 0) {
+                    //   const audioData = concatenateUint8Arrays(currentInputAudio.current);
+                    //   audioUploadPromises.push(
+                    //     uploadAudioFragmentWav(audioData, sessionId, messageId, 'You', 16000)
+                    //       .then(url => {
+                    //         if (url) {
+                    //           setTranscript(t => t.map(m =>
+                    //             m.id === messageId ? { ...m, audioUrl: url } : m
+                    //           ));
+                    //         }
+                    //       })
+                    //   );
+                    //   currentInputAudio.current = [];
+                    // }
                   }
                   
                   if (outputText) {
@@ -502,21 +777,28 @@ const MainApp: React.FC = () => {
                       timestamp: new Date().toISOString()
                     });
                     
-                    // Subir audio de salida si existe
+                    // DESHABILITADO: Upload de audio de Nova a Supabase Storage
+                    // Causa errores RLS y consume storage innecesariamente
                     if (currentOutputAudio.current.length > 0) {
-                      const audioData = concatenateUint8Arrays(currentOutputAudio.current);
-                      audioUploadPromises.push(
-                        uploadAudioFragmentWav(audioData, sessionId, messageId, 'Nova', 24000)
-                          .then(url => {
-                            if (url) {
-                              setTranscript(t => t.map(m => 
-                                m.id === messageId ? { ...m, audioUrl: url } : m
-                              ));
-                            }
-                          })
-                      );
+                      console.log('🔇 Audio de Nova capturado pero NO subido a storage (ahorro de costos)');
                       currentOutputAudio.current = [];
                     }
+
+                    // CÓDIGO ANTERIOR (comentado para referencia):
+                    // if (currentOutputAudio.current.length > 0) {
+                    //   const audioData = concatenateUint8Arrays(currentOutputAudio.current);
+                    //   audioUploadPromises.push(
+                    //     uploadAudioFragmentWav(audioData, sessionId, messageId, 'Nova', 24000)
+                    //       .then(url => {
+                    //         if (url) {
+                    //           setTranscript(t => t.map(m =>
+                    //             m.id === messageId ? { ...m, audioUrl: url } : m
+                    //           ));
+                    //         }
+                    //       })
+                    //   );
+                    //   currentOutputAudio.current = [];
+                    // }
                   }
                   
                   return [...prev, ...newMessages];
@@ -533,7 +815,8 @@ const MainApp: React.FC = () => {
               currentOutputTranscription.current = '';
             }
             
-            const audioDataB64 = message.serverContent?.modelTurn?.parts[0]?.inlineData?.data;
+            // Fix: Usar optional chaining también en el acceso al índice del array
+            const audioDataB64 = message.serverContent?.modelTurn?.parts?.[0]?.inlineData?.data;
             if (audioDataB64 && outputAudioContextRef.current) {
               const audioContext = outputAudioContextRef.current;
               nextAudioStartTime.current = Math.max(
@@ -564,21 +847,68 @@ const MainApp: React.FC = () => {
           onerror: (e: ErrorEvent) => {
             console.error('Live session connection error:', e);
             const errorMessage = e.message || String(e);
-            
-            // Detectar errores relacionados con API key
+
+            // Detectar errores específicos y proporcionar pasos de solución
+            let userErrorMessage = '';
+
+            // Error de API key
             if (errorMessage.includes('API') || errorMessage.includes('api') || errorMessage.includes('key') || errorMessage.includes('401') || errorMessage.includes('403')) {
-              setError(`Error de autenticación con Gemini API. Por favor, verifica que VITE_GEMINI_API_KEY esté configurada correctamente en tu archivo .env`);
+              userErrorMessage = language === 'es'
+                ? `❌ Error de autenticación con Gemini API\n\n📋 Pasos para arreglar:\n1. Verifica que VITE_GEMINI_API_KEY esté en tu archivo .env\n2. Asegúrate de que la API key es válida en Google AI Studio\n3. Reinicia el servidor de desarrollo (pnpm dev)\n4. Recarga esta página\n\n💡 Guía: docs/API.md`
+                : `❌ Gemini API authentication error\n\n📋 Steps to fix:\n1. Verify VITE_GEMINI_API_KEY is in your .env file\n2. Ensure the API key is valid in Google AI Studio\n3. Restart the development server (pnpm dev)\n4. Reload this page\n\n💡 Guide: docs/API.md`;
               setApiKeyError(UI_TEXTS[language].errorApiKey);
-            } else {
-              setError(UI_TEXTS[language].errorConnection);
             }
+            // Error de rate limit
+            else if (errorMessage.includes('429') || errorMessage.includes('quota') || errorMessage.includes('limit')) {
+              userErrorMessage = language === 'es'
+                ? `⏰ Límite de uso de API alcanzado\n\n📋 Pasos:\n1. Espera unos minutos antes de reintentar\n2. Verifica tu cuota en Google AI Studio\n3. Considera actualizar tu plan de API\n\n💡 Las sesiones guardadas se pueden recuperar después`
+                : `⏰ API usage limit reached\n\n📋 Steps:\n1. Wait a few minutes before retrying\n2. Check your quota in Google AI Studio\n3. Consider upgrading your API plan\n\n💡 Saved sessions can be recovered later`;
+            }
+            // Error de red
+            else if (errorMessage.includes('network') || errorMessage.includes('timeout') || errorMessage.includes('fetch')) {
+              userErrorMessage = language === 'es'
+                ? `🌐 Error de conexión de red\n\n📋 Pasos:\n1. Verifica tu conexión a internet\n2. Intenta recargar la página\n3. Revisa si Google AI está accesible\n4. Usa el botón "Reintentar Conexión" abajo\n\n💡 Tu progreso está guardado automáticamente`
+                : `🌐 Network connection error\n\n📋 Steps:\n1. Check your internet connection\n2. Try reloading the page\n3. Check if Google AI is accessible\n4. Use the "Retry Connection" button below\n\n💡 Your progress is automatically saved`;
+            }
+            // Error genérico
+            else {
+              userErrorMessage = language === 'es'
+                ? `❌ ${UI_TEXTS[language].errorConnection}\n\n📋 Pasos:\n1. Usa el botón "Reintentar Conexión" abajo\n2. Si persiste, recarga la página\n3. Verifica tu conexión a internet\n4. Revisa la consola del navegador para más detalles\n\nError técnico: ${errorMessage.substring(0, 100)}`
+                : `❌ ${UI_TEXTS[language].errorConnection}\n\n📋 Steps:\n1. Use the "Retry Connection" button below\n2. If it persists, reload the page\n3. Check your internet connection\n4. Check browser console for more details\n\nTechnical error: ${errorMessage.substring(0, 100)}`;
+            }
+
+            setError(userErrorMessage);
             setAppState('ERROR');
             cleanupAudio();
           },
           onclose: (e: CloseEvent) => {
-            console.log('Session closed by server.');
-            // This was causing a recursive call to handleEndSession.
-            // The user-initiated end session flow is sufficient.
+            console.log('Session closed by server:', e.code, e.reason);
+
+            // Solo notificar si estamos en estado LISTENING (conexión inesperada cerrada)
+            if (appStateRef.current === 'LISTENING') {
+              const errorMsg = language === 'es'
+                ? 'La conexión se cerró inesperadamente. Tu progreso está guardado. Puedes recargar la página para continuar.'
+                : 'Connection closed unexpectedly. Your progress is saved. You can reload the page to continue.';
+
+              setError(errorMsg);
+              setAppState('ERROR');
+              cleanupAudio();
+
+              // Guardar checkpoint de emergencia
+              if (user?.id && sessionId) {
+                saveSessionCheckpoint(
+                  user.id,
+                  sessionId,
+                  patientName,
+                  language,
+                  'LISTENING', // Mantener como LISTENING para recuperación
+                  transcript,
+                  currentInputTranscription.current,
+                  currentOutputTranscription.current,
+                  sessionStartTime
+                ).catch(err => console.error('Error guardando checkpoint de emergencia:', err));
+              }
+            }
           },
         }
       });
@@ -586,15 +916,40 @@ const MainApp: React.FC = () => {
     } catch (err) {
       console.error('Failed to start session:', err);
       let userMessage = UI_TEXTS[language].errorMicGeneric;
+
       if (err instanceof Error) {
+        // Error de contexto seguro (HTTPS requerido)
         if (err.message === 'SECURE_CONTEXT_REQUIRED') {
-            userMessage = UI_TEXTS[language].errorHttpsRequired;
-        } else if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
-          userMessage = UI_TEXTS[language].errorMicPermission;
-        } else if (err.name === 'NotFoundError') {
-          userMessage = UI_TEXTS[language].errorMicNotFound;
+          userMessage = language === 'es'
+            ? `🔒 Se requiere conexión segura (HTTPS)\n\n📋 Pasos para arreglar:\n1. En desarrollo: Usa https://localhost en lugar de http://\n2. O habilita vite con SSL: pnpm dev --https\n3. En producción: Despliega con HTTPS habilitado\n\n💡 ${UI_TEXTS[language].errorHttpsRequired}`
+            : `🔒 Secure connection required (HTTPS)\n\n📋 Steps to fix:\n1. In development: Use https://localhost instead of http://\n2. Or enable vite with SSL: pnpm dev --https\n3. In production: Deploy with HTTPS enabled\n\n💡 ${UI_TEXTS[language].errorHttpsRequired}`;
+        }
+        // Error de permisos de micrófono
+        else if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+          userMessage = language === 'es'
+            ? `🎤 Permiso de micrófono denegado\n\n📋 Pasos para arreglar:\n1. Haz clic en el ícono de candado/información en la barra de direcciones\n2. Busca "Permisos" o "Micrófono"\n3. Cambia a "Permitir"\n4. Recarga la página y vuelve a intentar\n\n💡 También puedes ejecutar un diagnóstico con el botón abajo`
+            : `🎤 Microphone permission denied\n\n📋 Steps to fix:\n1. Click the lock/info icon in the address bar\n2. Look for "Permissions" or "Microphone"\n3. Change to "Allow"\n4. Reload the page and try again\n\n💡 You can also run a diagnostic with the button below`;
+        }
+        // Error de micrófono no encontrado
+        else if (err.name === 'NotFoundError') {
+          userMessage = language === 'es'
+            ? `🔌 Micrófono no encontrado\n\n📋 Pasos para arreglar:\n1. Conecta un micrófono o auriculares con micrófono\n2. Verifica que esté enchufado correctamente\n3. En Windows: Revisa "Configuración > Sistema > Sonido"\n4. En Mac: Revisa "Preferencias > Sonido > Entrada"\n5. Recarga la página después de conectar\n\n💡 Ejecuta un diagnóstico con el botón abajo para más detalles`
+            : `🔌 Microphone not found\n\n📋 Steps to fix:\n1. Connect a microphone or headphones with microphone\n2. Verify it's plugged in correctly\n3. On Windows: Check "Settings > System > Sound"\n4. On Mac: Check "Preferences > Sound > Input"\n5. Reload the page after connecting\n\n💡 Run a diagnostic with the button below for more details`;
+        }
+        // Error de micrófono en uso
+        else if (err.name === 'NotReadableError' || err.message.includes('in use')) {
+          userMessage = language === 'es'
+            ? `⚠️ Micrófono en uso por otra aplicación\n\n📋 Pasos para arreglar:\n1. Cierra otras aplicaciones que usen el micrófono (Zoom, Teams, etc.)\n2. Cierra otras pestañas del navegador que puedan usar el micrófono\n3. Reinicia el navegador si es necesario\n4. Vuelve a intentar\n\n💡 Solo una aplicación puede usar el micrófono a la vez`
+            : `⚠️ Microphone in use by another application\n\n📋 Steps to fix:\n1. Close other applications using the microphone (Zoom, Teams, etc.)\n2. Close other browser tabs that might be using the microphone\n3. Restart the browser if necessary\n4. Try again\n\n💡 Only one application can use the microphone at a time`;
+        }
+        // Error genérico con detalles
+        else {
+          userMessage = language === 'es'
+            ? `❌ ${UI_TEXTS[language].errorMicGeneric}\n\n📋 Pasos para solucionar:\n1. Verifica que tu micrófono esté conectado y funcionando\n2. Da permisos de micrófono a este sitio\n3. Ejecuta el diagnóstico con el botón abajo\n4. Revisa la consola del navegador para más detalles\n\nError técnico: ${err.message.substring(0, 80)}`
+            : `❌ ${UI_TEXTS[language].errorMicGeneric}\n\n📋 Steps to solve:\n1. Verify your microphone is connected and working\n2. Grant microphone permissions to this site\n3. Run the diagnostic with the button below\n4. Check browser console for more details\n\nTechnical error: ${err.message.substring(0, 80)}`;
         }
       }
+
       setError(userMessage);
       setAppState('ERROR');
       cleanupAudio();
@@ -613,6 +968,18 @@ const MainApp: React.FC = () => {
     setSummary('');
     setError(null);
     setPatientName('');
+  }, [cleanupAudio]);
+
+  const handleRetryConnection = useCallback(() => {
+    // Limpiar error y volver a estado IDLE manteniendo el progreso
+    cleanupAudio();
+    if (sessionPromiseRef.current) {
+        sessionPromiseRef.current.then(session => session.close()).catch(console.error);
+        sessionPromiseRef.current = null;
+    }
+    setError(null);
+    setAppState('IDLE');
+    // NO limpiar transcript, patientName, ni sessionId para mantener progreso
   }, [cleanupAudio]);
   
   useEffect(() => {
@@ -637,24 +1004,33 @@ const MainApp: React.FC = () => {
 // FIX: Added the missing return statement to render the component's UI.
   return (
     <div className="bg-slate-50 min-h-screen text-slate-800 font-sans">
-      <Header language={language} />
+      <Header
+        language={language}
+        welcomeSoundEnabled={welcomeSoundEnabled}
+        onToggleWelcomeSound={handleToggleWelcomeSound}
+        isOnline={isOnline}
+      />
       
       {/* Modal de recuperación de sesión */}
       {showRecoveryModal && recoverableSessions.length > 0 && (
-        <SessionRecoveryModal
-          sessions={recoverableSessions}
-          onRecover={handleRecoverSession}
-          onDismiss={handleDismissRecovery}
-          language={language}
-        />
+        <Suspense fallback={<div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white"></div></div>}>
+          <SessionRecoveryModal
+            sessions={recoverableSessions}
+            onRecover={handleRecoverSession}
+            onDismiss={handleDismissRecovery}
+            language={language}
+          />
+        </Suspense>
       )}
-      
+
       {/* Diagnóstico de micrófono */}
       {showMicrophoneDiagnostic && (
-        <MicrophoneDiagnostic
-          language={language}
-          onClose={handleCloseMicrophoneDiagnostic}
-        />
+        <Suspense fallback={<div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white"></div></div>}>
+          <MicrophoneDiagnostic
+            language={language}
+            onClose={handleCloseMicrophoneDiagnostic}
+          />
+        </Suspense>
       )}
       
       <main className="container mx-auto px-4 sm:px-6 pt-28 pb-12">
@@ -668,7 +1044,7 @@ const MainApp: React.FC = () => {
             {/* Indicador de progreso - Solo visible durante sesión activa */}
             {appState === 'LISTENING' && (
               <ProgressIndicator
-                messageCount={transcript.length}
+                messageCount={transcript.filter(m => m.sender === 'Nova').length}
                 sessionStartTime={sessionStartTime}
                 lastCheckpointTime={lastCheckpointTime}
                 isSaving={isSavingCheckpoint}
@@ -676,39 +1052,46 @@ const MainApp: React.FC = () => {
               />
             )}
             
-            <div className="grid grid-cols-1 lg:grid-cols-2 lg:grid-rows-2 gap-6">
-              <div className="lg:row-span-2">
-                <ControlPanel
-                  appState={appState}
-                  language={language}
-                  onLanguageChange={handleLanguageChange}
-                  onStartSession={handleStartSession}
-                  onEndSession={handleEndSession}
-                  audioFrequency={avgFrequency}
-                  error={error}
-                  patientName={patientName}
-                  onPatientNameChange={setPatientName}
-                  onOpenDiagnostic={handleOpenMicrophoneDiagnostic}
-                />
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 lg:grid-rows-2 gap-4 md:gap-6">
+              <div className="md:col-span-1 lg:row-span-2 animate-fade-in-scale">
+                <ErrorBoundary>
+                  <ControlPanel
+                    appState={appState}
+                    language={language}
+                    onLanguageChange={handleLanguageChange}
+                    onStartSession={handleStartSession}
+                    onEndSession={handleEndSession}
+                    audioFrequency={avgFrequency}
+                    error={error}
+                    patientName={patientName}
+                    onPatientNameChange={setPatientName}
+                    onOpenDiagnostic={handleOpenMicrophoneDiagnostic}
+                    onRetry={handleRetryConnection}
+                  />
+                </ErrorBoundary>
               </div>
-              <div className="lg:row-span-1">
-                <TranscriptionPanel
-                  transcript={transcript}
-                  appState={appState}
-                  language={language}
-                />
+              <div className="md:col-span-1 lg:row-span-1 animate-fade-in-up animate-delay-100">
+                <ErrorBoundary>
+                  <TranscriptionPanel
+                    transcript={transcript}
+                    appState={appState}
+                    language={language}
+                  />
+                </ErrorBoundary>
               </div>
-              <div className="lg:row-span-1">
-                <SummaryPanel
-                  summary={summary}
-                  appState={appState}
-                  language={language}
-                  patientName={patientName}
-                  onNewSession={handleNewSession}
-                  transcript={transcript}
-                  sessionId={sessionId}
-                  sessionDuration={sessionStartTime > 0 ? Math.floor((Date.now() - sessionStartTime) / 1000) : 0}
-                />
+              <div className="md:col-span-1 lg:row-span-1 animate-fade-in-up animate-delay-200">
+                <ErrorBoundary>
+                  <SummaryPanel
+                    summary={summary}
+                    appState={appState}
+                    language={language}
+                    patientName={patientName}
+                    onNewSession={handleNewSession}
+                    transcript={transcript}
+                    sessionId={sessionId}
+                    sessionDuration={sessionStartTime > 0 ? Math.floor((Date.now() - sessionStartTime) / 1000) : 0}
+                  />
+                </ErrorBoundary>
               </div>
             </div>
           </div>

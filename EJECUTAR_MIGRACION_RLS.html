@@ -1,0 +1,516 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🔧 Ejecutar Migración RLS - Cabo Health Nova</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            max-width: 900px;
+            width: 100%;
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 28px;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+        }
+
+        .header p {
+            opacity: 0.9;
+            font-size: 14px;
+        }
+
+        .content {
+            padding: 30px;
+        }
+
+        .error-box {
+            background: #fee;
+            border-left: 4px solid #f44;
+            padding: 20px;
+            margin-bottom: 20px;
+            border-radius: 8px;
+        }
+
+        .error-box h3 {
+            color: #c00;
+            margin-bottom: 10px;
+            font-size: 16px;
+        }
+
+        .error-box code {
+            display: block;
+            background: white;
+            padding: 10px;
+            border-radius: 4px;
+            font-size: 12px;
+            margin-top: 10px;
+            overflow-x: auto;
+            color: #c00;
+        }
+
+        .step {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 15px;
+            border-left: 4px solid #667eea;
+        }
+
+        .step h3 {
+            color: #333;
+            margin-bottom: 15px;
+            font-size: 18px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .step-number {
+            background: #667eea;
+            color: white;
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 14px;
+        }
+
+        .sql-preview {
+            background: #1e1e1e;
+            color: #d4d4d4;
+            padding: 20px;
+            border-radius: 8px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            max-height: 300px;
+            overflow-y: auto;
+            margin: 15px 0;
+            line-height: 1.6;
+        }
+
+        .sql-preview .comment {
+            color: #6a9955;
+        }
+
+        .sql-preview .keyword {
+            color: #569cd6;
+        }
+
+        .sql-preview .string {
+            color: #ce9178;
+        }
+
+        .btn {
+            display: inline-block;
+            padding: 12px 30px;
+            border-radius: 8px;
+            text-decoration: none;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            cursor: pointer;
+            border: none;
+            font-size: 16px;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
+        }
+
+        .btn-success {
+            background: #10b981;
+            color: white;
+            width: 100%;
+            margin-top: 10px;
+        }
+
+        .btn-success:hover {
+            background: #059669;
+        }
+
+        .verification {
+            background: #e0f2fe;
+            border-left: 4px solid #0ea5e9;
+            padding: 20px;
+            border-radius: 8px;
+            margin-top: 20px;
+        }
+
+        .verification h3 {
+            color: #0369a1;
+            margin-bottom: 15px;
+            font-size: 16px;
+        }
+
+        .verification ul {
+            list-style: none;
+            padding-left: 0;
+        }
+
+        .verification li {
+            padding: 8px 0;
+            padding-left: 25px;
+            position: relative;
+        }
+
+        .verification li:before {
+            content: "✓";
+            position: absolute;
+            left: 0;
+            color: #10b981;
+            font-weight: bold;
+        }
+
+        .copy-btn {
+            background: #10b981;
+            color: white;
+            border: none;
+            padding: 8px 15px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            margin-top: 10px;
+        }
+
+        .copy-btn:hover {
+            background: #059669;
+        }
+
+        .alert {
+            background: #fef3c7;
+            border-left: 4px solid #f59e0b;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+
+        .alert strong {
+            color: #b45309;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>
+                <span>🔧</span>
+                <span>Arreglar Errores RLS</span>
+            </h1>
+            <p>Migración de Políticas de Seguridad - Cabo Health Nova</p>
+        </div>
+
+        <div class="content">
+            <!-- Errores que resuelve -->
+            <div class="error-box">
+                <h3>❌ Errores Críticos Detectados</h3>
+                <p><strong>Error 1:</strong> Audio Storage - RLS Policy Violation</p>
+                <code>Error al subir audio WAV: StorageApiError: new row violates row-level security policy</code>
+
+                <p style="margin-top: 15px;"><strong>Error 2:</strong> Session Checkpoints - 406 Not Acceptable</p>
+                <code>GET .../session_checkpoints?... 406 (Not Acceptable)</code>
+            </div>
+
+            <div class="alert">
+                <strong>⚠️ Nota Importante:</strong> Esta migración es SEGURA y NO afecta datos existentes. Solo añade políticas de seguridad necesarias.
+            </div>
+
+            <!-- Paso 1 -->
+            <div class="step">
+                <h3>
+                    <span class="step-number">1</span>
+                    Abrir Supabase SQL Editor
+                </h3>
+                <p>Haz clic en el botón para abrir el SQL Editor de tu proyecto:</p>
+                <a href="https://supabase.com/dashboard/project/cozsoshuctvhvdbmkmwc/sql/new"
+                   target="_blank"
+                   class="btn btn-primary"
+                   style="margin-top: 15px;">
+                    🚀 Abrir SQL Editor
+                </a>
+            </div>
+
+            <!-- Paso 2 -->
+            <div class="step">
+                <h3>
+                    <span class="step-number">2</span>
+                    Copiar el SQL
+                </h3>
+                <p>Haz clic en "Copiar SQL" para copiar la migración completa:</p>
+                <button class="copy-btn" onclick="copySQLToClipboard()">📋 Copiar SQL</button>
+
+                <div class="sql-preview" id="sqlPreview">
+<span class="comment">-- =====================================================</span>
+<span class="comment">-- FIX RLS POLICIES FOR AUDIO STORAGE AND CHECKPOINTS</span>
+<span class="comment">-- =====================================================</span>
+
+<span class="comment">-- PARTE 1: ARREGLAR STORAGE BUCKET (consultation-audio)</span>
+
+<span class="keyword">INSERT INTO</span> storage.buckets (id, name, public)
+<span class="keyword">VALUES</span> (<span class="string">'consultation-audio'</span>, <span class="string">'consultation-audio'</span>, <span class="keyword">false</span>)
+<span class="keyword">ON CONFLICT</span> (id) <span class="keyword">DO UPDATE SET</span> public = <span class="keyword">false</span>;
+
+<span class="keyword">DROP POLICY IF EXISTS</span> <span class="string">"Authenticated users can upload audio"</span> <span class="keyword">ON</span> storage.objects;
+<span class="keyword">DROP POLICY IF EXISTS</span> <span class="string">"Authenticated users can read audio"</span> <span class="keyword">ON</span> storage.objects;
+<span class="keyword">DROP POLICY IF EXISTS</span> <span class="string">"Authenticated users can update audio"</span> <span class="keyword">ON</span> storage.objects;
+<span class="keyword">DROP POLICY IF EXISTS</span> <span class="string">"Authenticated users can delete audio"</span> <span class="keyword">ON</span> storage.objects;
+
+<span class="keyword">CREATE POLICY</span> <span class="string">"Authenticated users can upload audio"</span>
+<span class="keyword">ON</span> storage.objects
+<span class="keyword">FOR INSERT</span>
+<span class="keyword">TO</span> authenticated
+<span class="keyword">WITH CHECK</span> (
+  bucket_id = <span class="string">'consultation-audio'</span>
+);
+
+<span class="keyword">CREATE POLICY</span> <span class="string">"Authenticated users can read audio"</span>
+<span class="keyword">ON</span> storage.objects
+<span class="keyword">FOR SELECT</span>
+<span class="keyword">TO</span> authenticated
+<span class="keyword">USING</span> (
+  bucket_id = <span class="string">'consultation-audio'</span>
+);
+
+<span class="keyword">CREATE POLICY</span> <span class="string">"Authenticated users can update audio"</span>
+<span class="keyword">ON</span> storage.objects
+<span class="keyword">FOR UPDATE</span>
+<span class="keyword">TO</span> authenticated
+<span class="keyword">USING</span> (bucket_id = <span class="string">'consultation-audio'</span>)
+<span class="keyword">WITH CHECK</span> (bucket_id = <span class="string">'consultation-audio'</span>);
+
+<span class="keyword">CREATE POLICY</span> <span class="string">"Authenticated users can delete audio"</span>
+<span class="keyword">ON</span> storage.objects
+<span class="keyword">FOR DELETE</span>
+<span class="keyword">TO</span> authenticated
+<span class="keyword">USING</span> (bucket_id = <span class="string">'consultation-audio'</span>);
+
+<span class="comment">-- PARTE 2: ARREGLAR SESSION_CHECKPOINTS TABLE</span>
+
+<span class="keyword">ALTER TABLE</span> session_checkpoints <span class="keyword">ENABLE ROW LEVEL SECURITY</span>;
+
+<span class="keyword">DROP POLICY IF EXISTS</span> <span class="string">"Users can select own checkpoints"</span> <span class="keyword">ON</span> session_checkpoints;
+<span class="keyword">DROP POLICY IF EXISTS</span> <span class="string">"Users can insert own checkpoints"</span> <span class="keyword">ON</span> session_checkpoints;
+<span class="keyword">DROP POLICY IF EXISTS</span> <span class="string">"Users can update own checkpoints"</span> <span class="keyword">ON</span> session_checkpoints;
+<span class="keyword">DROP POLICY IF EXISTS</span> <span class="string">"Users can delete own checkpoints"</span> <span class="keyword">ON</span> session_checkpoints;
+
+<span class="keyword">CREATE POLICY</span> <span class="string">"Users can select own checkpoints"</span>
+<span class="keyword">ON</span> session_checkpoints
+<span class="keyword">FOR SELECT</span>
+<span class="keyword">TO</span> authenticated
+<span class="keyword">USING</span> (auth.uid() = user_id);
+
+<span class="keyword">CREATE POLICY</span> <span class="string">"Users can insert own checkpoints"</span>
+<span class="keyword">ON</span> session_checkpoints
+<span class="keyword">FOR INSERT</span>
+<span class="keyword">TO</span> authenticated
+<span class="keyword">WITH CHECK</span> (auth.uid() = user_id);
+
+<span class="keyword">CREATE POLICY</span> <span class="string">"Users can update own checkpoints"</span>
+<span class="keyword">ON</span> session_checkpoints
+<span class="keyword">FOR UPDATE</span>
+<span class="keyword">TO</span> authenticated
+<span class="keyword">USING</span> (auth.uid() = user_id)
+<span class="keyword">WITH CHECK</span> (auth.uid() = user_id);
+
+<span class="keyword">CREATE POLICY</span> <span class="string">"Users can delete own checkpoints"</span>
+<span class="keyword">ON</span> session_checkpoints
+<span class="keyword">FOR DELETE</span>
+<span class="keyword">TO</span> authenticated
+<span class="keyword">USING</span> (auth.uid() = user_id);
+                </div>
+            </div>
+
+            <!-- Paso 3 -->
+            <div class="step">
+                <h3>
+                    <span class="step-number">3</span>
+                    Ejecutar en Supabase
+                </h3>
+                <ol style="padding-left: 20px; line-height: 1.8;">
+                    <li>Pega el SQL en el editor</li>
+                    <li>Haz clic en <strong>"Run"</strong> o presiona <code>Ctrl + Enter</code></li>
+                    <li>Espera a ver el mensaje: <code style="color: #10b981;">Success. No rows returned</code></li>
+                </ol>
+            </div>
+
+            <!-- Verificación -->
+            <div class="verification">
+                <h3>✅ Verificar que Funcionó</h3>
+                <ul>
+                    <li>Inicia una nueva consulta en la app</li>
+                    <li>Habla con Nova normalmente</li>
+                    <li>Abre la consola del navegador (F12)</li>
+                    <li><strong>NO DEBE aparecer:</strong> "Error al subir audio WAV"</li>
+                    <li><strong>NO DEBE aparecer:</strong> Error 406 en session_checkpoints</li>
+                    <li>Recargar la página debe mostrar modal de "Recuperar Sesión"</li>
+                </ul>
+            </div>
+
+            <!-- Botón final -->
+            <a href="https://supabase.com/dashboard/project/cozsoshuctvhvdbmkmwc/sql/new"
+               target="_blank"
+               class="btn btn-success">
+                🚀 Ir a Ejecutar Migración Ahora
+            </a>
+        </div>
+    </div>
+
+    <textarea id="sqlCode" style="position: absolute; left: -9999px;">-- =====================================================
+-- FIX RLS POLICIES FOR AUDIO STORAGE AND CHECKPOINTS
+-- =====================================================
+
+-- PARTE 1: ARREGLAR STORAGE BUCKET (consultation-audio)
+
+INSERT INTO storage.buckets (id, name, public)
+VALUES ('consultation-audio', 'consultation-audio', false)
+ON CONFLICT (id) DO UPDATE SET public = false;
+
+DROP POLICY IF EXISTS "Authenticated users can upload audio" ON storage.objects;
+DROP POLICY IF EXISTS "Authenticated users can read audio" ON storage.objects;
+DROP POLICY IF EXISTS "Authenticated users can update audio" ON storage.objects;
+DROP POLICY IF EXISTS "Authenticated users can delete audio" ON storage.objects;
+
+CREATE POLICY "Authenticated users can upload audio"
+ON storage.objects
+FOR INSERT
+TO authenticated
+WITH CHECK (
+  bucket_id = 'consultation-audio'
+);
+
+CREATE POLICY "Authenticated users can read audio"
+ON storage.objects
+FOR SELECT
+TO authenticated
+USING (
+  bucket_id = 'consultation-audio'
+);
+
+CREATE POLICY "Authenticated users can update audio"
+ON storage.objects
+FOR UPDATE
+TO authenticated
+USING (
+  bucket_id = 'consultation-audio'
+)
+WITH CHECK (
+  bucket_id = 'consultation-audio'
+);
+
+CREATE POLICY "Authenticated users can delete audio"
+ON storage.objects
+FOR DELETE
+TO authenticated
+USING (
+  bucket_id = 'consultation-audio'
+);
+
+-- PARTE 2: ARREGLAR SESSION_CHECKPOINTS TABLE
+
+ALTER TABLE session_checkpoints ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Users can select own checkpoints" ON session_checkpoints;
+DROP POLICY IF EXISTS "Users can insert own checkpoints" ON session_checkpoints;
+DROP POLICY IF EXISTS "Users can update own checkpoints" ON session_checkpoints;
+DROP POLICY IF EXISTS "Users can delete own checkpoints" ON session_checkpoints;
+
+CREATE POLICY "Users can select own checkpoints"
+ON session_checkpoints
+FOR SELECT
+TO authenticated
+USING (
+  auth.uid() = user_id
+);
+
+CREATE POLICY "Users can insert own checkpoints"
+ON session_checkpoints
+FOR INSERT
+TO authenticated
+WITH CHECK (
+  auth.uid() = user_id
+);
+
+CREATE POLICY "Users can update own checkpoints"
+ON session_checkpoints
+FOR UPDATE
+TO authenticated
+USING (
+  auth.uid() = user_id
+)
+WITH CHECK (
+  auth.uid() = user_id
+);
+
+CREATE POLICY "Users can delete own checkpoints"
+ON session_checkpoints
+FOR DELETE
+TO authenticated
+USING (
+  auth.uid() = user_id
+);
+</textarea>
+
+    <script>
+        function copySQLToClipboard() {
+            const sqlCode = document.getElementById('sqlCode');
+            sqlCode.select();
+            sqlCode.setSelectionRange(0, 99999); // For mobile devices
+
+            try {
+                document.execCommand('copy');
+
+                const btn = event.target;
+                const originalText = btn.textContent;
+                btn.textContent = '✓ Copiado!';
+                btn.style.background = '#10b981';
+
+                setTimeout(() => {
+                    btn.textContent = originalText;
+                    btn.style.background = '';
+                }, 2000);
+            } catch (err) {
+                alert('Error al copiar. Por favor copia manualmente el SQL.');
+            }
+        }
+    </script>
+</body>
+</html>

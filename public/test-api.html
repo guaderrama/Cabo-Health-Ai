@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test API Key - Cabo Health Nova</title>
+    <style>
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .result {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 10px 0;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .success { border-left: 4px solid #10b981; }
+        .error { border-left: 4px solid #ef4444; }
+        .warning { border-left: 4px solid #f59e0b; }
+        pre {
+            background: #1e293b;
+            color: #e2e8f0;
+            padding: 15px;
+            border-radius: 4px;
+            overflow-x: auto;
+        }
+        code {
+            font-family: 'Courier New', monospace;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔍 Diagnóstico de API Key</h1>
+    <p>Esta página NO usa import.meta.env porque no es un módulo de Vite.</p>
+    <p>Para probar las variables de entorno de Vite, necesitas abrir la aplicación principal.</p>
+
+    <div class="result warning">
+        <h2>⚠️ Instrucciones</h2>
+        <ol>
+            <li>Abre la aplicación principal en: <a href="http://localhost:3001" target="_blank">http://localhost:3001</a></li>
+            <li>Abre las DevTools del navegador (F12)</li>
+            <li>En la consola, escribe: <code>import.meta.env.VITE_GEMINI_API_KEY</code></li>
+            <li>Verifica que el valor sea: <code>AIzaSyBsoNLTcxY-r33SFT4CXePqdEGjDVkwYN4</code></li>
+        </ol>
+    </div>
+
+    <div class="result">
+        <h2>📋 Variables Configuradas en .env</h2>
+        <pre>VITE_GEMINI_API_KEY=AIzaSyBsoNLTcxY-r33SFT4CXePqdEGjDVkwYN4
+VITE_SUPABASE_URL=https://cozsoshuctvhvdbmkmwc.supabase.co
+VITE_SUPABASE_ANON_KEY=eyJh...</pre>
+    </div>
+
+    <div class="result success">
+        <h2>✅ Validación del API Key</h2>
+        <p>El API key de Gemini <strong>ES VÁLIDO</strong> y funcionó correctamente al probarlo directamente con la API de Google.</p>
+        <p>Modelos disponibles: Gemini 2.5 Pro, Gemini 2.5 Flash, Gemini 2.0 Flash, etc.</p>
+    </div>
+
+    <div class="result">
+        <h2>🔧 Si ves error "Invalid API key"</h2>
+        <p><strong>Posibles causas:</strong></p>
+        <ul>
+            <li><strong>Vite no está cargando el .env:</strong> Reinicia el servidor de desarrollo completamente</li>
+            <li><strong>Caché del navegador:</strong> Presiona Ctrl+Shift+R para forzar recarga</li>
+            <li><strong>Variables mal configuradas:</strong> Verifica que tengan el prefijo VITE_</li>
+            <li><strong>Error en Vercel:</strong> Configura las variables en Vercel Dashboard</li>
+        </ul>
+    </div>
+
+    <script>
+        // Solo para mostrar que el HTML está funcionando
+        console.log('✅ Página de diagnóstico cargada correctamente');
+        console.log('📍 Para ver las variables de Vite, ve a: http://localhost:3001');
+    </script>
+</body>
+</html>

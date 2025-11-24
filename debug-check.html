@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Debug Check - Cabo Health Nova</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        .container {
+            background: white;
+            padding: 40px;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            max-width: 600px;
+            width: 100%;
+        }
+        h1 { color: #1e293b; margin-bottom: 10px; font-size: 28px; }
+        .subtitle { color: #64748b; margin-bottom: 30px; font-size: 14px; }
+        .check-item {
+            background: #f8fafc;
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 15px;
+            border-left: 4px solid #94a3b8;
+        }
+        .check-item.success { border-left-color: #10b981; background: #f0fdf4; }
+        .check-item.error { border-left-color: #ef4444; background: #fef2f2; }
+        .check-item.warning { border-left-color: #f59e0b; background: #fffbeb; }
+        .check-item h3 {
+            font-size: 16px;
+            margin-bottom: 8px;
+            color: #1e293b;
+        }
+        .check-item p {
+            font-size: 14px;
+            color: #475569;
+            line-height: 1.6;
+        }
+        .btn {
+            display: inline-block;
+            background: #3b82f6;
+            color: white;
+            padding: 12px 24px;
+            border-radius: 8px;
+            text-decoration: none;
+            font-weight: 600;
+            margin-top: 20px;
+            transition: all 0.3s;
+        }
+        .btn:hover { background: #2563eb; transform: translateY(-2px); }
+        .code {
+            background: #1e293b;
+            color: #e2e8f0;
+            padding: 10px;
+            border-radius: 6px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            margin-top: 10px;
+            overflow-x: auto;
+        }
+        .status {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 600;
+            margin-left: 10px;
+        }
+        .status.ok { background: #dcfce7; color: #166534; }
+        .status.fail { background: #fee2e2; color: #991b1b; }
+        .status.warn { background: #fef3c7; color: #92400e; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 Diagnóstico Completo</h1>
+        <p class="subtitle">Verificación de configuración del proyecto Cabo Health Nova</p>
+
+        <div class="check-item success">
+            <h3>✅ Servidor Vite <span class="status ok">CORRIENDO</span></h3>
+            <p>El servidor de desarrollo está activo en el puerto 3001</p>
+            <div class="code">http://localhost:3001</div>
+        </div>
+
+        <div class="check-item success">
+            <h3>✅ API Key de Gemini <span class="status ok">VÁLIDO</span></h3>
+            <p>El API key fue validado exitosamente con Google Gemini API</p>
+            <div class="code">AIzaSyBsoNLTcxY-r33SFT4CXePqdEGjDVkwYN4</div>
+            <p style="margin-top: 10px; font-size: 12px;">
+                Modelos disponibles: Gemini 2.5 Pro, 2.5 Flash, 2.0 Flash
+            </p>
+        </div>
+
+        <div class="check-item success">
+            <h3>✅ Proyecto Supabase <span class="status ok">CORRECTO</span></h3>
+            <p>Proyecto: cozsoshuctvhvdbmkmwc (confirmado por usuario)</p>
+            <p style="margin-top: 5px;">Estado: Reanudado (estaba pausado)</p>
+            <div class="code">https://supabase.com/dashboard/project/cozsoshuctvhvdbmkmwc</div>
+        </div>
+
+        <div class="check-item success">
+            <h3>✅ Archivos .env <span class="status ok">CONFIGURADOS</span></h3>
+            <p>Variables de entorno correctamente definidas con prefijo VITE_</p>
+            <div class="code">
+VITE_GEMINI_API_KEY=AIzaSyB...
+VITE_SUPABASE_URL=https://cozsoshuctvhvdbmkmwc...
+VITE_SUPABASE_ANON_KEY=eyJhbGci...
+            </div>
+        </div>
+
+        <div class="check-item warning">
+            <h3>⚠️ MCP Supabase Server <span class="status warn">PROYECTO INCORRECTO</span></h3>
+            <p>El servidor MCP está configurado con proyecto: holtohiphaokzshtpyku</p>
+            <p style="margin-top: 5px;">Debería ser: cozsoshuctvhvdbmkmwc</p>
+            <p style="margin-top: 10px; font-size: 12px; color: #92400e;">
+                <strong>Nota:</strong> Esto NO afecta la aplicación web, solo las capacidades MCP
+            </p>
+        </div>
+
+        <div class="check-item error">
+            <h3>❌ Posible Problema <span class="status fail">A INVESTIGAR</span></h3>
+            <p><strong>Si ves el error "Invalid API key":</strong></p>
+            <p style="margin-top: 10px;">
+                1. Abre la aplicación en: <a href="http://localhost:3001" target="_blank">http://localhost:3001</a><br>
+                2. Presiona <code>Ctrl+Shift+R</code> para forzar recarga sin caché<br>
+                3. Abre DevTools (F12) → Consola<br>
+                4. Escribe: <code>import.meta.env.VITE_GEMINI_API_KEY</code><br>
+                5. Verifica si está undefined o tiene el valor correcto
+            </p>
+        </div>
+
+        <div style="text-align: center; margin-top: 30px;">
+            <a href="http://localhost:3001" class="btn">🚀 Abrir Aplicación</a>
+        </div>
+
+        <div style="margin-top: 30px; padding: 20px; background: #f1f5f9; border-radius: 10px;">
+            <h3 style="font-size: 14px; margin-bottom: 10px; color: #1e293b;">📋 Checklist de Debug</h3>
+            <ol style="font-size: 13px; color: #475569; padding-left: 20px; line-height: 2;">
+                <li>✅ Servidor Vite corriendo en puerto 3001</li>
+                <li>✅ API key de Gemini validado exitosamente</li>
+                <li>✅ Proyecto Supabase correcto y reanudado</li>
+                <li>✅ Archivos .env configurados correctamente</li>
+                <li>⏳ Verificar que Vite cargue las variables (siguiente paso)</li>
+            </ol>
+        </div>
+    </div>
+
+    <script>
+        console.log('=== CABO HEALTH NOVA - DIAGNÓSTICO ===');
+        console.log('✅ Servidor: http://localhost:3001');
+        console.log('✅ API Key: Válido (verificado con Google)');
+        console.log('✅ Supabase: cozsoshuctvhvdbmkmwc (correcto)');
+        console.log('⏳ Siguiente: Verificar import.meta.env en la app');
+        console.log('=====================================');
+    </script>
+</body>
+</html>

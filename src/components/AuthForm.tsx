@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useAuth } from '../contexts/AuthContext';
+import { useAuth, UserRole } from '../contexts/AuthContext';
 import { UserIcon } from './icons';
 
 const AuthForm: React.FC = () => {
@@ -7,6 +7,7 @@ const AuthForm: React.FC = () => {
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [role, setRole] = useState<UserRole>('patient');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -21,7 +22,7 @@ const AuthForm: React.FC = () => {
       if (isLogin) {
         await signIn(email, password);
       } else {
-        await signUp(email, password);
+        await signUp(email, password, role);
         setSuccess('¡Registro exitoso! Por favor, revisa tu email para confirmar tu cuenta.');
       }
     } catch (err) {
@@ -45,6 +46,47 @@ const AuthForm: React.FC = () => {
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
+          {/* Role Selection - Only show when registering */}
+          {!isLogin && (
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-3">
+                Tipo de Cuenta
+              </label>
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onClick={() => setRole('patient')}
+                  className={`p-4 rounded-lg border-2 transition-all ${
+                    role === 'patient'
+                      ? 'border-blue-600 bg-blue-50 shadow-md'
+                      : 'border-slate-200 hover:border-slate-300'
+                  }`}
+                >
+                  <div className="text-3xl mb-2">👤</div>
+                  <div className="font-semibold text-slate-800">Paciente</div>
+                  <div className="text-xs text-slate-500 mt-1">
+                    Para consultas médicas
+                  </div>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setRole('doctor')}
+                  className={`p-4 rounded-lg border-2 transition-all ${
+                    role === 'doctor'
+                      ? 'border-purple-600 bg-purple-50 shadow-md'
+                      : 'border-slate-200 hover:border-slate-300'
+                  }`}
+                >
+                  <div className="text-3xl mb-2">👨‍⚕️</div>
+                  <div className="font-semibold text-slate-800">Médico</div>
+                  <div className="text-xs text-slate-500 mt-1">
+                    Ver consultas recibidas
+                  </div>
+                </button>
+              </div>
+            </div>
+          )}
+
           <div>
             <label htmlFor="email" className="block text-sm font-medium text-slate-700 mb-1">
               Correo Electrónico
@@ -103,6 +145,7 @@ const AuthForm: React.FC = () => {
               setIsLogin(!isLogin);
               setError('');
               setSuccess('');
+              setRole('patient'); // Reset to patient when switching
             }}
             className="text-blue-600 hover:text-blue-700 font-medium transition"
           >

@@ -89,7 +89,7 @@ const SummaryPanel: React.FC<SummaryPanelProps> = ({
 
   return (
     <>
-      <div className="bg-white rounded-xl shadow-lg p-4 flex flex-col h-[400px] lg:h-full">
+      <div className="bg-white rounded-xl shadow-lg p-4 flex flex-col h-[400px] md:h-[500px] lg:h-full">
         <h2 className="text-lg font-bold text-slate-800 mb-4 pb-2 border-b">
           {language === 'es' ? 'Resumen de la Consulta' : 'Consultation Summary'}
         </h2>

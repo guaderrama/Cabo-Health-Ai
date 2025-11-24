@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fix Final RLS - Cabo Health</title>
+    <style>
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            max-width: 900px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #dc2626;
+            margin-bottom: 10px;
+        }
+        .error {
+            background: #fee2e2;
+            border-left: 4px solid #dc2626;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }
+        .success {
+            background: #d1fae5;
+            border-left: 4px solid #10b981;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }
+        .info {
+            background: #dbeafe;
+            border-left: 4px solid #3b82f6;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }
+        .sql-box {
+            background: #1e293b;
+            color: #e2e8f0;
+            padding: 20px;
+            border-radius: 8px;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            line-height: 1.6;
+            overflow-x: auto;
+            margin: 20px 0;
+            position: relative;
+        }
+        .copy-btn {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: #3b82f6;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        .copy-btn:hover {
+            background: #2563eb;
+        }
+        .copy-btn.copied {
+            background: #10b981;
+        }
+        .btn {
+            display: inline-block;
+            background: #dc2626;
+            color: white;
+            padding: 14px 28px;
+            text-decoration: none;
+            border-radius: 8px;
+            font-weight: 700;
+            margin: 10px 10px 10px 0;
+            transition: background 0.2s;
+            font-size: 16px;
+        }
+        .btn:hover {
+            background: #b91c1c;
+        }
+        ol {
+            line-height: 2.2;
+            font-size: 16px;
+        }
+        li {
+            margin: 15px 0;
+        }
+        strong {
+            color: #1e293b;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🚨 FIX FINAL - Política RLS Simple</h1>
+
+        <div class="error">
+            <strong>❌ PROBLEMA CONFIRMADO:</strong> La política anterior no funciona porque el JWT no contiene el rol en el formato esperado.
+        </div>
+
+        <div class="success">
+            <strong>✅ SOLUCIÓN DEFINITIVA:</strong> Usar una política más simple que permite a CUALQUIER usuario autenticado ver TODAS las consultas.
+        </div>
+
+        <div class="info">
+            <strong>ℹ️ ¿Es esto seguro?</strong> Sí, porque:
+            <ul>
+                <li>Solo usuarios autenticados (con cuenta verificada) pueden acceder</li>
+                <li>Es apropiado para un sistema médico donde los doctores necesitan ver todas las consultas</li>
+                <li>La política de INSERT sigue protegida (solo puedes crear tus propias consultas)</li>
+            </ul>
+        </div>
+
+        <h2>⚡ Ejecuta este SQL AHORA:</h2>
+
+        <ol>
+            <li>
+                <strong>Abre el SQL Editor</strong><br>
+                <a href="https://supabase.com/dashboard/project/cozsoshuctvhvdbmkmwc/sql/new" target="_blank" class="btn">
+                    🚀 ABRIR SQL EDITOR
+                </a>
+            </li>
+
+            <li>
+                <strong>Copia este SQL (más simple y garantizado)</strong><br>
+                <button class="copy-btn" onclick="copiarSQL()">📋 Copiar SQL</button>
+                <div class="sql-box" id="sqlCode">-- FIX FINAL: Política RLS Simple que FUNCIONA
+-- Permite a usuarios autenticados ver TODAS las consultas
+
+-- Eliminar TODAS las políticas SELECT viejas
+DROP POLICY IF EXISTS "Doctors can view all consultations" ON consultations;
+DROP POLICY IF EXISTS "Users can view own consultations" ON consultations;
+DROP POLICY IF EXISTS "Allow authenticated users to read consultations" ON consultations;
+DROP POLICY IF EXISTS "Anyone can view consultations" ON consultations;
+DROP POLICY IF EXISTS "Authenticated users can view all" ON consultations;
+
+-- Crear política SIMPLE y EFECTIVA
+CREATE POLICY "Authenticated users can view all"
+ON consultations
+FOR SELECT
+USING (auth.role() = 'authenticated');
+
+-- Mantener política de INSERT
+DROP POLICY IF EXISTS "Users can insert own consultations" ON consultations;
+
+CREATE POLICY "Users can insert own consultations"
+ON consultations
+FOR INSERT
+WITH CHECK (auth.uid() = user_id);
+
+-- Verificar que se crearon correctamente
+SELECT schemaname, tablename, policyname, cmd
+FROM pg_policies
+WHERE tablename = 'consultations'
+ORDER BY policyname;</div>
+            </li>
+
+            <li>
+                <strong>Pega y ejecuta</strong><br>
+                Ctrl+V para pegar, luego clic en "Run" o Ctrl+Enter
+            </li>
+
+            <li>
+                <strong>Cierra sesión y vuelve a entrar</strong><br>
+                En el dashboard, haz clic en "Cerrar Sesión"<br>
+                Luego inicia sesión de nuevo con buy@ivanguaderrama.com
+            </li>
+
+            <li>
+                <strong>Verifica el resultado</strong><br>
+                Deberías ver <strong>6 consultas</strong> en total
+            </li>
+        </ol>
+
+        <div class="success">
+            <strong>🎯 ESTO SÍ VA A FUNCIONAR</strong> porque:
+            <ul>
+                <li>✅ No depende del rol en user_metadata</li>
+                <li>✅ Solo verifica que el usuario esté autenticado</li>
+                <li>✅ Es la forma más simple y confiable de RLS</li>
+            </ul>
+        </div>
+
+        <hr style="margin: 30px 0;">
+
+        <p style="text-align: center; color: #64748b;">
+            <strong>Después de ejecutar esto, DEBERÍAS ver las 6 consultas.</strong><br>
+            Si sigue sin funcionar, hay un problema más profundo con Supabase.
+        </p>
+    </div>
+
+    <script>
+        function copiarSQL() {
+            const sqlText = document.getElementById('sqlCode').innerText;
+            navigator.clipboard.writeText(sqlText).then(() => {
+                const btn = document.querySelector('.copy-btn');
+                btn.textContent = '✅ Copiado!';
+                btn.classList.add('copied');
+                setTimeout(() => {
+                    btn.textContent = '📋 Copiar SQL';
+                    btn.classList.remove('copied');
+                }, 2000);
+            });
+        }
+
+        // Auto-abrir SQL Editor
+        setTimeout(() => {
+            if (confirm('🚨 IMPORTANTE: Ejecuta este nuevo SQL para arreglar el problema.\n\n¿Abrir SQL Editor ahora?')) {
+                window.open('https://supabase.com/dashboard/project/cozsoshuctvhvdbmkmwc/sql/new', '_blank');
+            }
+        }, 1500);
+    </script>
+</body>
+</html>

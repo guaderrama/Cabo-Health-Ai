@@ -1,4 +1,4 @@
-# 🚀 ACTUALIZAR API KEY EN PRODUCCIÓN
+p# 🚀 ACTUALIZAR API KEY EN PRODUCCIÓN
 
 **Situación Actual**: ✅ Tienes API key válida que funciona  
 **Problema**: ❌ La API key NO está actualizada en producción (https://etric4luf0vq.space.minimax.io)

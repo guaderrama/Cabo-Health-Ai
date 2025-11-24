@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Verificar Variables de Entorno</title>
+    <style>
+        body {
+            font-family: system-ui;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #0f172a;
+            color: #e2e8f0;
+        }
+        h1 { color: #60a5fa; }
+        .result {
+            background: #1e293b;
+            padding: 20px;
+            border-radius: 10px;
+            margin: 20px 0;
+            border: 1px solid #334155;
+        }
+        .success { border-left: 4px solid #10b981; }
+        .error { border-left: 4px solid #ef4444; }
+        pre {
+            background: #0f172a;
+            padding: 15px;
+            border-radius: 6px;
+            overflow-x: auto;
+            font-size: 14px;
+        }
+        .status {
+            display: inline-block;
+            padding: 5px 10px;
+            border-radius: 4px;
+            font-weight: 600;
+            font-size: 12px;
+        }
+        .ok { background: #10b981; color: white; }
+        .fail { background: #ef4444; color: white; }
+    </style>
+</head>
+<body>
+    <h1>🔍 Verificación de Variables de Entorno</h1>
+    <p>Este HTML NO puede ver import.meta.env porque no es un módulo de Vite.</p>
+
+    <div class="result error">
+        <h2>⚠️ Instrucciones para Verificar</h2>
+        <p>Para verificar las variables de entorno, necesitas hacerlo desde la aplicación principal:</p>
+        <ol>
+            <li>Ve a: <a href="http://localhost:3001" style="color: #60a5fa;">http://localhost:3001</a></li>
+            <li>Abre DevTools (F12)</li>
+            <li>Ve a la pestaña <strong>Console</strong></li>
+            <li>Ejecuta estos comandos:</li>
+        </ol>
+        <pre>// Ver todas las variables
+import.meta.env
+
+// Ver solo el API key
+import.meta.env.VITE_GEMINI_API_KEY
+
+// Ver Supabase URL
+import.meta.env.VITE_SUPABASE_URL</pre>
+    </div>
+
+    <div class="result success">
+        <h2>✅ Lo que deberías ver</h2>
+        <p>Si todo está bien configurado, deberías ver:</p>
+        <pre>VITE_GEMINI_API_KEY: "AIzaSyBsoNLTcxY-r33SFT4CXePqdEGjDVkwYN4"
+VITE_SUPABASE_URL: "https://cozsoshuctvhvdbmkmwc.supabase.co"
+VITE_SUPABASE_ANON_KEY: "eyJhbGci..." (largo token)</pre>
+    </div>
+
+    <script>
+        // Log de ayuda
+        console.log('%c🔍 VERIFICACIÓN DE VARIABLES', 'background: #3b82f6; color: white; padding: 10px; font-size: 16px; font-weight: bold;');
+        console.log('');
+        console.log('%cPara verificar las variables de entorno:', 'font-size: 14px; color: #60a5fa;');
+        console.log('%c1. Ve a http://localhost:3001', 'font-size: 12px;');
+        console.log('%c2. Ejecuta: import.meta.env', 'font-size: 12px;');
+        console.log('');
+    </script>
+</body>
+</html>
