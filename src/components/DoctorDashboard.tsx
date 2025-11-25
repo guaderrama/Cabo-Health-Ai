@@ -36,10 +36,29 @@ const DoctorDashboard: React.FC<DoctorDashboardProps> = ({ language }) => {
   const [selectedConsultation, setSelectedConsultation] = useState<Consultation | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterMotivation, setFilterMotivation] = useState<'all' | 'high' | 'medium' | 'low'>('all');
+  const [consultationToDelete, setConsultationToDelete] = useState<Consultation | null>(null);
 
   useEffect(() => {
     loadConsultations();
   }, [user]);
+
+  const handleDeleteConsultation = async (id: string) => {
+    try {
+      const { error } = await supabase
+        .from('consultations')
+        .delete()
+        .eq('id', id);
+
+      if (error) throw error;
+
+      // Remove from local state
+      setConsultations(prev => prev.filter(c => c.id !== id));
+      setConsultationToDelete(null);
+    } catch (err) {
+      console.error('Error deleting consultation:', err);
+      alert(language === 'es' ? 'Error al eliminar la consulta' : 'Error deleting consultation');
+    }
+  };
 
   const loadConsultations = async () => {
     try {
@@ -169,7 +188,7 @@ const DoctorDashboard: React.FC<DoctorDashboardProps> = ({ language }) => {
 
   const filteredConsultations = consultations.filter(c => {
     const matchesSearch = c.patient_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                         (c.patient_email && c.patient_email.toLowerCase().includes(searchQuery.toLowerCase()));
+      (c.patient_email && c.patient_email.toLowerCase().includes(searchQuery.toLowerCase()));
 
     if (!matchesSearch) return false;
 
@@ -240,41 +259,37 @@ const DoctorDashboard: React.FC<DoctorDashboardProps> = ({ language }) => {
             <div className="flex gap-2">
               <button
                 onClick={() => setFilterMotivation('all')}
-                className={`px-4 py-3 rounded-lg text-sm font-medium transition-colors ${
-                  filterMotivation === 'all'
-                    ? 'bg-purple-600 text-white'
-                    : 'bg-white text-slate-600 border border-slate-300 hover:bg-slate-100'
-                }`}
+                className={`px-4 py-3 rounded-lg text-sm font-medium transition-colors ${filterMotivation === 'all'
+                  ? 'bg-purple-600 text-white'
+                  : 'bg-white text-slate-600 border border-slate-300 hover:bg-slate-100'
+                  }`}
               >
                 {language === 'es' ? 'Todas' : 'All'}
               </button>
               <button
                 onClick={() => setFilterMotivation('high')}
-                className={`px-4 py-3 rounded-lg text-sm font-medium transition-colors ${
-                  filterMotivation === 'high'
-                    ? 'bg-green-600 text-white'
-                    : 'bg-white text-slate-600 border border-slate-300 hover:bg-slate-100'
-                }`}
+                className={`px-4 py-3 rounded-lg text-sm font-medium transition-colors ${filterMotivation === 'high'
+                  ? 'bg-green-600 text-white'
+                  : 'bg-white text-slate-600 border border-slate-300 hover:bg-slate-100'
+                  }`}
               >
                 {language === 'es' ? 'Alta' : 'High'} (≥7)
               </button>
               <button
                 onClick={() => setFilterMotivation('medium')}
-                className={`px-4 py-3 rounded-lg text-sm font-medium transition-colors ${
-                  filterMotivation === 'medium'
-                    ? 'bg-yellow-600 text-white'
-                    : 'bg-white text-slate-600 border border-slate-300 hover:bg-slate-100'
-                }`}
+                className={`px-4 py-3 rounded-lg text-sm font-medium transition-colors ${filterMotivation === 'medium'
+                  ? 'bg-yellow-600 text-white'
+                  : 'bg-white text-slate-600 border border-slate-300 hover:bg-slate-100'
+                  }`}
               >
                 {language === 'es' ? 'Media' : 'Medium'} (4-6)
               </button>
               <button
                 onClick={() => setFilterMotivation('low')}
-                className={`px-4 py-3 rounded-lg text-sm font-medium transition-colors ${
-                  filterMotivation === 'low'
-                    ? 'bg-red-600 text-white'
-                    : 'bg-white text-slate-600 border border-slate-300 hover:bg-slate-100'
-                }`}
+                className={`px-4 py-3 rounded-lg text-sm font-medium transition-colors ${filterMotivation === 'low'
+                  ? 'bg-red-600 text-white'
+                  : 'bg-white text-slate-600 border border-slate-300 hover:bg-slate-100'
+                  }`}
               >
                 {language === 'es' ? 'Baja' : 'Low'} (&lt;4)
               </button>
@@ -368,6 +383,18 @@ const DoctorDashboard: React.FC<DoctorDashboardProps> = ({ language }) => {
                         )}
                       </div>
                     </div>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setConsultationToDelete(consultation);
+                      }}
+                      className="text-slate-400 hover:text-red-500 transition-colors p-2 rounded-full hover:bg-red-50"
+                      title={language === 'es' ? 'Eliminar consulta' : 'Delete consultation'}
+                    >
+                      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      </svg>
+                    </button>
                   </div>
 
                   {/* Motivation Scores - Circular Gauges */}
@@ -410,6 +437,41 @@ const DoctorDashboard: React.FC<DoctorDashboardProps> = ({ language }) => {
           </div>
         )}
       </div>
+
+      {/* Delete Confirmation Modal */}
+      {consultationToDelete && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-[70] p-4">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md p-6 animate-in fade-in zoom-in duration-200">
+            <div className="w-16 h-16 bg-red-100 rounded-full mx-auto flex items-center justify-center mb-4">
+              <svg className="w-8 h-8 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
+            </div>
+            <h3 className="text-xl font-bold text-center text-slate-800 mb-2">
+              {language === 'es' ? '¿Eliminar consulta?' : 'Delete consultation?'}
+            </h3>
+            <p className="text-center text-slate-600 mb-6">
+              {language === 'es'
+                ? `Estás a punto de eliminar permanentemente la consulta de ${consultationToDelete.patient_name}. Esta acción no se puede deshacer.`
+                : `You are about to permanently delete the consultation for ${consultationToDelete.patient_name}. This action cannot be undone.`}
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setConsultationToDelete(null)}
+                className="flex-1 px-4 py-2 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 transition-colors font-semibold"
+              >
+                {language === 'es' ? 'Cancelar' : 'Cancel'}
+              </button>
+              <button
+                onClick={() => handleDeleteConsultation(consultationToDelete.id)}
+                className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-semibold"
+              >
+                {language === 'es' ? 'Sí, Eliminar' : 'Yes, Delete'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Modal de detalle de consulta */}
       {selectedConsultation && (
@@ -477,11 +539,10 @@ const DoctorDashboard: React.FC<DoctorDashboardProps> = ({ language }) => {
                       return (
                         <div key={idx} className={`flex ${isNova ? 'justify-start' : 'justify-end'}`}>
                           <div className={`max-w-[75%] ${isNova ? 'order-1' : 'order-2'}`}>
-                            <div className={`rounded-2xl px-4 py-3 shadow-sm ${
-                              isNova
-                                ? 'bg-purple-100 text-purple-900 rounded-tl-none'
-                                : 'bg-green-100 text-green-900 rounded-tr-none'
-                            }`}>
+                            <div className={`rounded-2xl px-4 py-3 shadow-sm ${isNova
+                              ? 'bg-purple-100 text-purple-900 rounded-tl-none'
+                              : 'bg-green-100 text-green-900 rounded-tr-none'
+                              }`}>
                               <div className="flex items-center gap-2 mb-1">
                                 <span className="text-lg">{isNova ? '🤖' : '👤'}</span>
                                 <p className="text-xs font-bold">{isNova ? 'Nova' : (language === 'es' ? 'Paciente' : 'Patient')}</p>
@@ -638,6 +699,7 @@ const DoctorDashboard: React.FC<DoctorDashboardProps> = ({ language }) => {
                             .score-label {
                               font-size: 14px;
                               opacity: 0.9;
+                              font-weight: 500;
                             }
                             .summary {
                               margin-top: 30px;
