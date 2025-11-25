@@ -506,47 +506,27 @@ onerror: (e: ErrorEvent) => {
       });
 
     } catch (err) {
-  console.error('Failed to start session:', err);
-  let userMessage = UI_TEXTS[language].errorMicGeneric;
-
-  if (err instanceof Error) {
-    // Error de contexto seguro (HTTPS requerido)
-    if (err.message === 'SECURE_CONTEXT_REQUIRED') {
-      userMessage = language === 'es'
-        ? `🔒 Se requiere conexión segura (HTTPS)\n\n📋 Pasos para arreglar:\n1. En desarrollo: Usa https://localhost en lugar de http://\n2. O habilita vite con SSL: pnpm dev --https\n3. En producción: Despliega con HTTPS habilitado\n\n💡 ${UI_TEXTS[language].errorHttpsRequired}`
-        : `🔒 Secure connection required (HTTPS)\n\n📋 Steps to fix:\n1. In development: Use https://localhost instead of http://\n2. Or enable vite with SSL: pnpm dev --https\n3. In production: Deploy with HTTPS enabled\n\n💡 ${UI_TEXTS[language].errorHttpsRequired}`;
-    }
-    // Error de permisos de micrófono
-    else if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
-      userMessage = language === 'es'
-        ? `🎤 Permiso de micrófono denegado\n\n📋 Pasos para arreglar:\n1. Haz clic en el ícono de candado/información en la barra de direcciones\n2. Busca "Permisos" o "Micrófono"\n3. Cambia a "Permitir"\n4. Recarga la página y vuelve a intentar\n\n💡 También puedes ejecutar un diagnóstico con el botón abajo`
-        : `🎤 Microphone permission denied\n\n📋 Steps to fix:\n1. Click the lock/info icon in the address bar\n2. Look for "Permissions" or "Microphone"\n3. Change to "Allow"\n4. Reload the page and try again\n\n💡 You can also run a diagnostic with the button below`;
-    }
-    // Error de micrófono no encontrado
-    else if (err.name === 'NotFoundError') {
-      userMessage = language === 'es'
-        ? `🔌 Micrófono no encontrado\n\n📋 Pasos para arreglar:\n1. Conecta un micrófono o auriculares con micrófono\n2. Verifica que esté enchufado correctamente\n3. En Windows: Revisa "Configuración > Sistema > Sonido"\n4. En Mac: Revisa "Preferencias > Sonido > Entrada"\n5. Recarga la página después de conectar\n\n💡 Ejecuta un diagnóstico con el botón abajo para más detalles`
-        : `🔌 Microphone not found\n\n📋 Steps to fix:\n1. Connect a microphone or headphones with microphone\n2. Verify it's plugged in correctly\n3. On Windows: Check "Settings > System > Sound"\n4. On Mac: Check "Preferences > Sound > Input"\n5. Reload the page after connecting\n\n💡 Run a diagnostic with the button below for more details`;
-    }
-    // Error de micrófono en uso
-    else if (err.name === 'NotReadableError' || err.message.includes('in use')) {
-      userMessage = language === 'es'
-        ? `⚠️ Micrófono en uso por otra aplicación\n\n📋 Pasos para arreglar:\n1. Cierra otras aplicaciones que usen el micrófono (Zoom, Teams, etc.)\n2. Cierra otras pestañas del navegador que puedan usar el micrófono\n3. Reinicia el navegador si es necesario\n4. Vuelve a intentar\n\n💡 Solo una aplicación puede usar el micrófono a la vez`
-        : `⚠️ Microphone in use by another application\n\n📋 Steps to fix:\n1. Close other applications using the microphone (Zoom, Teams, etc.)\n2. Close other browser tabs that might be using the microphone\n3. Restart the browser if necessary\n4. Try again\n\n💡 Only one application can use the microphone at a time`;
-    }
-    // Error genérico con detalles
-    else {
-      userMessage = language === 'es'
-        ? `❌ ${UI_TEXTS[language].errorMicGeneric}\n\n📋 Pasos para solucionar:\n1. Verifica que tu micrófono esté conectado y funcionando\n2. Da permisos de micrófono a este sitio\n3. Ejecuta el diagnóstico con el botón abajo\n4. Revisa la consola del navegador para más detalles\n\nError técnico: ${err.message.substring(0, 80)}`
-        : `❌ ${UI_TEXTS[language].errorMicGeneric}\n\n📋 Steps to solve:\n1. Verify your microphone is connected and working\n2. Grant microphone permissions to this site\n3. Run the diagnostic with the button below\n4. Check browser console for more details\n\nTechnical error: ${err.message.substring(0, 80)}`;
-    }
-  }
-
-  setError(userMessage);
+  console.error('Connection failed:', err);
+  setError(UI_TEXTS[language].errorConnection);
   setAppState('ERROR');
-  cleanupAudio();
 }
-  }, [language, cleanupAudio, handleEndSession]);
+  }, [language, welcomeSoundEnabled, cleanupAudio]);
+
+const handleStartSession = useCallback(() => {
+  setAppState('COUNTDOWN');
+  setCountdownValue(3);
+
+  let count = 3;
+  const interval = setInterval(() => {
+    count--;
+    setCountdownValue(count);
+
+    if (count <= 0) {
+      clearInterval(interval);
+      connectToGemini();
+    }
+  }, 1000);
+}, [connectToGemini]);
 
 // FIX: Completed the truncated function and added state resets.
 const handleNewSession = useCallback(() => {
