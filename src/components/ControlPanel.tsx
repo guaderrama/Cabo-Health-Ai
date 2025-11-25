@@ -17,6 +17,7 @@ interface ControlPanelProps {
   onPatientNameChange: (name: string) => void;
   onOpenDiagnostic?: () => void;
   onRetry?: () => void;
+  countdownValue?: number;
 }
 
 const ControlPanel: React.FC<ControlPanelProps> = ({
@@ -30,14 +31,16 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
   patientName,
   onPatientNameChange,
   onOpenDiagnostic,
-  onRetry
+  onRetry,
+  countdownValue = 3
 }) => {
   const texts = UI_TEXTS[language];
   const isIdle = appState === 'IDLE';
+  const isCountdown = appState === 'COUNTDOWN';
   const isConnecting = appState === 'CONNECTING';
   const isListening = appState === 'LISTENING';
   const isProcessing = appState === 'PROCESSING';
-  const isBusy = isConnecting || isProcessing;
+  const isBusy = isConnecting || isProcessing || isCountdown;
   const isNameMissing = !patientName.trim();
 
   const nameInputRef = useRef<HTMLInputElement>(null);
@@ -65,11 +68,11 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
 
   useEffect(() => {
     if (!sessionStartTime) return;
-    
+
     const interval = setInterval(() => {
       setElapsed(Math.floor((Date.now() - sessionStartTime) / 1000));
     }, 1000);
-    
+
     return () => clearInterval(interval);
   }, [sessionStartTime]);
 
@@ -96,6 +99,7 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
   const getStatusText = () => {
     switch (appState) {
       case 'IDLE': return isNameMissing ? texts.enterFullName : texts.idle;
+      case 'COUNTDOWN': return language === 'es' ? 'Iniciando en...' : 'Starting in...';
       case 'CONNECTING': return texts.connecting;
       case 'LISTENING': return texts.listening;
       case 'PROCESSING': return texts.processing;
@@ -106,6 +110,16 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
   };
 
   const ActionButton: React.FC = () => {
+    if (isCountdown) {
+      return (
+        <div className="flex flex-col items-center">
+          <div className="w-28 h-28 rounded-full bg-blue-500 text-white flex flex-col items-center justify-center transition-all duration-300 shadow-lg animate-pulse">
+            <span className="text-5xl font-bold">{countdownValue}</span>
+          </div>
+        </div>
+      );
+    }
+
     if (isBusy) {
       return (
         <div className="flex flex-col items-center">
@@ -164,18 +178,18 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
       </button>
     );
   };
-  
+
   const disableLangButtons = isConnecting || isListening || isProcessing;
 
   const MicLevelIndicator: React.FC = () => {
     const level = Math.min(audioFrequency / 100, 1); // Normalize to 0-1
     return (
-        <div className="w-full max-w-xs h-2 bg-slate-200 rounded-full mt-2">
-            <div 
-                className="h-full bg-green-500 rounded-full transition-all duration-100"
-                style={{ width: `${level * 100}%`}}
-            />
-        </div>
+      <div className="w-full max-w-xs h-2 bg-slate-200 rounded-full mt-2">
+        <div
+          className="h-full bg-green-500 rounded-full transition-all duration-100"
+          style={{ width: `${level * 100}%` }}
+        />
+      </div>
     );
   };
 
@@ -222,21 +236,21 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
           </div>
         </div>
       )}
-      
+
       {isIdle && (
         <div className="w-full max-w-sm my-6">
-           <label htmlFor="patient-name" className="sr-only">{texts.fullNameLabel}</label>
-           <input
-             ref={nameInputRef}
-             id="patient-name"
-             type="text"
-             value={patientName}
-             onChange={handleNameChange}
-             placeholder={texts.fullNameLabel}
-             className="w-full px-4 py-3 border border-slate-300 rounded-lg text-center focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
-             aria-required="true"
-             maxLength={100}
-           />
+          <label htmlFor="patient-name" className="sr-only">{texts.fullNameLabel}</label>
+          <input
+            ref={nameInputRef}
+            id="patient-name"
+            type="text"
+            value={patientName}
+            onChange={handleNameChange}
+            placeholder={texts.fullNameLabel}
+            className="w-full px-4 py-3 border border-slate-300 rounded-lg text-center focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
+            aria-required="true"
+            maxLength={100}
+          />
         </div>
       )}
 
@@ -263,9 +277,8 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
         <button
           onClick={() => onLanguageChange('es')}
           disabled={disableLangButtons}
-          className={`px-6 py-2 rounded-full font-semibold transition-colors ${
-            language === 'es' ? 'bg-blue-600 text-white' : 'bg-slate-200 text-slate-700 hover:bg-slate-300'
-          } disabled:opacity-50 disabled:cursor-not-allowed`}
+          className={`px-6 py-2 rounded-full font-semibold transition-colors ${language === 'es' ? 'bg-blue-600 text-white' : 'bg-slate-200 text-slate-700 hover:bg-slate-300'
+            } disabled:opacity-50 disabled:cursor-not-allowed`}
           title={language === 'es' ? 'Idioma Español (actual)' : 'Change to Spanish'}
         >
           {texts.spanish}
@@ -273,15 +286,14 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
         <button
           onClick={() => onLanguageChange('en')}
           disabled={disableLangButtons}
-          className={`px-6 py-2 rounded-full font-semibold transition-colors ${
-            language === 'en' ? 'bg-blue-600 text-white' : 'bg-slate-200 text-slate-700 hover:bg-slate-300'
-          } disabled:opacity-50 disabled:cursor-not-allowed`}
+          className={`px-6 py-2 rounded-full font-semibold transition-colors ${language === 'en' ? 'bg-blue-600 text-white' : 'bg-slate-200 text-slate-700 hover:bg-slate-300'
+            } disabled:opacity-50 disabled:cursor-not-allowed`}
           title={language === 'es' ? 'Cambiar a Inglés' : 'English Language (current)'}
         >
           {texts.english}
         </button>
       </div>
-      
+
       <div className="mt-6">
         <ActionButton />
       </div>
