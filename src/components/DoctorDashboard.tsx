@@ -383,18 +383,7 @@ const DoctorDashboard: React.FC<DoctorDashboardProps> = ({ language }) => {
                         )}
                       </div>
                     </div>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setConsultationToDelete(consultation);
-                      }}
-                      className="text-slate-400 hover:text-red-500 transition-colors p-2 rounded-full hover:bg-red-50"
-                      title={language === 'es' ? 'Eliminar consulta' : 'Delete consultation'}
-                    >
-                      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                      </svg>
-                    </button>
+
                   </div>
 
                   {/* Motivation Scores - Circular Gauges */}
@@ -427,9 +416,23 @@ const DoctorDashboard: React.FC<DoctorDashboardProps> = ({ language }) => {
                       </svg>
                       <span>{consultation.message_count || consultation.transcript?.length || 0} {language === 'es' ? 'mensajes' : 'messages'}</span>
                     </div>
-                    <button className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors text-sm font-semibold">
-                      {language === 'es' ? 'Ver Detalle' : 'View Details'} →
-                    </button>
+                    <div className="flex items-center gap-3">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setConsultationToDelete(consultation);
+                        }}
+                        className="text-slate-400 hover:text-red-500 transition-colors p-2 rounded-full hover:bg-red-50"
+                        title={language === 'es' ? 'Eliminar consulta' : 'Delete consultation'}
+                      >
+                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
+                      </button>
+                      <button className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors text-sm font-semibold">
+                        {language === 'es' ? 'Ver Detalle' : 'View Details'} →
+                      </button>
+                    </div>
                   </div>
                 </div>
               );
