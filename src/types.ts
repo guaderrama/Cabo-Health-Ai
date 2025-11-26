@@ -1,4 +1,4 @@
-export type AppState = 'IDLE' | 'COUNTDOWN' | 'CONNECTING' | 'LISTENING' | 'PROCESSING' | 'COMPLETED' | 'ERROR';
+export type AppState = 'IDLE' | 'CONNECTING' | 'LISTENING' | 'PROCESSING' | 'COMPLETED' | 'ERROR';
 
 export type Language = 'es' | 'en';
 
