@@ -158,6 +158,8 @@ const MainApp: React.FC = () => {
   const outputSourcesRef = useRef<Set<AudioBufferSourceNode>>(new Set());
 
   const appStateRef = useRef(appState);
+  const endSessionLockRef = useRef(false); // Lock para prevenir race condition en handleEndSession
+
   useEffect(() => {
     appStateRef.current = appState;
   }, [appState]);
@@ -446,10 +448,12 @@ const MainApp: React.FC = () => {
 
 
   const handleEndSession = useCallback(async () => {
-    // Use appStateRef to get the latest state and prevent re-entry from the onclose callback.
+    // Double-check lock para prevenir race conditions con múltiples llamadas
+    if (endSessionLockRef.current) return;
     if (appStateRef.current !== 'LISTENING') return;
 
-    // Synchronously update the ref to act as a lock.
+    // Adquirir lock inmediatamente antes de cualquier operación async
+    endSessionLockRef.current = true;
     appStateRef.current = 'PROCESSING';
     setAppState('PROCESSING');
 
@@ -492,6 +496,7 @@ const MainApp: React.FC = () => {
     if (fullTranscriptText.trim().length < 50) {
       setSummary(UI_TEXTS[language].summaryError);
       setAppState('COMPLETED');
+      endSessionLockRef.current = false; // Liberar lock antes de return temprano
       return;
     }
 
@@ -526,6 +531,9 @@ const MainApp: React.FC = () => {
         setError(UI_TEXTS[language].errorSummary);
       }
       setAppState('ERROR');
+    } finally {
+      // Liberar el lock al finalizar (éxito o error)
+      endSessionLockRef.current = false;
     }
   }, [transcript, language, cleanupAudio, user?.id, sessionId]);
 
@@ -733,88 +741,33 @@ const MainApp: React.FC = () => {
               const outputText = currentOutputTranscription.current.trim();
 
               if (inputText || outputText) {
-                // Subir audio en paralelo (sin bloquear la UI)
-                const audioUploadPromises: Promise<void>[] = [];
-
                 setTranscript(prev => {
                   const newMessages: TranscriptMessage[] = [];
 
                   if (inputText) {
-                    const messageId = generateUniqueId();
                     newMessages.push({
-                      id: messageId,
+                      id: generateUniqueId(),
                       sender: 'You',
                       text: inputText,
                       lang: language,
                       timestamp: new Date().toISOString()
                     });
-
-                    // DESHABILITADO: Upload de audio a Supabase Storage
-                    // Causa errores RLS y consume storage innecesariamente
-                    // La transcripción y resumen se guardan en la base de datos
-                    if (currentInputAudio.current.length > 0) {
-                      console.log('🔇 Audio del usuario capturado pero NO subido a storage (ahorro de costos)');
-                      currentInputAudio.current = [];
-                    }
-
-                    // CÓDIGO ANTERIOR (comentado para referencia):
-                    // if (currentInputAudio.current.length > 0) {
-                    //   const audioData = concatenateUint8Arrays(currentInputAudio.current);
-                    //   audioUploadPromises.push(
-                    //     uploadAudioFragmentWav(audioData, sessionId, messageId, 'You', 16000)
-                    //       .then(url => {
-                    //         if (url) {
-                    //           setTranscript(t => t.map(m =>
-                    //             m.id === messageId ? { ...m, audioUrl: url } : m
-                    //           ));
-                    //         }
-                    //       })
-                    //   );
-                    //   currentInputAudio.current = [];
-                    // }
+                    currentInputAudio.current = [];
                   }
 
                   if (outputText) {
-                    const messageId = generateUniqueId();
                     newMessages.push({
-                      id: messageId,
+                      id: generateUniqueId(),
                       sender: 'Nova',
                       text: outputText,
                       lang: language,
                       timestamp: new Date().toISOString()
                     });
-
-                    // DESHABILITADO: Upload de audio de Nova a Supabase Storage
-                    // Causa errores RLS y consume storage innecesariamente
-                    if (currentOutputAudio.current.length > 0) {
-                      console.log('🔇 Audio de Nova capturado pero NO subido a storage (ahorro de costos)');
-                      currentOutputAudio.current = [];
-                    }
-
-                    // CÓDIGO ANTERIOR (comentado para referencia):
-                    // if (currentOutputAudio.current.length > 0) {
-                    //   const audioData = concatenateUint8Arrays(currentOutputAudio.current);
-                    //   audioUploadPromises.push(
-                    //     uploadAudioFragmentWav(audioData, sessionId, messageId, 'Nova', 24000)
-                    //       .then(url => {
-                    //         if (url) {
-                    //           setTranscript(t => t.map(m =>
-                    //             m.id === messageId ? { ...m, audioUrl: url } : m
-                    //           ));
-                    //         }
-                    //       })
-                    //   );
-                    //   currentOutputAudio.current = [];
-                    // }
+                    currentOutputAudio.current = [];
                   }
 
                   return [...prev, ...newMessages];
                 });
-
-                // Ejecutar subidas de audio sin esperar
-                Promise.all(audioUploadPromises).catch(err =>
-                  console.error('Error al subir fragmentos de audio:', err)
-                );
               }
 
               // Limpiar refs inmediatamente después de agregar al transcript
