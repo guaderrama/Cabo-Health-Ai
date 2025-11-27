@@ -184,17 +184,17 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
       <ListeningVisualizer isListening={isListening} audioFrequency={audioFrequency} />
       {isListening && <MicLevelIndicator />}
 
-      <div className="mt-6 text-center h-12">
+      <div className="mt-6 text-center h-12" role="status" aria-live="polite" aria-atomic="true">
         <p className="text-slate-700 font-medium">{getStatusText()}</p>
         {isListening && (
-          <p className="text-sm text-slate-500 font-mono mt-1" aria-live="off" aria-atomic="true">
+          <p className="text-sm text-slate-500 font-mono mt-1" aria-label={`${language === 'es' ? 'Tiempo transcurrido' : 'Elapsed time'}: ${Math.floor(elapsed / 60)} ${language === 'es' ? 'minutos' : 'minutes'} ${elapsed % 60} ${language === 'es' ? 'segundos' : 'seconds'}`}>
             {String(Math.floor(elapsed / 60)).padStart(2, '0')}:{String(elapsed % 60).padStart(2, '0')}
           </p>
         )}
       </div>
 
       {error && (
-        <div className="text-center max-w-md">
+        <div className="text-center max-w-md" role="alert" aria-live="assertive">
           <p className="text-red-600 text-sm mt-2">{error}</p>
           <div className="flex flex-col gap-2 mt-3">
             {(error.includes('micrófono') || error.includes('microphone')) && onOpenDiagnostic && (
@@ -259,7 +259,7 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
       )}
       {!isIdle && !patientName && <div className="my-6 h-[58px]"></div>}
 
-      <div className="my-2 flex space-x-4">
+      <div className="my-2 flex space-x-4" role="radiogroup" aria-label={language === 'es' ? 'Selección de idioma' : 'Language selection'}>
         <button
           onClick={() => onLanguageChange('es')}
           disabled={disableLangButtons}
@@ -267,8 +267,10 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
             language === 'es' ? 'bg-blue-600 text-white' : 'bg-slate-200 text-slate-700 hover:bg-slate-300'
           } disabled:opacity-50 disabled:cursor-not-allowed`}
           title={language === 'es' ? 'Idioma Español (actual)' : 'Change to Spanish'}
+          role="radio"
+          aria-checked={language === 'es'}
         >
-          {texts.spanish}
+          {texts?.spanish ?? 'Español'}
         </button>
         <button
           onClick={() => onLanguageChange('en')}
@@ -277,8 +279,10 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
             language === 'en' ? 'bg-blue-600 text-white' : 'bg-slate-200 text-slate-700 hover:bg-slate-300'
           } disabled:opacity-50 disabled:cursor-not-allowed`}
           title={language === 'es' ? 'Cambiar a Inglés' : 'English Language (current)'}
+          role="radio"
+          aria-checked={language === 'en'}
         >
-          {texts.english}
+          {texts?.english ?? 'English'}
         </button>
       </div>
       

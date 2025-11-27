@@ -34,8 +34,15 @@ const Header: React.FC<HeaderProps> = ({ language, welcomeSoundEnabled, onToggle
 
   return (
     <>
-    <header className="fixed top-0 left-0 right-0 bg-gradient-to-r from-blue-600 to-purple-700 text-white shadow-lg z-50">
-      <div className="container mx-auto px-4 sm:px-6 py-4 flex items-center justify-between">
+    {/* Skip link for keyboard navigation */}
+    <a
+      href="#main-content"
+      className="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-[60] focus:px-4 focus:py-2 focus:bg-white focus:text-blue-700 focus:rounded-lg focus:font-semibold focus:shadow-lg"
+    >
+      {language === 'es' ? 'Ir al contenido principal' : 'Skip to main content'}
+    </a>
+    <header role="banner" className="fixed top-0 left-0 right-0 bg-gradient-to-r from-blue-600 to-purple-700 text-white shadow-lg z-50">
+      <nav className="container mx-auto px-4 sm:px-6 py-4 flex items-center justify-between" aria-label={language === 'es' ? 'Navegación principal' : 'Main navigation'}>
         <div className="flex items-center gap-3">
           {/* Indicador de conexión */}
           <div className="flex items-center gap-2" title={isOnline ? (language === 'es' ? 'Conectado' : 'Online') : (language === 'es' ? 'Sin conexión' : 'Offline')}>
@@ -110,7 +117,7 @@ const Header: React.FC<HeaderProps> = ({ language, welcomeSoundEnabled, onToggle
             </button>
           </div>
         )}
-      </div>
+      </nav>
     </header>
     
     {showHistory && (

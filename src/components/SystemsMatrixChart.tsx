@@ -46,12 +46,12 @@ const SystemsMatrixChart: React.FC<SystemsMatrixChartProps> = ({ summaryHTML }) 
 
         if (digestMatch || energyMatch || mindMatch || hormonalMatch || immuneMatch || structureMatch) {
           return [
-            { system: 'DIGESTIÓN', score: digestMatch ? parseInt(digestMatch[1]) : 5, fullMark: 10 },
-            { system: 'ENERGÍA', score: energyMatch ? parseInt(energyMatch[1]) : 5, fullMark: 10 },
-            { system: 'MENTE', score: mindMatch ? parseInt(mindMatch[1]) : 5, fullMark: 10 },
-            { system: 'HORMONAL', score: hormonalMatch ? parseInt(hormonalMatch[1]) : 5, fullMark: 10 },
-            { system: 'INMUNE', score: immuneMatch ? parseInt(immuneMatch[1]) : 5, fullMark: 10 },
-            { system: 'ESTRUCTURA', score: structureMatch ? parseInt(structureMatch[1]) : 5, fullMark: 10 },
+            { system: 'DIGESTIÓN', score: digestMatch?.[1] ? parseInt(digestMatch[1]) : 5, fullMark: 10 },
+            { system: 'ENERGÍA', score: energyMatch?.[1] ? parseInt(energyMatch[1]) : 5, fullMark: 10 },
+            { system: 'MENTE', score: mindMatch?.[1] ? parseInt(mindMatch[1]) : 5, fullMark: 10 },
+            { system: 'HORMONAL', score: hormonalMatch?.[1] ? parseInt(hormonalMatch[1]) : 5, fullMark: 10 },
+            { system: 'INMUNE', score: immuneMatch?.[1] ? parseInt(immuneMatch[1]) : 5, fullMark: 10 },
+            { system: 'ESTRUCTURA', score: structureMatch?.[1] ? parseInt(structureMatch[1]) : 5, fullMark: 10 },
           ];
         }
       }

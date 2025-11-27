@@ -4,7 +4,7 @@ export function encode(bytes: Uint8Array): string {
   const len = bytes.byteLength;
   const chars = new Array(len);
   for (let i = 0; i < len; i++) {
-    chars[i] = String.fromCharCode(bytes[i]);
+    chars[i] = String.fromCharCode(bytes[i] ?? 0);
   }
   return btoa(chars.join(''));
 }
@@ -32,7 +32,7 @@ export async function decodeAudioData(
   for (let channel = 0; channel < numChannels; channel++) {
     const channelData = buffer.getChannelData(channel);
     for (let i = 0; i < frameCount; i++) {
-      channelData[i] = dataInt16[i * numChannels + channel] / 32768.0;
+      channelData[i] = (dataInt16[i * numChannels + channel] ?? 0) / 32768.0;
     }
   }
   return buffer;

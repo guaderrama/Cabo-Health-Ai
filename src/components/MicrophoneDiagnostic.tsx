@@ -225,8 +225,9 @@ const MicrophoneDiagnostic: React.FC<MicrophoneDiagnosticProps> = ({ language, o
         
         // Esperar a que termine
         await new Promise(resolve => testOscillator.onended = resolve);
-      } catch (welcomeError) {
-        throw new Error(`Error reproduciendo sonido de bienvenida: ${welcomeError.name || welcomeError.message}`);
+      } catch (welcomeError: unknown) {
+        const err = welcomeError as Error;
+        throw new Error(`Error reproduciendo sonido de bienvenida: ${err.name || err.message}`);
       }
       
       // 3. Crear AudioContext input (16000 Hz)
@@ -260,19 +261,20 @@ const MicrophoneDiagnostic: React.FC<MicrophoneDiagnosticProps> = ({ language, o
           details: '✅ Secuencia completa de audio exitosa: Output (24000Hz) + Input (16000Hz) + Micrófono'
         } : step
       ));
-    } catch (error) {
+    } catch (error: unknown) {
+      const err = error as Error;
       let errorDetails = '';
-      
-      if (error.message.includes('sonido de bienvenida')) {
-        errorDetails = `❌ Error en configuración de audio de salida (24000 Hz): ${error.message}`;
-      } else if (error.name === 'NotAllowedError') {
+
+      if (err.message?.includes('sonido de bienvenida')) {
+        errorDetails = `❌ Error en configuración de audio de salida (24000 Hz): ${err.message}`;
+      } else if (err.name === 'NotAllowedError') {
         errorDetails = '❌ Permisos de micrófono denegados por el sistema operativo';
-      } else if (error.name === 'NotFoundError') {
+      } else if (err.name === 'NotFoundError') {
         errorDetails = '❌ No se encontró micrófono en el sistema';
-      } else if (error.name === 'NotSupportedError') {
+      } else if (err.name === 'NotSupportedError') {
         errorDetails = '❌ La configuración de audio no es compatible con este sistema';
       } else {
-        errorDetails = `❌ Error en secuencia de audio: ${error.name || error.message}`;
+        errorDetails = `❌ Error en secuencia de audio: ${err.name || err.message}`;
       }
       
       setSteps(prev => prev.map(step => 
@@ -357,15 +359,17 @@ const MicrophoneDiagnostic: React.FC<MicrophoneDiagnosticProps> = ({ language, o
         let deviceDetails = '';
         
         for (let i = 0; i < Math.min(audioInputs.length, 3); i++) { // Probar máximo 3 dispositivos
+          const device = audioInputs[i];
+          if (!device) continue;
           try {
-            const testStream = await navigator.mediaDevices.getUserMedia({ 
-              audio: { deviceId: audioInputs[i].deviceId ? { exact: audioInputs[i].deviceId } : undefined }
+            const testStream = await navigator.mediaDevices.getUserMedia({
+              audio: { deviceId: device.deviceId ? { exact: device.deviceId } : undefined }
             });
             testStream.getTracks().forEach(track => track.stop());
             workingDeviceFound = true;
-            
+
             // Crear detalles informativos
-            const deviceLabel = audioInputs[i].label || `Dispositivo de audio ${i + 1}`;
+            const deviceLabel = device.label || `Dispositivo de audio ${i + 1}`;
             deviceDetails = deviceLabel;
             break;
           } catch (deviceError) {

@@ -39,7 +39,7 @@ const DashboardStats: React.FC<DashboardStatsProps> = ({ consultations, language
         const systems = ['DIGESTIÓN', 'ENERGÍA', 'MENTE', 'HORMONAL', 'INMUNE', 'ESTRUCTURA'];
         systems.forEach(system => {
           const match = c.summary!.match(new RegExp(`${system}[\\s\\S]*?(\\d+)\\/10`, 'i'));
-          if (match && parseInt(match[1]) < 4) {
+          if (match && match[1] && parseInt(match[1]) < 4) {
             totalCriticalSystems++;
           }
         });

@@ -171,7 +171,7 @@ const MainApp: React.FC = () => {
     // Vite solo expone variables con prefijo VITE_
     const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
     if (!apiKey || apiKey.trim() === '') {
-      setApiKeyError(UI_TEXTS[language].errorApiKey);
+      setApiKeyError(UI_TEXTS[language]?.errorApiKey ?? 'API key error');
     } else {
       setApiKeyError(null);
     }
@@ -310,26 +310,25 @@ const MainApp: React.FC = () => {
 
   // Protección contra recarga accidental durante sesión activa
   useEffect(() => {
-    const handleBeforeUnload = async (e: BeforeUnloadEvent) => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent): string | undefined => {
       if ((appState === 'LISTENING' || appState === 'PROCESSING') && transcript.length > 0) {
-        // Guardar checkpoint de emergencia
+        // Guardar checkpoint de emergencia (fire-and-forget, beforeunload es síncrono)
         if (user?.id && sessionId) {
-          try {
-            await saveSessionCheckpoint(
-              user.id,
-              sessionId,
-              patientName,
-              language,
-              appState,
-              transcript,
-              currentInputTranscription.current,
-              currentOutputTranscription.current,
-              sessionStartTime
-            );
+          saveSessionCheckpoint(
+            user.id,
+            sessionId,
+            patientName,
+            language,
+            appState,
+            transcript,
+            currentInputTranscription.current,
+            currentOutputTranscription.current,
+            sessionStartTime
+          ).then(() => {
             logger.debug('💾 Checkpoint de emergencia guardado antes de salir');
-          } catch (err) {
+          }).catch((err) => {
             logger.error('❌ Error guardando checkpoint de emergencia:', err);
-          }
+          });
         }
 
         // Mostrar confirmación del navegador
@@ -337,6 +336,7 @@ const MainApp: React.FC = () => {
         e.returnValue = ''; // Chrome requiere esto
         return ''; // Algunos navegadores requieren return value
       }
+      return undefined;
     };
 
     window.addEventListener('beforeunload', handleBeforeUnload);
@@ -497,7 +497,7 @@ const MainApp: React.FC = () => {
     const fullTranscriptText = finalTranscript.map(t => `${t.sender === 'Nova' ? 'Nova' : (language === 'es' ? 'Tú' : 'You')}: ${t.text}`).join('\n');
 
     if (fullTranscriptText.trim().length < 50) {
-      setSummary(UI_TEXTS[language].summaryError);
+      setSummary(UI_TEXTS[language]?.summaryError ?? 'Summary error');
       setAppState('COMPLETED');
       endSessionLockRef.current = false; // Liberar lock antes de return temprano
       return;
@@ -514,7 +514,7 @@ const MainApp: React.FC = () => {
         model: 'gemini-2.5-pro',
         contents: SUMMARY_PROMPT[language](fullTranscriptText),
       });
-      const sanitizedSummary = sanitizeHtml(response.text);
+      const sanitizedSummary = sanitizeHtml(response.text ?? '');
       setSummary(sanitizedSummary);
       setAppState('COMPLETED');
 
@@ -529,9 +529,9 @@ const MainApp: React.FC = () => {
       // Mensaje más específico si es error de API key
       if (errorMessage.includes('VITE_GEMINI_API_KEY') || errorMessage.includes('API') || errorMessage.includes('401') || errorMessage.includes('403')) {
         setError(`Error de configuración: ${errorMessage}. Por favor, verifica tu archivo .env`);
-        setApiKeyError(UI_TEXTS[language].errorApiKey);
+        setApiKeyError(UI_TEXTS[language]?.errorApiKey ?? 'API key error');
       } else {
-        setError(UI_TEXTS[language].errorSummary);
+        setError(UI_TEXTS[language]?.errorSummary ?? 'Summary error');
       }
       setAppState('ERROR');
     } finally {
@@ -679,7 +679,7 @@ const MainApp: React.FC = () => {
                 const bytes = new Uint8Array(silentAudio.buffer);
                 let binary = '';
                 for (let i = 0; i < bytes.length; i++) {
-                  binary += String.fromCharCode(bytes[i]);
+                  binary += String.fromCharCode(bytes[i] ?? 0);
                 }
                 const base64Audio = btoa(binary);
 
@@ -701,13 +701,13 @@ const MainApp: React.FC = () => {
               currentOutputTranscription.current += message.serverContent.outputTranscription.text;
             }
             if (message.serverContent?.inputTranscription) {
-              const transcribedText = message.serverContent.inputTranscription.text;
+              const transcribedText = message.serverContent.inputTranscription.text ?? '';
 
               // FILTROS SUAVIZADOS - Solo rechazar si TODA la transcripción está en idioma incorrecto
               // Gemini a veces transcribe mal caracteres individuales, no debemos rechazar por eso
 
               // Rechazar solo si MAYORÍA son caracteres asiáticos (más del 30% del texto)
-              const asianChars = (transcribedText.match(/[\u0E00-\u0E7F\u4E00-\u9FFF\u3040-\u309F\u30A0-\u30FF\uAC00-\uD7AF\u0C80-\u0CFF]/g) || []).length;
+              const asianChars = (transcribedText.match(/[\u0E00-\u0E7F\u4E00-\u9FFF\u3040-\u309F\u30A0-\u30FF\uAC00-\uD7AF\u0C80-\u0CFF]/g) ?? []).length;
               const totalChars = transcribedText.replace(/\s/g, '').length;
               const asianPercentage = totalChars > 0 ? (asianChars / totalChars) * 100 : 0;
 
@@ -819,7 +819,7 @@ const MainApp: React.FC = () => {
               userErrorMessage = language === 'es'
                 ? `❌ Error de autenticación con Gemini API\n\n📋 Pasos para arreglar:\n1. Verifica que VITE_GEMINI_API_KEY esté en tu archivo .env\n2. Asegúrate de que la API key es válida en Google AI Studio\n3. Reinicia el servidor de desarrollo (pnpm dev)\n4. Recarga esta página\n\n💡 Guía: docs/API.md`
                 : `❌ Gemini API authentication error\n\n📋 Steps to fix:\n1. Verify VITE_GEMINI_API_KEY is in your .env file\n2. Ensure the API key is valid in Google AI Studio\n3. Restart the development server (pnpm dev)\n4. Reload this page\n\n💡 Guide: docs/API.md`;
-              setApiKeyError(UI_TEXTS[language].errorApiKey);
+              setApiKeyError(UI_TEXTS[language]?.errorApiKey ?? 'API key error');
             }
             // Error de rate limit
             else if (errorMessage.includes('429') || errorMessage.includes('quota') || errorMessage.includes('limit')) {
@@ -908,12 +908,12 @@ const MainApp: React.FC = () => {
         // Error genérico con detalles
         else {
           userMessage = language === 'es'
-            ? `❌ ${UI_TEXTS[language].errorMicGeneric}\n\n📋 Pasos para solucionar:\n1. Verifica que tu micrófono esté conectado y funcionando\n2. Da permisos de micrófono a este sitio\n3. Ejecuta el diagnóstico con el botón abajo\n4. Revisa la consola del navegador para más detalles\n\nError técnico: ${err.message.substring(0, 80)}`
-            : `❌ ${UI_TEXTS[language].errorMicGeneric}\n\n📋 Steps to solve:\n1. Verify your microphone is connected and working\n2. Grant microphone permissions to this site\n3. Run the diagnostic with the button below\n4. Check browser console for more details\n\nTechnical error: ${err.message.substring(0, 80)}`;
+            ? `❌ ${UI_TEXTS[language]?.errorMicGeneric ?? 'Microphone error'}\n\n📋 Pasos para solucionar:\n1. Verifica que tu micrófono esté conectado y funcionando\n2. Da permisos de micrófono a este sitio\n3. Ejecuta el diagnóstico con el botón abajo\n4. Revisa la consola del navegador para más detalles\n\nError técnico: ${err.message.substring(0, 80)}`
+            : `❌ ${UI_TEXTS[language]?.errorMicGeneric ?? 'Microphone error'}\n\n📋 Steps to solve:\n1. Verify your microphone is connected and working\n2. Grant microphone permissions to this site\n3. Run the diagnostic with the button below\n4. Check browser console for more details\n\nTechnical error: ${err.message.substring(0, 80)}`;
         }
       }
 
-      setError(userMessage);
+      setError(userMessage ?? 'An error occurred');
       setAppState('ERROR');
       cleanupAudio();
     }
@@ -1000,7 +1000,7 @@ const MainApp: React.FC = () => {
         </ErrorBoundary>
       )}
 
-      <main className="container mx-auto px-4 sm:px-6 pt-28 pb-12">
+      <main id="main-content" className="container mx-auto px-4 sm:px-6 pt-28 pb-12" role="main">
         {apiKeyError ? (
           <div className="text-center bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative" role="alert">
             <strong className="font-bold">Error: </strong>

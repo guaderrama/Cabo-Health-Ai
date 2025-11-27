@@ -31,6 +31,7 @@ const ConfirmationModal: React.FC<ConfirmationModalProps> = ({
         document.body.style.overflow = 'unset';
       };
     }
+    return undefined;
   }, [isOpen]);
 
   // Manejar ESC y Enter
