@@ -659,42 +659,31 @@ const MainApp: React.FC = () => {
             source.connect(analyser);
             analyser.connect(workletNode);
             workletNode.connect(audioContextRef.current!.destination);
+            logger.debug('🔌 Conexión WebSocket abierta, activando Nova...');
 
-            // Enviar un fragmento de audio silencioso para activar el saludo de Nova
-            // Gemini Live API requiere al menos un mensaje de audio para iniciar la conversación
-            sessionPromiseRef.current?.then((session) => {
-              try {
-                // Crear 0.5 segundos de audio silencioso (16kHz, mono, 16-bit PCM)
-                const sampleRate = 16000;
-                const duration = 0.5; // segundos
-                const numSamples = Math.floor(sampleRate * duration);
-                const silentAudio = new Int16Array(numSamples);
-
-                // Llenar con silencio (valores cercanos a 0 con mínimo ruido para parecer natural)
-                for (let i = 0; i < numSamples; i++) {
-                  silentAudio[i] = Math.floor(Math.random() * 20) - 10; // ruido muy bajo
+            // 🎙️ ACTIVACIÓN AUTOMÁTICA DE NOVA
+            // Gemini Live API necesita recibir audio para "activarse" y empezar a hablar.
+            // Enviamos un pequeño fragmento de silencio (100ms) para que Nova ejecute
+            // su protocolo de apertura y salude al paciente automáticamente.
+            setTimeout(() => {
+              sessionPromiseRef.current?.then((session) => {
+                try {
+                  // Crear 100ms de audio silencioso (16kHz, mono, 16-bit PCM)
+                  const silentSamples = 1600; // 100ms @ 16kHz
+                  const silentBuffer = new Int16Array(silentSamples);
+                  // Convertir a Uint8Array para enviar
+                  const pcmData = new Uint8Array(silentBuffer.buffer);
+                  const activationAudio = {
+                    data: encode(pcmData),
+                    mimeType: 'audio/pcm;rate=16000',
+                  };
+                  session.sendRealtimeInput({ media: activationAudio });
+                  logger.debug('✅ Audio de activación enviado - Nova debería saludar ahora');
+                } catch (e) {
+                  logger.error('Error enviando audio de activación:', e);
                 }
-
-                // Convertir a base64 (mismo formato que el audio del micrófono)
-                const bytes = new Uint8Array(silentAudio.buffer);
-                let binary = '';
-                for (let i = 0; i < bytes.length; i++) {
-                  binary += String.fromCharCode(bytes[i] ?? 0);
-                }
-                const base64Audio = btoa(binary);
-
-                const pcmData = {
-                  data: base64Audio,
-                  mimeType: 'audio/pcm;rate=16000',
-                };
-
-                // Enviar inmediatamente para asegurar que Nova hable lo antes posible
-                session.sendRealtimeInput({ media: pcmData });
-                logger.debug('✅ Audio de activación enviado para despertar a Nova');
-              } catch (e) {
-                logger.error("❌ Failed to send activation audio:", e);
-              }
-            });
+              });
+            }, 500); // Pequeño delay para asegurar que la conexión está estable
           },
           onmessage: async (message: LiveServerMessage) => {
             if (message.serverContent?.outputTranscription) {
