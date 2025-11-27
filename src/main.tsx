@@ -4,6 +4,27 @@ import './index.css'
 import App from './App.tsx'
 import { AuthProvider } from './contexts/AuthContext.tsx'
 import { initErrorTracking } from './lib/errorTracking'
+import { logger } from './lib/logger'
+
+// Validate required environment variables at startup
+const requiredEnvVars = ['VITE_SUPABASE_URL', 'VITE_SUPABASE_ANON_KEY', 'VITE_GEMINI_API_KEY'] as const;
+const missingVars = requiredEnvVars.filter(key => !import.meta.env[key]);
+
+if (missingVars.length > 0) {
+  const errorMsg = `Missing required environment variables: ${missingVars.join(', ')}. Check your .env file.`;
+  logger.error(errorMsg);
+  // In development, show a visible error
+  if (import.meta.env.DEV) {
+    document.body.innerHTML = `
+      <div style="padding: 20px; background: #fee2e2; color: #991b1b; font-family: monospace; border-radius: 8px; margin: 20px;">
+        <h2>⚠️ Environment Configuration Error</h2>
+        <p>${errorMsg}</p>
+        <p>Create a <code>.env</code> file with the required variables.</p>
+      </div>
+    `;
+    throw new Error(errorMsg);
+  }
+}
 
 // Inicializar error tracking (solo en producción)
 initErrorTracking();
@@ -15,7 +36,7 @@ window.addEventListener('error', (event) => {
       event.message?.includes('share-modal') ||
       event.message?.includes('addEventListener') && event.message?.includes('null')) {
     event.preventDefault();
-    console.warn('⚠️ Error de módulo externo ignorado:', event.message);
+    logger.warn('Error de módulo externo ignorado:', event.message);
     return false;
   }
 
@@ -24,7 +45,7 @@ window.addEventListener('error', (event) => {
       event.filename?.includes('solanaActions') ||
       event.message?.includes('runtime.lastError')) {
     event.preventDefault();
-    console.warn('⚠️ Error de extensión del navegador ignorado');
+    logger.warn('Error de extensión del navegador ignorado');
     return false;
   }
 });

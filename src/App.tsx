@@ -16,6 +16,7 @@ import SummaryPanel from './components/SummaryPanel';
 import ProgressIndicator from './components/ProgressIndicator';
 import ErrorBoundary from './components/ErrorBoundary';
 import { playWelcomeSound } from './services/audioService';
+import { logger } from './lib/logger';
 
 // Lazy loading de componentes no críticos para mejorar performance inicial
 const SessionRecoveryModal = lazy(() => import('./components/SessionRecoveryModal'));
@@ -78,7 +79,9 @@ const App: React.FC = () => {
     return (
       <>
         <Header language={language} isOnline={isOnline} />
-        <DoctorDashboard language={language} />
+        <ErrorBoundary>
+          <DoctorDashboard language={language} />
+        </ErrorBoundary>
       </>
     );
   }
@@ -218,7 +221,7 @@ const MainApp: React.FC = () => {
           setLastCheckpointTime(Date.now());
           setLastSavedMessageCount(transcript.length);
         } else {
-          console.error('Error guardando checkpoint:', result.error);
+          logger.error('Error guardando checkpoint:', result.error);
         }
       }
     };
@@ -272,7 +275,7 @@ const MainApp: React.FC = () => {
   // Detector de pérdida de conexión
   useEffect(() => {
     const handleOnline = () => {
-      console.log('🌐 [DEBUG] Conexión restaurada');
+      logger.debug('🌐 Conexión restaurada');
       setIsOnline(true);
 
       if (connectionLostDuringSession && appState === 'ERROR') {
@@ -284,7 +287,7 @@ const MainApp: React.FC = () => {
     };
 
     const handleOffline = () => {
-      console.log('⚠️ [DEBUG] Conexión perdida');
+      logger.debug('⚠️ Conexión perdida');
       setIsOnline(false);
 
       if (appState === 'LISTENING' || appState === 'CONNECTING') {
@@ -323,9 +326,9 @@ const MainApp: React.FC = () => {
               currentOutputTranscription.current,
               sessionStartTime
             );
-            console.log('💾 [DEBUG] Checkpoint de emergencia guardado antes de salir');
+            logger.debug('💾 Checkpoint de emergencia guardado antes de salir');
           } catch (err) {
-            console.error('❌ [DEBUG] Error guardando checkpoint de emergencia:', err);
+            logger.error('❌ Error guardando checkpoint de emergencia:', err);
           }
         }
 
@@ -411,7 +414,7 @@ const MainApp: React.FC = () => {
 
     // Validar checkpoint antes de recuperar
     if (!validateCheckpoint(checkpoint)) {
-      console.error('Checkpoint inválido, no se puede recuperar');
+      logger.error('Checkpoint inválido, no se puede recuperar');
       setShowRecoveryModal(false);
       return;
     }
@@ -462,7 +465,7 @@ const MainApp: React.FC = () => {
         const session = await sessionPromiseRef.current;
         session.close();
       } catch (e) {
-        console.error("Error closing live session:", e);
+        logger.error("Error closing live session:", e);
       } finally {
         sessionPromiseRef.current = null;
       }
@@ -520,7 +523,7 @@ const MainApp: React.FC = () => {
         await clearCheckpoint(sessionId, user.id);
       }
     } catch (err) {
-      console.error('Summary generation failed:', err);
+      logger.error('Summary generation failed:', err);
       const errorMessage = err instanceof Error ? err.message : String(err);
 
       // Mensaje más específico si es error de API key
@@ -577,7 +580,7 @@ const MainApp: React.FC = () => {
       const audioTrack = audioTracks.length > 0 ? audioTracks[0] : null;
       if (audioTrack) {
         audioTrack.addEventListener('ended', () => {
-          console.log('Micrófono desconectado');
+          logger.debug('Micrófono desconectado');
           if (appStateRef.current === 'LISTENING') {
             const errorMsg = language === 'es'
               ? 'El micrófono se desconectó. Por favor reconecta tu micrófono y reinicia la sesión. Tu progreso está guardado.'
@@ -616,7 +619,7 @@ const MainApp: React.FC = () => {
           try {
             session.sendRealtimeInput({ media: pcmBlob });
           } catch (e) {
-            console.error("Failed to send audio data:", e);
+            logger.error("Failed to send audio data:", e);
           }
         });
       };
@@ -687,9 +690,9 @@ const MainApp: React.FC = () => {
 
                 // Enviar inmediatamente para asegurar que Nova hable lo antes posible
                 session.sendRealtimeInput({ media: pcmData });
-                console.log('✅ Audio de activación enviado para despertar a Nova');
+                logger.debug('✅ Audio de activación enviado para despertar a Nova');
               } catch (e) {
-                console.error("❌ Failed to send activation audio:", e);
+                logger.error("❌ Failed to send activation audio:", e);
               }
             });
           },
@@ -709,7 +712,7 @@ const MainApp: React.FC = () => {
               const asianPercentage = totalChars > 0 ? (asianChars / totalChars) * 100 : 0;
 
               if (asianPercentage > 30) {
-                console.warn('⛔ Mayoría de caracteres asiáticos detectados:', transcribedText, `(${asianPercentage.toFixed(0)}%)`);
+                logger.warn('⛔ Mayoría de caracteres asiáticos detectados:', transcribedText, `(${asianPercentage.toFixed(0)}%)`);
                 return;
               }
 
@@ -732,7 +735,7 @@ const MainApp: React.FC = () => {
               if (shouldAccept) {
                 currentInputTranscription.current += transcribedText;
               } else {
-                console.warn('⏭️ Filtrada transcripción en idioma incorrecto:', transcribedText);
+                logger.warn('⏭️ Filtrada transcripción en idioma incorrecto:', transcribedText);
               }
             }
             if (message.serverContent?.turnComplete) {
@@ -805,7 +808,7 @@ const MainApp: React.FC = () => {
             }
           },
           onerror: (e: ErrorEvent) => {
-            console.error('Live session connection error:', e);
+            logger.error('Live session connection error:', e);
             const errorMessage = e.message || String(e);
 
             // Detectar errores específicos y proporcionar pasos de solución
@@ -842,7 +845,7 @@ const MainApp: React.FC = () => {
             cleanupAudio();
           },
           onclose: (e: CloseEvent) => {
-            console.log('Session closed by server:', e.code, e.reason);
+            logger.debug('Session closed by server:', e.code, e.reason);
 
             // Solo notificar si estamos en estado LISTENING (conexión inesperada cerrada)
             if (appStateRef.current === 'LISTENING') {
@@ -866,7 +869,7 @@ const MainApp: React.FC = () => {
                   currentInputTranscription.current,
                   currentOutputTranscription.current,
                   sessionStartTime
-                ).catch(err => console.error('Error guardando checkpoint de emergencia:', err));
+                ).catch(err => logger.error('Error guardando checkpoint de emergencia:', err));
               }
             }
           },
@@ -874,7 +877,7 @@ const MainApp: React.FC = () => {
       });
 
     } catch (err) {
-      console.error('Failed to start session:', err);
+      logger.error('Failed to start session:', err);
       let userMessage = UI_TEXTS[language].errorMicGeneric;
 
       if (err instanceof Error) {
@@ -973,24 +976,28 @@ const MainApp: React.FC = () => {
 
       {/* Modal de recuperación de sesión */}
       {showRecoveryModal && recoverableSessions.length > 0 && (
-        <Suspense fallback={<div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white"></div></div>}>
-          <SessionRecoveryModal
-            sessions={recoverableSessions}
-            onRecover={handleRecoverSession}
-            onDismiss={handleDismissRecovery}
-            language={language}
-          />
-        </Suspense>
+        <ErrorBoundary>
+          <Suspense fallback={<div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white"></div></div>}>
+            <SessionRecoveryModal
+              sessions={recoverableSessions}
+              onRecover={handleRecoverSession}
+              onDismiss={handleDismissRecovery}
+              language={language}
+            />
+          </Suspense>
+        </ErrorBoundary>
       )}
 
       {/* Diagnóstico de micrófono */}
       {showMicrophoneDiagnostic && (
-        <Suspense fallback={<div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white"></div></div>}>
-          <MicrophoneDiagnostic
-            language={language}
-            onClose={handleCloseMicrophoneDiagnostic}
-          />
-        </Suspense>
+        <ErrorBoundary>
+          <Suspense fallback={<div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white"></div></div>}>
+            <MicrophoneDiagnostic
+              language={language}
+              onClose={handleCloseMicrophoneDiagnostic}
+            />
+          </Suspense>
+        </ErrorBoundary>
       )}
 
       <main className="container mx-auto px-4 sm:px-6 pt-28 pb-12">
