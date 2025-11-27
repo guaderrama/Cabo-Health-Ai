@@ -59,6 +59,7 @@ const ProgressIndicator: React.FC<ProgressIndicatorProps> = ({
       const timer = setTimeout(() => setShowSavedIndicator(false), 3000);
       return () => clearTimeout(timer);
     }
+    return undefined;
   }, [lastCheckpointTime]);
 
   const formatTime = (milliseconds: number): string => {

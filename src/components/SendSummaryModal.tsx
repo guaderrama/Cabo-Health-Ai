@@ -51,6 +51,7 @@ const SendSummaryModal: React.FC<SendSummaryModalProps> = ({
         document.body.style.overflow = 'unset';
       };
     }
+    return undefined;
   }, [isOpen]);
 
   const handleClose = useCallback(() => {
@@ -82,7 +83,7 @@ const SendSummaryModal: React.FC<SendSummaryModalProps> = ({
     }
 
     // Validar que los mensajes tengan contenido real (no solo saludos)
-    const totalWordCount = transcript.reduce((sum, msg) => sum + msg.text.split(' ').filter(w => w.length > 0).length, 0);
+    const totalWordCount = transcript.reduce((sum, msg) => sum + msg.text.split(' ').filter((w: string) => w.length > 0).length, 0);
     if (totalWordCount < 50) {
       logger.debug('Validación fallida: contenido muy breve (<50 palabras)');
       setError(language === 'es'
@@ -157,7 +158,7 @@ const SendSummaryModal: React.FC<SendSummaryModalProps> = ({
 
       // Calcular motivation score del resumen
       const motivationMatch = summary.match(/Readiness general:\s*\[?(\d+(?:\.\d+)?)/);
-      const motivationScore = motivationMatch ? parseFloat(motivationMatch[1]) : 5.0;
+      const motivationScore = motivationMatch && motivationMatch[1] ? parseFloat(motivationMatch[1]) : 5.0;
 
       logger.debug('💾 Preparando datos para guardar...');
       const dataToInsert = {

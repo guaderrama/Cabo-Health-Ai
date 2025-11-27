@@ -51,10 +51,12 @@ const parseSummaryHTML = (html: string): ParsedSummary => {
     const alertText = doc.body.textContent || '';
     const alertMatches = alertText.matchAll(/⚠️\s*(.+?)(?=⚠️|💪|🔬|$)/g);
     for (const match of alertMatches) {
-      alerts.push({
-        severity: 'critical',
-        text: match[1].trim()
-      });
+      if (match[1]) {
+        alerts.push({
+          severity: 'critical',
+          text: match[1].trim()
+        });
+      }
     }
   }
 
@@ -70,7 +72,7 @@ const parseSummaryHTML = (html: string): ParsedSummary => {
   const systemNames = ['DIGESTIÓN', 'ENERGÍA', 'MENTE', 'HORMONAL', 'INMUNE', 'ESTRUCTURA'];
   systemNames.forEach(name => {
     const match = html.match(new RegExp(`${name}[\\s\\S]*?(\\d+)\\/10`, 'i'));
-    if (match) {
+    if (match && match[1]) {
       const score = parseInt(match[1]);
       systems.push({
         name,
@@ -82,22 +84,22 @@ const parseSummaryHTML = (html: string): ParsedSummary => {
 
   // Extraer completitud
   const completenessMatch = html.match(/Áreas Completamente Cubiertas:\s*(\d+)\/20/i);
-  const completeness = completenessMatch ? parseInt(completenessMatch[1]) : 0;
+  const completeness = completenessMatch && completenessMatch[1] ? parseInt(completenessMatch[1]) : 0;
 
   // Extraer duración
   const durationMatch = html.match(/⏱️ Duración[:\s]+~?(\d+ min)/i) || html.match(/Duración[:\s]+(.+?)(?=<|$)/i);
-  const duration = durationMatch ? durationMatch[1].trim() : 'N/A';
+  const duration = durationMatch && durationMatch[1] ? durationMatch[1].trim() : 'N/A';
 
   // Extraer motivo principal
   const chiefComplaintMatch = html.match(/Motivo principal de consulta:[:\s]+(.+?)(?=Objetivos|<|$)/i);
-  const chiefComplaint = chiefComplaintMatch ? chiefComplaintMatch[1].trim() : '';
+  const chiefComplaint = chiefComplaintMatch && chiefComplaintMatch[1] ? chiefComplaintMatch[1].trim() : '';
 
   // Extraer hallazgos clave (del Resumen Ejecutivo)
   const keyFindings: string[] = [];
   const findingsMatches = html.matchAll(/\d+\.\s*(.+?)(?=\d+\.|💪|🔬|📋|$)/gs);
   let count = 0;
   for (const match of findingsMatches) {
-    if (count < 5) {
+    if (count < 5 && match[1]) {
       const finding = match[1].trim().substring(0, 200);
       if (finding.length > 20) {
         keyFindings.push(finding);
@@ -111,7 +113,7 @@ const parseSummaryHTML = (html: string): ParsedSummary => {
 
 const extractScore = (html: string, regex: RegExp): number => {
   const match = html.match(regex);
-  return match ? parseInt(match[1]) : 0;
+  return match && match[1] ? parseInt(match[1]) : 0;
 };
 
 const ClinicalSummaryView: React.FC<ClinicalSummaryViewProps> = ({ summaryHTML, language }) => {

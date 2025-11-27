@@ -30,14 +30,14 @@ if (missingVars.length > 0) {
 initErrorTracking();
 
 // Error handler global para prevenir crashes por módulos externos faltantes
-window.addEventListener('error', (event) => {
+window.addEventListener('error', (event): void => {
   // Prevenir errores de módulos opcionales/externos que no existen
   if (event.filename?.includes('share-modal') ||
       event.message?.includes('share-modal') ||
-      event.message?.includes('addEventListener') && event.message?.includes('null')) {
+      (event.message?.includes('addEventListener') && event.message?.includes('null'))) {
     event.preventDefault();
     logger.warn('Error de módulo externo ignorado:', event.message);
-    return false;
+    return;
   }
 
   // Prevenir errores de extensiones del navegador
@@ -46,7 +46,7 @@ window.addEventListener('error', (event) => {
       event.message?.includes('runtime.lastError')) {
     event.preventDefault();
     logger.warn('Error de extensión del navegador ignorado');
-    return false;
+    return;
   }
 });
 

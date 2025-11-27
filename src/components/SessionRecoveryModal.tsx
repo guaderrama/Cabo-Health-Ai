@@ -121,10 +121,18 @@ const SessionRecoveryModal: React.FC<SessionRecoveryModalProps> = ({
                     {language === 'es' ? 'Último mensaje:' : 'Last message:'}
                   </p>
                   <p className="text-sm text-slate-700 line-clamp-2">
-                    <span className="font-medium">
-                      {session.checkpoint.transcript[session.checkpoint.transcript.length - 1].sender === 'Nova' ? 'Nova: ' : (language === 'es' ? 'Tú: ' : 'You: ')}
-                    </span>
-                    {session.checkpoint.transcript[session.checkpoint.transcript.length - 1].text}
+                    {(() => {
+                      const lastMsg = session.checkpoint.transcript[session.checkpoint.transcript.length - 1];
+                      if (!lastMsg) return null;
+                      return (
+                        <>
+                          <span className="font-medium">
+                            {lastMsg.sender === 'Nova' ? 'Nova: ' : (language === 'es' ? 'Tú: ' : 'You: ')}
+                          </span>
+                          {lastMsg.text}
+                        </>
+                      );
+                    })()}
                   </p>
                 </div>
               )}

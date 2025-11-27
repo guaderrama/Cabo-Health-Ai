@@ -133,7 +133,7 @@ const DoctorDashboard: React.FC<DoctorDashboardProps> = ({ language }) => {
       const systems = ['DIGESTIÓN', 'ENERGÍA', 'MENTE', 'HORMONAL', 'INMUNE', 'ESTRUCTURA'];
       systems.forEach(system => {
         const match = consultation.summary!.match(new RegExp(`${system}[\\s\\S]*?(\\d+)\\/10`, 'i'));
-        if (match && parseInt(match[1]) < 4) {
+        if (match && match[1] && parseInt(match[1]) < 4) {
           criticalSystemsCount++;
         }
       });
@@ -567,7 +567,7 @@ const DoctorDashboard: React.FC<DoctorDashboardProps> = ({ language }) => {
                     const systemsData: string[] = [];
                     systems.forEach(system => {
                       const match = selectedConsultation.summary!.match(new RegExp(`${system}[\\s\\S]*?(\\d+)\\/10`, 'i'));
-                      if (match) {
+                      if (match && match[1]) {
                         const score = parseInt(match[1]);
                         const status = score >= 7 ? '🟢 Óptimo' : score >= 4 ? '🟡 Moderado' : '🔴 Crítico';
                         systemsData.push(`
