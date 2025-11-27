@@ -87,8 +87,9 @@ async function saveToSupabaseWithRetry(
     if (result.error) throw result.error;
 
     return { success: true };
-  } catch (error: any) {
-    console.error(`Error guardando checkpoint (intento ${attempt}):`, error);
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
+    console.error(`Error guardando checkpoint (intento ${attempt}):`, errorMessage);
 
     if (attempt < MAX_RETRY_ATTEMPTS) {
       // Reintento con delay exponencial
@@ -97,9 +98,9 @@ async function saveToSupabaseWithRetry(
       return saveToSupabaseWithRetry(checkpoint, attempt + 1);
     }
 
-    return { 
-      success: false, 
-      error: error.message || 'Error desconocido al guardar checkpoint' 
+    return {
+      success: false,
+      error: errorMessage
     };
   }
 }
