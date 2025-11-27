@@ -54,21 +54,23 @@ async function saveToSupabaseWithRetry(
   attempt: number = 1
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    // Intentar actualizar primero
+    // Intentar actualizar primero - usar maybeSingle() para evitar 406 cuando no hay filas
     const { data: existing, error: selectError } = await supabase
       .from('session_checkpoints')
       .select('id')
       .eq('session_id', checkpoint.session_id)
       .eq('user_id', checkpoint.user_id)
-      .single();
+      .maybeSingle();
 
-    if (selectError && selectError.code !== 'PGRST116') {
-      // Error diferente a "no encontrado"
-      throw selectError;
+    if (selectError) {
+      // Solo lanzar error si es diferente a "no encontrado"
+      if (selectError.code !== 'PGRST116') {
+        throw selectError;
+      }
     }
 
     let result;
-    if (existing) {
+    if (existing?.id) {
       // Actualizar checkpoint existente
       result = await supabase
         .from('session_checkpoints')

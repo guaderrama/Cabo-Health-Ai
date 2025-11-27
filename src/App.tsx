@@ -703,39 +703,27 @@ const MainApp: React.FC = () => {
             if (message.serverContent?.inputTranscription) {
               const transcribedText = message.serverContent.inputTranscription.text ?? '';
 
-              // FILTROS SUAVIZADOS - Solo rechazar si TODA la transcripción está en idioma incorrecto
-              // Gemini a veces transcribe mal caracteres individuales, no debemos rechazar por eso
+              // FILTRO MÍNIMO - Solo rechazar casos MUY CLAROS de idioma incorrecto
+              // Preferimos incluir texto dudoso a perder información del paciente
 
-              // Rechazar solo si MAYORÍA son caracteres asiáticos (más del 30% del texto)
+              // Contar caracteres asiáticos
               const asianChars = (transcribedText.match(/[\u0E00-\u0E7F\u4E00-\u9FFF\u3040-\u309F\u30A0-\u30FF\uAC00-\uD7AF\u0C80-\u0CFF]/g) ?? []).length;
               const totalChars = transcribedText.replace(/\s/g, '').length;
               const asianPercentage = totalChars > 0 ? (asianChars / totalChars) * 100 : 0;
 
-              if (asianPercentage > 30) {
-                logger.warn('⛔ Mayoría de caracteres asiáticos detectados:', transcribedText, `(${asianPercentage.toFixed(0)}%)`);
+              // SOLO rechazar si MÁS DEL 50% son caracteres asiáticos (muy conservador)
+              if (asianPercentage > 50) {
+                logger.warn('⛔ Transcripción rechazada (>50% caracteres asiáticos):', transcribedText.substring(0, 30) + '...');
                 return;
               }
 
-              // Detectar español con patrones mejorados
-              const isLikelySpanish = /[áéíóúñÁÉÍÓÚÑ¿¡]/.test(transcribedText) ||
-                /\b(el|la|los|las|de|que|y|en|un|una|es|por|con|para|su|no|me|te|se|lo|mi|tu|si|más|del|como|este|esta|hay|son|sí|pero|bueno|hacer|puede|hacer|tener|estar|ser|muy|todo|puede|ahora|aquí|bien)\b/i.test(transcribedText);
+              // ACEPTAR TODO LO DEMÁS - incluyendo transcripciones que no detectemos como español/inglés
+              // Razón: Es mejor tener texto "raro" que perder información del paciente
+              currentInputTranscription.current += transcribedText;
 
-              const isLikelyEnglish = /\b(the|is|are|was|were|have|has|had|do|does|did|will|would|can|could|should|may|might|must|of|to|in|for|on|with|at|by|from|as|an|a|this|that|it|he|she|they|we|you|i|yes|no|what|when|where|how|why|who)\b/i.test(transcribedText);
-
-              // Aceptar transcripciones muy cortas (menos de 6 caracteres) ya que suelen ser válidas
-              const isVeryShort = transcribedText.trim().length < 6;
-
-              // Solo agregar si está en el idioma correcto O es muy corto O tiene pocos caracteres extraños
-              const shouldAccept = (
-                (language === 'es' && (isLikelySpanish || isVeryShort)) ||
-                (language === 'en' && (isLikelyEnglish || isVeryShort)) ||
-                (asianPercentage < 10 && totalChars > 0) // Permitir si tiene menos del 10% de caracteres asiáticos
-              );
-
-              if (shouldAccept) {
-                currentInputTranscription.current += transcribedText;
-              } else {
-                logger.warn('⏭️ Filtrada transcripción en idioma incorrecto:', transcribedText);
+              // Log para debug (solo si parece sospechoso pero lo aceptamos)
+              if (asianPercentage > 20) {
+                logger.debug('⚠️ Transcripción aceptada con caracteres inusuales:', transcribedText.substring(0, 50));
               }
             }
             if (message.serverContent?.turnComplete) {
