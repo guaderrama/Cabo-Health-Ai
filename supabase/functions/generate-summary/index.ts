@@ -1,21 +1,63 @@
-Deno.serve(async (req) => {
-  const corsHeaders = {
-    'Access-Control-Allow-Origin': '*',
+// =============================================================================
+// CORS SEGURO - Lista blanca de dominios permitidos
+// =============================================================================
+const ALLOWED_ORIGINS = [
+  'https://cabo-health-nova.vercel.app',
+  'https://etric4luf0vq.space.minimax.io',
+  'https://localhost:3000',
+  'https://127.0.0.1:3000',
+];
+
+function getCorsHeaders(origin: string | null): Record<string, string> {
+  const allowedOrigin = origin && ALLOWED_ORIGINS.includes(origin)
+    ? origin
+    : ALLOWED_ORIGINS[0];
+
+  return {
+    'Access-Control-Allow-Origin': allowedOrigin,
     'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
     'Access-Control-Allow-Methods': 'POST, OPTIONS',
+    'Access-Control-Allow-Credentials': 'true',
     'Access-Control-Max-Age': '86400',
   };
+}
+
+// =============================================================================
+// VALIDACIÓN DE INPUTS
+// =============================================================================
+function validateLanguage(lang: unknown): 'es' | 'en' {
+  return lang === 'en' ? 'en' : 'es';
+}
+
+function validateTranscript(transcript: unknown): string | null {
+  if (typeof transcript !== 'string') return null;
+  if (transcript.length < 10) return null;
+  if (transcript.length > 100000) return null; // Max 100KB
+  return transcript.slice(0, 100000);
+}
+
+// =============================================================================
+// HANDLER PRINCIPAL
+// =============================================================================
+Deno.serve(async (req) => {
+  const origin = req.headers.get('origin');
+  const corsHeaders = getCorsHeaders(origin);
 
   if (req.method === 'OPTIONS') {
     return new Response(null, { status: 200, headers: corsHeaders });
   }
 
   try {
-    const { transcript, language } = await req.json();
+    const rawBody = await req.json();
+    const { transcript: rawTranscript, language: rawLanguage } = rawBody;
 
-    if (!transcript || !language) {
-      throw new Error('Faltan parámetros: transcript y language son requeridos');
+    // Validar inputs
+    const transcript = validateTranscript(rawTranscript);
+    if (!transcript) {
+      throw new Error('transcript es requerido y debe tener entre 10 y 100000 caracteres');
     }
+
+    const language = validateLanguage(rawLanguage);
 
     const geminiApiKey = Deno.env.get('GEMINI_API_KEY');
     if (!geminiApiKey || geminiApiKey.trim() === '') {
@@ -25,7 +67,7 @@ Deno.serve(async (req) => {
     // Crear el prompt según el idioma
     const prompts = {
       es: `Eres un experto médico analista de IA. Tu tarea es analizar la siguiente transcripción de una entrevista clínica y generar un resumen estructurado y profesional en formato SOAP (Subjetivo, Objetivo, Apreciación, Plan).
-      
+
 El resumen DEBE estar en **Español**.
 
 El resultado DEBE ser un fragmento de HTML bien formateado. Usa etiquetas <h2> para los títulos SOAP, <p> para párrafos, <ul> y <li> para listas, y <strong> para resaltar términos clave. No incluyas las etiquetas <html> o <body> en tu respuesta, solo el contenido que iría dentro de la etiqueta body.
@@ -50,7 +92,7 @@ ${transcript}
 Generate the SOAP summary in HTML now.`
     };
 
-    const prompt = prompts[language as 'es' | 'en'] || prompts.es;
+    const prompt = prompts[language];
 
     // Llamar a la API de Gemini
     const geminiResponse = await fetch(
@@ -76,28 +118,29 @@ Generate the SOAP summary in HTML now.`
     }
 
     const geminiData = await geminiResponse.json();
-    
+
     if (!geminiData.candidates || geminiData.candidates.length === 0) {
       throw new Error('No se generó respuesta de Gemini');
     }
 
     const summaryHtml = geminiData.candidates[0].content.parts[0].text;
 
-    return new Response(JSON.stringify({ 
-      data: { 
+    return new Response(JSON.stringify({
+      data: {
         summary: summaryHtml
-      } 
+      }
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     });
 
-  } catch (error) {
-    console.error('Error en generate-summary:', error);
-    
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
+    console.error('Error en generate-summary:', errorMessage);
+
     return new Response(JSON.stringify({
       error: {
         code: 'GENERATE_SUMMARY_FAILED',
-        message: error.message
+        message: errorMessage
       }
     }), {
       status: 500,

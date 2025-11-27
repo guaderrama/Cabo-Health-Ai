@@ -117,15 +117,24 @@ const MainApp: React.FC = () => {
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [connectionLostDuringSession, setConnectionLostDuringSession] = useState(false);
 
-  // Estado para sonido de bienvenida (cargar de localStorage)
+  // Estado para sonido de bienvenida (cargar de localStorage con fallback seguro)
   const [welcomeSoundEnabled, setWelcomeSoundEnabled] = useState(() => {
-    const saved = localStorage.getItem('welcomeSoundEnabled');
-    return saved !== null ? JSON.parse(saved) : true; // Por defecto activado
+    try {
+      const saved = localStorage.getItem('welcomeSoundEnabled');
+      return saved !== null ? JSON.parse(saved) : true;
+    } catch {
+      // Fallback si localStorage no está disponible (modo incógnito, etc.)
+      return true;
+    }
   });
 
   // Guardar preferencia de sonido en localStorage cuando cambia
   useEffect(() => {
-    localStorage.setItem('welcomeSoundEnabled', JSON.stringify(welcomeSoundEnabled));
+    try {
+      localStorage.setItem('welcomeSoundEnabled', JSON.stringify(welcomeSoundEnabled));
+    } catch {
+      // Silently fail if localStorage is not available
+    }
   }, [welcomeSoundEnabled]);
 
   const handleToggleWelcomeSound = () => {
