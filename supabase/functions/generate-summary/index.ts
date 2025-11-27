@@ -23,6 +23,28 @@ function getCorsHeaders(origin: string | null): Record<string, string> {
 }
 
 // =============================================================================
+// UTILIDADES - Fetch con Timeout
+// =============================================================================
+async function fetchWithTimeout(
+  url: string,
+  options: RequestInit,
+  timeoutMs: number = 60000 // 60 segundos por defecto
+): Promise<Response> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const response = await fetch(url, {
+      ...options,
+      signal: controller.signal
+    });
+    return response;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
+// =============================================================================
 // VALIDACIÓN DE INPUTS
 // =============================================================================
 function validateLanguage(lang: unknown): 'es' | 'en' {
@@ -94,8 +116,8 @@ Generate the SOAP summary in HTML now.`
 
     const prompt = prompts[language];
 
-    // Llamar a la API de Gemini
-    const geminiResponse = await fetch(
+    // Llamar a la API de Gemini con timeout de 90 segundos
+    const geminiResponse = await fetchWithTimeout(
       `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:generateContent?key=${geminiApiKey}`,
       {
         method: 'POST',
@@ -109,7 +131,8 @@ Generate the SOAP summary in HTML now.`
             }]
           }]
         })
-      }
+      },
+      90000 // 90 segundos para Gemini (puede tardar)
     );
 
     if (!geminiResponse.ok) {
