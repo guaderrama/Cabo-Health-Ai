@@ -66,6 +66,28 @@ function sanitizeSummaryHtml(html: string): string {
 }
 
 // =============================================================================
+// UTILIDADES - Fetch con Timeout
+// =============================================================================
+async function fetchWithTimeout(
+  url: string,
+  options: RequestInit,
+  timeoutMs: number = 30000 // 30 segundos por defecto
+): Promise<Response> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const response = await fetch(url, {
+      ...options,
+      signal: controller.signal
+    });
+    return response;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
+// =============================================================================
 // VALIDACIÓN DE INPUTS
 // =============================================================================
 function validateEmail(email: unknown): boolean {
@@ -145,7 +167,7 @@ Deno.serve(async (req) => {
       const supabaseUrl = Deno.env.get('PROJECT_URL');
 
       if (serviceRoleKey && supabaseUrl && consultationId) {
-        await fetch(`${supabaseUrl}/rest/v1/summaries?consultation_id=eq.${consultationId}`, {
+        await fetchWithTimeout(`${supabaseUrl}/rest/v1/summaries?consultation_id=eq.${consultationId}`, {
           method: 'PATCH',
           headers: {
             'Authorization': `Bearer ${serviceRoleKey}`,
@@ -156,7 +178,7 @@ Deno.serve(async (req) => {
           body: JSON.stringify({
             sent_at: new Date().toISOString()
           })
-        });
+        }, 10000); // 10 segundos para Supabase
       }
 
       return new Response(JSON.stringify({
@@ -212,7 +234,7 @@ Deno.serve(async (req) => {
       </html>
     `;
 
-    const resendResponse = await fetch('https://api.resend.com/emails', {
+    const resendResponse = await fetchWithTimeout('https://api.resend.com/emails', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${resendApiKey}`,
@@ -224,7 +246,7 @@ Deno.serve(async (req) => {
         subject: emailSubject,
         html: emailHtml,
       }),
-    });
+    }, 30000); // 30 segundos para Resend API
 
     if (!resendResponse.ok) {
       const errorData = await resendResponse.text();
@@ -238,7 +260,7 @@ Deno.serve(async (req) => {
     const supabaseUrl = Deno.env.get('PROJECT_URL');
 
     if (serviceRoleKey && supabaseUrl && consultationId) {
-      await fetch(`${supabaseUrl}/rest/v1/summaries?consultation_id=eq.${consultationId}`, {
+      await fetchWithTimeout(`${supabaseUrl}/rest/v1/summaries?consultation_id=eq.${consultationId}`, {
         method: 'PATCH',
         headers: {
           'Authorization': `Bearer ${serviceRoleKey}`,
@@ -249,7 +271,7 @@ Deno.serve(async (req) => {
         body: JSON.stringify({
           sent_at: new Date().toISOString()
         })
-      });
+      }, 10000); // 10 segundos para Supabase
     }
 
     return new Response(JSON.stringify({

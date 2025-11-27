@@ -37,6 +37,28 @@ interface DetailedConsultation extends Consultation {
 }
 
 // =============================================================================
+// UTILIDADES - Fetch con Timeout
+// =============================================================================
+async function fetchWithTimeout(
+  url: string,
+  options: RequestInit,
+  timeoutMs: number = 15000 // 15 segundos por defecto
+): Promise<Response> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const response = await fetch(url, {
+      ...options,
+      signal: controller.signal
+    });
+    return response;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
+// =============================================================================
 // HANDLER PRINCIPAL
 // =============================================================================
 Deno.serve(async (req) => {
@@ -62,13 +84,13 @@ Deno.serve(async (req) => {
 
     const token = authHeader.replace('Bearer ', '');
 
-    // Verificar usuario
-    const userResponse = await fetch(`${supabaseUrl}/auth/v1/user`, {
+    // Verificar usuario (timeout de 10 segundos)
+    const userResponse = await fetchWithTimeout(`${supabaseUrl}/auth/v1/user`, {
       headers: {
         'Authorization': `Bearer ${token}`,
         'apikey': serviceRoleKey
       }
-    });
+    }, 10000);
 
     if (!userResponse.ok) {
       throw new Error('Token inválido');
