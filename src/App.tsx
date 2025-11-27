@@ -16,6 +16,7 @@ import SummaryPanel from './components/SummaryPanel';
 import ProgressIndicator from './components/ProgressIndicator';
 import ErrorBoundary from './components/ErrorBoundary';
 import { playWelcomeSound } from './services/audioService';
+import { logger } from './lib/logger';
 
 // Lazy loading de componentes no críticos para mejorar performance inicial
 const SessionRecoveryModal = lazy(() => import('./components/SessionRecoveryModal'));
@@ -78,7 +79,9 @@ const App: React.FC = () => {
     return (
       <>
         <Header language={language} isOnline={isOnline} />
-        <DoctorDashboard language={language} />
+        <ErrorBoundary>
+          <DoctorDashboard language={language} />
+        </ErrorBoundary>
       </>
     );
   }
@@ -218,7 +221,7 @@ const MainApp: React.FC = () => {
           setLastCheckpointTime(Date.now());
           setLastSavedMessageCount(transcript.length);
         } else {
-          console.error('Error guardando checkpoint:', result.error);
+          logger.error('Error guardando checkpoint:', result.error);
         }
       }
     };
@@ -272,7 +275,7 @@ const MainApp: React.FC = () => {
   // Detector de pérdida de conexión
   useEffect(() => {
     const handleOnline = () => {
-      console.log('🌐 [DEBUG] Conexión restaurada');
+      logger.debug('🌐 Conexión restaurada');
       setIsOnline(true);
 
       if (connectionLostDuringSession && appState === 'ERROR') {
@@ -284,7 +287,7 @@ const MainApp: React.FC = () => {
     };
 
     const handleOffline = () => {
-      console.log('⚠️ [DEBUG] Conexión perdida');
+      logger.debug('⚠️ Conexión perdida');
       setIsOnline(false);
 
       if (appState === 'LISTENING' || appState === 'CONNECTING') {
@@ -323,9 +326,9 @@ const MainApp: React.FC = () => {
               currentOutputTranscription.current,
               sessionStartTime
             );
-            console.log('💾 [DEBUG] Checkpoint de emergencia guardado antes de salir');
+            logger.debug('💾 Checkpoint de emergencia guardado antes de salir');
           } catch (err) {
-            console.error('❌ [DEBUG] Error guardando checkpoint de emergencia:', err);
+            logger.error('❌ Error guardando checkpoint de emergencia:', err);
           }
         }
 
@@ -411,7 +414,7 @@ const MainApp: React.FC = () => {
 
     // Validar checkpoint antes de recuperar
     if (!validateCheckpoint(checkpoint)) {
-      console.error('Checkpoint inválido, no se puede recuperar');
+      logger.error('Checkpoint inválido, no se puede recuperar');
       setShowRecoveryModal(false);
       return;
     }
@@ -462,7 +465,7 @@ const MainApp: React.FC = () => {
         const session = await sessionPromiseRef.current;
         session.close();
       } catch (e) {
-        console.error("Error closing live session:", e);
+        logger.error("Error closing live session:", e);
       } finally {
         sessionPromiseRef.current = null;
       }
@@ -520,7 +523,7 @@ const MainApp: React.FC = () => {
         await clearCheckpoint(sessionId, user.id);
       }
     } catch (err) {
-      console.error('Summary generation failed:', err);
+      logger.error('Summary generation failed:', err);
       const errorMessage = err instanceof Error ? err.message : String(err);
 
       // Mensaje más específico si es error de API key
@@ -577,7 +580,7 @@ const MainApp: React.FC = () => {
       const audioTrack = audioTracks.length > 0 ? audioTracks[0] : null;
       if (audioTrack) {
         audioTrack.addEventListener('ended', () => {
-          console.log('Micrófono desconectado');
+          logger.debug('Micrófono desconectado');
           if (appStateRef.current === 'LISTENING') {
             const errorMsg = language === 'es'
               ? 'El micrófono se desconectó. Por favor reconecta tu micrófono y reinicia la sesión. Tu progreso está guardado.'
@@ -616,7 +619,7 @@ const MainApp: React.FC = () => {
           try {
             session.sendRealtimeInput({ media: pcmBlob });
           } catch (e) {
-            console.error("Failed to send audio data:", e);
+            logger.error("Failed to send audio data:", e);
           }
         });
       };
@@ -657,8 +660,9 @@ const MainApp: React.FC = () => {
             analyser.connect(workletNode);
             workletNode.connect(audioContextRef.current!.destination);
 
-            // Función para crear y enviar audio de activación
-            const sendActivationAudio = (session: LiveSession, attempt: number = 1) => {
+            // Enviar un fragmento de audio silencioso para activar el saludo de Nova
+            // Gemini Live API requiere al menos un mensaje de audio para iniciar la conversación
+            sessionPromiseRef.current?.then((session) => {
               try {
                 // Crear 0.5 segundos de audio silencioso (16kHz, mono, 16-bit PCM)
                 const sampleRate = 16000;
@@ -684,39 +688,12 @@ const MainApp: React.FC = () => {
                   mimeType: 'audio/pcm;rate=16000',
                 };
 
+                // Enviar inmediatamente para asegurar que Nova hable lo antes posible
                 session.sendRealtimeInput({ media: pcmData });
-                console.log(`✅ Audio de activación enviado (intento ${attempt}) para despertar a Nova`);
+                logger.debug('✅ Audio de activación enviado para despertar a Nova');
               } catch (e) {
-                console.error("❌ Failed to send activation audio:", e);
+                logger.error("❌ Failed to send activation audio:", e);
               }
-            };
-
-            // Enviar audio de activación inmediatamente
-            sessionPromiseRef.current?.then((session) => {
-              sendActivationAudio(session, 1);
-
-              // MEJORA: Timeout de respaldo - si Nova no responde en 3 segundos, reenviar
-              const retryTimeout = setTimeout(() => {
-                // Solo reintentar si aún no hay respuesta de Nova y seguimos en LISTENING
-                if (currentOutputTranscription.current === '' && appStateRef.current === 'LISTENING') {
-                  console.log('⏰ Nova no ha respondido, reenviando audio de activación...');
-                  sendActivationAudio(session, 2);
-
-                  // Segundo intento después de 3 segundos más
-                  const secondRetryTimeout = setTimeout(() => {
-                    if (currentOutputTranscription.current === '' && appStateRef.current === 'LISTENING') {
-                      console.log('⏰ Segundo reintento de activación...');
-                      sendActivationAudio(session, 3);
-                    }
-                  }, 3000);
-
-                  // Limpiar timeout si el componente se desmonta
-                  return () => clearTimeout(secondRetryTimeout);
-                }
-              }, 3000);
-
-              // Limpiar timeout si el componente se desmonta o la sesión termina
-              return () => clearTimeout(retryTimeout);
             });
           },
           onmessage: async (message: LiveServerMessage) => {
@@ -726,28 +703,39 @@ const MainApp: React.FC = () => {
             if (message.serverContent?.inputTranscription) {
               const transcribedText = message.serverContent.inputTranscription.text;
 
-              // FILTRO MÍNIMO - Solo rechazar casos MUY CLAROS de idioma incorrecto
-              // Preferimos incluir texto dudoso a perder información del paciente
+              // FILTROS SUAVIZADOS - Solo rechazar si TODA la transcripción está en idioma incorrecto
+              // Gemini a veces transcribe mal caracteres individuales, no debemos rechazar por eso
 
-              // Contar caracteres asiáticos
+              // Rechazar solo si MAYORÍA son caracteres asiáticos (más del 30% del texto)
               const asianChars = (transcribedText.match(/[\u0E00-\u0E7F\u4E00-\u9FFF\u3040-\u309F\u30A0-\u30FF\uAC00-\uD7AF\u0C80-\u0CFF]/g) || []).length;
               const totalChars = transcribedText.replace(/\s/g, '').length;
               const asianPercentage = totalChars > 0 ? (asianChars / totalChars) * 100 : 0;
 
-              // SOLO rechazar si MÁS DEL 50% son caracteres asiáticos (muy conservador)
-              if (asianPercentage > 50) {
-                console.warn('⛔ Transcripción rechazada (>50% caracteres asiáticos):', transcribedText.substring(0, 30) + '...');
+              if (asianPercentage > 30) {
+                logger.warn('⛔ Mayoría de caracteres asiáticos detectados:', transcribedText, `(${asianPercentage.toFixed(0)}%)`);
                 return;
               }
 
-              // ACEPTAR TODO LO DEMÁS - incluyendo transcripciones que no detectemos como español/inglés
-              // Razón: Es mejor tener texto "raro" que perder información del paciente
-              // El médico puede interpretar el contexto mejor que un filtro automático
-              currentInputTranscription.current += transcribedText;
+              // Detectar español con patrones mejorados
+              const isLikelySpanish = /[áéíóúñÁÉÍÓÚÑ¿¡]/.test(transcribedText) ||
+                /\b(el|la|los|las|de|que|y|en|un|una|es|por|con|para|su|no|me|te|se|lo|mi|tu|si|más|del|como|este|esta|hay|son|sí|pero|bueno|hacer|puede|hacer|tener|estar|ser|muy|todo|puede|ahora|aquí|bien)\b/i.test(transcribedText);
 
-              // Log para debug (solo si parece sospechoso pero lo aceptamos)
-              if (asianPercentage > 20) {
-                console.log('⚠️ Transcripción aceptada con caracteres inusuales:', transcribedText.substring(0, 50));
+              const isLikelyEnglish = /\b(the|is|are|was|were|have|has|had|do|does|did|will|would|can|could|should|may|might|must|of|to|in|for|on|with|at|by|from|as|an|a|this|that|it|he|she|they|we|you|i|yes|no|what|when|where|how|why|who)\b/i.test(transcribedText);
+
+              // Aceptar transcripciones muy cortas (menos de 6 caracteres) ya que suelen ser válidas
+              const isVeryShort = transcribedText.trim().length < 6;
+
+              // Solo agregar si está en el idioma correcto O es muy corto O tiene pocos caracteres extraños
+              const shouldAccept = (
+                (language === 'es' && (isLikelySpanish || isVeryShort)) ||
+                (language === 'en' && (isLikelyEnglish || isVeryShort)) ||
+                (asianPercentage < 10 && totalChars > 0) // Permitir si tiene menos del 10% de caracteres asiáticos
+              );
+
+              if (shouldAccept) {
+                currentInputTranscription.current += transcribedText;
+              } else {
+                logger.warn('⏭️ Filtrada transcripción en idioma incorrecto:', transcribedText);
               }
             }
             if (message.serverContent?.turnComplete) {
@@ -820,7 +808,7 @@ const MainApp: React.FC = () => {
             }
           },
           onerror: (e: ErrorEvent) => {
-            console.error('Live session connection error:', e);
+            logger.error('Live session connection error:', e);
             const errorMessage = e.message || String(e);
 
             // Detectar errores específicos y proporcionar pasos de solución
@@ -857,7 +845,7 @@ const MainApp: React.FC = () => {
             cleanupAudio();
           },
           onclose: (e: CloseEvent) => {
-            console.log('Session closed by server:', e.code, e.reason);
+            logger.debug('Session closed by server:', e.code, e.reason);
 
             // Solo notificar si estamos en estado LISTENING (conexión inesperada cerrada)
             if (appStateRef.current === 'LISTENING') {
@@ -881,7 +869,7 @@ const MainApp: React.FC = () => {
                   currentInputTranscription.current,
                   currentOutputTranscription.current,
                   sessionStartTime
-                ).catch(err => console.error('Error guardando checkpoint de emergencia:', err));
+                ).catch(err => logger.error('Error guardando checkpoint de emergencia:', err));
               }
             }
           },
@@ -889,7 +877,7 @@ const MainApp: React.FC = () => {
       });
 
     } catch (err) {
-      console.error('Failed to start session:', err);
+      logger.error('Failed to start session:', err);
       let userMessage = UI_TEXTS[language].errorMicGeneric;
 
       if (err instanceof Error) {
@@ -988,24 +976,28 @@ const MainApp: React.FC = () => {
 
       {/* Modal de recuperación de sesión */}
       {showRecoveryModal && recoverableSessions.length > 0 && (
-        <Suspense fallback={<div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white"></div></div>}>
-          <SessionRecoveryModal
-            sessions={recoverableSessions}
-            onRecover={handleRecoverSession}
-            onDismiss={handleDismissRecovery}
-            language={language}
-          />
-        </Suspense>
+        <ErrorBoundary>
+          <Suspense fallback={<div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white"></div></div>}>
+            <SessionRecoveryModal
+              sessions={recoverableSessions}
+              onRecover={handleRecoverSession}
+              onDismiss={handleDismissRecovery}
+              language={language}
+            />
+          </Suspense>
+        </ErrorBoundary>
       )}
 
       {/* Diagnóstico de micrófono */}
       {showMicrophoneDiagnostic && (
-        <Suspense fallback={<div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white"></div></div>}>
-          <MicrophoneDiagnostic
-            language={language}
-            onClose={handleCloseMicrophoneDiagnostic}
-          />
-        </Suspense>
+        <ErrorBoundary>
+          <Suspense fallback={<div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white"></div></div>}>
+            <MicrophoneDiagnostic
+              language={language}
+              onClose={handleCloseMicrophoneDiagnostic}
+            />
+          </Suspense>
+        </ErrorBoundary>
       )}
 
       <main className="container mx-auto px-4 sm:px-6 pt-28 pb-12">

@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase';
 import { type Language } from '../types';
 import { UI_TEXTS } from '../constants';
 import { UserIcon, CalendarIcon, SendIcon, CheckIcon, XIcon } from './icons';
+import { logger } from '../lib/logger';
 
 interface SendSummaryModalProps {
   isOpen: boolean;
@@ -65,14 +66,15 @@ const SendSummaryModal: React.FC<SendSummaryModalProps> = ({
     e.preventDefault();
     setError('');
 
-    console.log('📝 [DEBUG] Iniciando guardado de consulta...');
-    console.log('   Transcript length:', transcript.length);
-    console.log('   Summary length:', summary?.length || 0);
-    console.log('   Form data:', formData);
+    logger.debug('📝 Iniciando guardado de consulta...', {
+      transcriptLength: transcript.length,
+      summaryLength: summary?.length || 0,
+      formData
+    });
 
     // Validar que la consulta tenga datos significativos
     if (transcript.length < 2) {
-      console.error('❌ [DEBUG] Validación fallida: transcript < 2 mensajes');
+      logger.debug('Validación fallida: transcript < 2 mensajes');
       setError(language === 'es'
         ? 'La consulta debe tener al menos 2 mensajes para ser guardada.\n\n📋 Pasos:\n1. Continúa hablando con Nova\n2. Responde las preguntas del cuestionario\n3. Espera a completar al menos 2 intercambios'
         : 'The consultation must have at least 2 messages to be saved.\n\n📋 Steps:\n1. Continue talking with Nova\n2. Answer the questionnaire questions\n3. Wait to complete at least 2 exchanges');
@@ -82,7 +84,7 @@ const SendSummaryModal: React.FC<SendSummaryModalProps> = ({
     // Validar que los mensajes tengan contenido real (no solo saludos)
     const totalWordCount = transcript.reduce((sum, msg) => sum + msg.text.split(' ').filter(w => w.length > 0).length, 0);
     if (totalWordCount < 50) {
-      console.error('❌ [DEBUG] Validación fallida: contenido muy breve (<50 palabras)');
+      logger.debug('Validación fallida: contenido muy breve (<50 palabras)');
       setError(language === 'es'
         ? 'La conversación es muy breve para generar un resumen clínico útil.\n\n📋 Pasos:\n1. Continúa la conversación con Nova\n2. Proporciona más detalles sobre tus síntomas\n3. Responde las preguntas de seguimiento\n\nPalabras actuales: ' + totalWordCount + ' / 50 mínimo'
         : 'The conversation is too brief to generate a useful clinical summary.\n\n📋 Steps:\n1. Continue the conversation with Nova\n2. Provide more details about your symptoms\n3. Answer follow-up questions\n\nCurrent words: ' + totalWordCount + ' / 50 minimum');
@@ -92,7 +94,7 @@ const SendSummaryModal: React.FC<SendSummaryModalProps> = ({
     // Validar que Nova haya respondido (no solo el paciente hablando)
     const novaMessageCount = transcript.filter(msg => msg.sender === 'Nova' || msg.sender === 'model').length;
     if (novaMessageCount < 1) {
-      console.error('❌ [DEBUG] Validación fallida: Nova no ha respondido');
+      logger.debug('Validación fallida: Nova no ha respondido');
       setError(language === 'es'
         ? 'Esperando respuesta de Nova.\n\n📋 Pasos:\n1. Asegúrate de que Nova haya respondido\n2. Si no responde, verifica tu conexión a internet\n3. Espera unos segundos y vuelve a intentar'
         : 'Waiting for Nova response.\n\n📋 Steps:\n1. Make sure Nova has responded\n2. If not responding, check your internet connection\n3. Wait a few seconds and try again');
@@ -100,8 +102,7 @@ const SendSummaryModal: React.FC<SendSummaryModalProps> = ({
     }
 
     if (!summary || summary.trim().length < 50) {
-      console.error('❌ [DEBUG] Validación fallida: summary muy corto o vacío');
-      console.error('   Summary actual:', summary?.substring(0, 100));
+      logger.debug('Validación fallida: summary muy corto o vacío', summary?.substring(0, 100));
       setError(language === 'es'
         ? 'El resumen es demasiado corto o está vacío.\n\n📋 Pasos:\n1. Completa la conversación con Nova\n2. Espera a que Nova genere el resumen\n3. Si el error persiste, finaliza la sesión nuevamente'
         : 'The summary is too short or empty.\n\n📋 Steps:\n1. Complete the conversation with Nova\n2. Wait for Nova to generate the summary\n3. If the error persists, end the session again');
@@ -110,7 +111,7 @@ const SendSummaryModal: React.FC<SendSummaryModalProps> = ({
 
     // Validar datos del formulario
     if (!formData.fullName || !formData.dob) {
-      console.error('❌ [DEBUG] Validación fallida: datos del formulario incompletos');
+      logger.debug('Validación fallida: datos del formulario incompletos');
       setError(language === 'es'
         ? 'Por favor completa todos los campos del formulario.\n\n📋 Campos requeridos:\n✓ Nombre completo del paciente\n✓ Fecha de nacimiento'
         : 'Please complete all form fields.\n\n📋 Required fields:\n✓ Patient full name\n✓ Date of birth');
@@ -120,7 +121,7 @@ const SendSummaryModal: React.FC<SendSummaryModalProps> = ({
     // Validar formato de nombre (al menos 2 palabras)
     const nameParts = formData.fullName.trim().split(/\s+/);
     if (nameParts.length < 2) {
-      console.error('❌ [DEBUG] Validación fallida: nombre incompleto');
+      logger.debug('Validación fallida: nombre incompleto');
       setError(language === 'es'
         ? 'Por favor ingresa el nombre completo del paciente (nombre y apellido).\n\nEjemplo: Juan Pérez'
         : 'Please enter the patient\'s full name (first and last name).\n\nExample: John Doe');
@@ -130,38 +131,35 @@ const SendSummaryModal: React.FC<SendSummaryModalProps> = ({
     // Validar fecha de nacimiento no sea futura
     const dobDate = new Date(formData.dob);
     if (dobDate > new Date()) {
-      console.error('❌ [DEBUG] Validación fallida: fecha de nacimiento futura');
+      logger.debug('Validación fallida: fecha de nacimiento futura');
       setError(language === 'es'
         ? 'La fecha de nacimiento no puede ser en el futuro.'
         : 'The date of birth cannot be in the future.');
       return;
     }
 
-    console.log('✅ [DEBUG] Todas las validaciones pasaron');
+    logger.debug('✅ Todas las validaciones pasaron');
     setSubmissionState('SENDING');
 
     try {
       // Verificar autenticación
-      console.log('🔐 [DEBUG] Verificando autenticación...');
+      logger.debug('🔐 Verificando autenticación...');
       const { data: { session }, error: authError } = await supabase.auth.getSession();
 
       if (authError || !session) {
-        console.error('❌ [DEBUG] Error de autenticación:', authError || 'No hay sesión activa');
+        logger.debug('Error de autenticación:', authError || 'No hay sesión activa');
         throw new Error(language === 'es'
           ? 'Debe iniciar sesión para guardar la consulta'
           : 'You must be logged in to save the consultation');
       }
 
-      console.log('✅ [DEBUG] Sesión autenticada:', {
-        userId: session.user.id,
-        email: session.user.email
-      });
+      logger.debug('✅ Sesión autenticada:', { userId: session.user.id, email: session.user.email });
 
       // Calcular motivation score del resumen
       const motivationMatch = summary.match(/Readiness general:\s*\[?(\d+(?:\.\d+)?)/);
       const motivationScore = motivationMatch ? parseFloat(motivationMatch[1]) : 5.0;
 
-      console.log('💾 [DEBUG] Preparando datos para guardar...');
+      logger.debug('💾 Preparando datos para guardar...');
       const dataToInsert = {
         user_id: session.user.id,
         session_id: sessionId,
@@ -178,7 +176,7 @@ const SendSummaryModal: React.FC<SendSummaryModalProps> = ({
         completed_at: new Date().toISOString()
       };
 
-      console.log('📤 [DEBUG] Enviando a Supabase:', {
+      logger.debug('📤 Enviando a Supabase:', {
         user_id: dataToInsert.user_id,
         session_id: dataToInsert.session_id,
         patient_name: dataToInsert.patient_name,
@@ -193,14 +191,11 @@ const SendSummaryModal: React.FC<SendSummaryModalProps> = ({
         .single();
 
       if (saveError) {
-        console.error('❌ [DEBUG] Error al guardar en Supabase:', saveError);
-        console.error('   Código:', saveError.code);
-        console.error('   Mensaje:', saveError.message);
-        console.error('   Detalles:', saveError.details);
+        logger.error('Error al guardar en Supabase:', saveError);
         throw new Error(saveError.message || (language === 'es' ? 'Error al guardar la consulta' : 'Error saving consultation'));
       }
 
-      console.log('✅ [DEBUG] Consulta guardada exitosamente!', {
+      logger.debug('✅ Consulta guardada exitosamente!', {
         id: consultationData?.id,
         patient_name: consultationData?.patient_name
       });
@@ -210,9 +205,7 @@ const SendSummaryModal: React.FC<SendSummaryModalProps> = ({
       setSubmissionState('SUCCESS');
 
     } catch (err) {
-      console.error('❌ [DEBUG] Error en el flujo de guardado:', err);
-      console.error('   Tipo:', err instanceof Error ? 'Error' : typeof err);
-      console.error('   Stack:', err instanceof Error ? err.stack : 'N/A');
+      logger.error('Error en el flujo de guardado:', err);
 
       // Detectar tipo de error y proporcionar mensaje específico
       let errorMessage = '';

@@ -1,4 +1,5 @@
 import * as Sentry from '@sentry/react';
+import { logger } from './logger';
 
 /**
  * Inicializa el sistema de error tracking con Sentry
@@ -47,11 +48,9 @@ export const initErrorTracking = (): void => {
       },
     });
 
-    console.log('✅ Sentry error tracking initialized');
-  } else if (import.meta.env.DEV) {
-    console.log('ℹ️ Sentry disabled in development mode');
-  } else if (!dsn) {
-    console.warn('⚠️ Sentry DSN not configured. Set VITE_SENTRY_DSN in .env');
+    logger.info('✅ Sentry error tracking initialized');
+  } else {
+    logger.debug('Sentry disabled:', dsn ? 'not in production' : 'DSN not configured');
   }
 };
 

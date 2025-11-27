@@ -6,6 +6,7 @@ import SystemsMatrixChart from './SystemsMatrixChart';
 import DashboardStats from './DashboardStats';
 import MotivationGauge from './MotivationGauge';
 import ClinicalSummaryView from './ClinicalSummaryView';
+import { logger } from '../lib/logger';
 
 interface Consultation {
   id: string;
@@ -55,7 +56,7 @@ const DoctorDashboard: React.FC<DoctorDashboardProps> = ({ language }) => {
       setConsultations(prev => prev.filter(c => c.id !== id));
       setConsultationToDelete(null);
     } catch (err) {
-      console.error('Error deleting consultation:', err);
+      logger.error('Error deleting consultation:', err);
       alert(language === 'es' ? 'Error al eliminar la consulta' : 'Error deleting consultation');
     }
   };
@@ -68,7 +69,7 @@ const DoctorDashboard: React.FC<DoctorDashboardProps> = ({ language }) => {
         throw new Error('No user logged in');
       }
 
-      console.log('🏥 [DASHBOARD DEBUG] Cargando consultas para médico:', user.email);
+      logger.debug('🏥 Cargando consultas para médico:', user.email);
 
       // Load ALL consultations (all doctors see all patients)
       const { data, error } = await supabase
@@ -77,24 +78,17 @@ const DoctorDashboard: React.FC<DoctorDashboardProps> = ({ language }) => {
         .order('created_at', { ascending: false });
 
       if (error) {
-        console.error('❌ [DASHBOARD DEBUG] Error al cargar:', error);
+        logger.error('Error al cargar consultas:', error);
         throw error;
       }
 
-      console.log('✅ [DASHBOARD DEBUG] Consultas cargadas:', data?.length || 0);
-      if (data && data.length > 0) {
-        console.log('📋 [DASHBOARD DEBUG] Primera consulta:', {
-          patient_name: data[0].patient_name,
-          created_at: data[0].created_at,
-          id: data[0].id
-        });
-      }
+      logger.debug('✅ Consultas cargadas:', data?.length || 0);
 
       if (data) {
         setConsultations(data);
       }
     } catch (err) {
-      console.error('❌ [DASHBOARD DEBUG] Error al cargar consultas:', err);
+      logger.error('Error al cargar consultas:', err);
       setError(
         language === 'es'
           ? 'Error al cargar las consultas'
@@ -200,26 +194,6 @@ const DoctorDashboard: React.FC<DoctorDashboardProps> = ({ language }) => {
     return true;
   });
 
-  // Debug filtros
-  React.useEffect(() => {
-    if (consultations.length > 0) {
-      console.log('🔍 [FILTROS DEBUG] Estado de filtros:', {
-        searchQuery,
-        filterMotivation,
-        totalConsultations: consultations.length,
-        filteredConsultations: filteredConsultations.length,
-        hidden: consultations.length - filteredConsultations.length
-      });
-
-      if (filteredConsultations.length < consultations.length) {
-        console.log('⚠️ [FILTROS DEBUG] Consultas ocultas por filtros:');
-        const hidden = consultations.filter(c => !filteredConsultations.includes(c));
-        hidden.forEach(c => {
-          console.log(`   - ${c.patient_name} (motivation: ${c.motivation_score || 'N/A'})`);
-        });
-      }
-    }
-  }, [consultations, filteredConsultations, searchQuery, filterMotivation]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-50 via-white to-blue-50 p-6 pt-24">

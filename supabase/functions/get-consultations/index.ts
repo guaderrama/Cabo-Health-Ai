@@ -1,4 +1,40 @@
 // =============================================================================
+// RATE LIMITING - Prevención de abuso
+// =============================================================================
+const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
+const RATE_LIMIT_REQUESTS = 30; // Máximo 30 requests por ventana (lectura)
+const RATE_LIMIT_WINDOW_MS = 60000; // Ventana de 1 minuto
+
+function checkRateLimit(clientId: string): { allowed: boolean; remaining: number; resetIn: number } {
+  const now = Date.now();
+  const record = rateLimitMap.get(clientId);
+
+  if (Math.random() < 0.01) {
+    for (const [key, val] of rateLimitMap.entries()) {
+      if (now > val.resetAt) rateLimitMap.delete(key);
+    }
+  }
+
+  if (!record || now > record.resetAt) {
+    rateLimitMap.set(clientId, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS });
+    return { allowed: true, remaining: RATE_LIMIT_REQUESTS - 1, resetIn: RATE_LIMIT_WINDOW_MS };
+  }
+
+  if (record.count >= RATE_LIMIT_REQUESTS) {
+    return { allowed: false, remaining: 0, resetIn: record.resetAt - now };
+  }
+
+  record.count++;
+  return { allowed: true, remaining: RATE_LIMIT_REQUESTS - record.count, resetIn: record.resetAt - now };
+}
+
+function getClientId(req: Request): string {
+  return req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
+         req.headers.get('x-real-ip') ||
+         'unknown';
+}
+
+// =============================================================================
 // CORS SEGURO - Lista blanca de dominios permitidos
 // =============================================================================
 const ALLOWED_ORIGINS = [
@@ -67,6 +103,28 @@ Deno.serve(async (req) => {
 
   if (req.method === 'OPTIONS') {
     return new Response(null, { status: 200, headers: corsHeaders });
+  }
+
+  // Rate limiting check
+  const clientId = getClientId(req);
+  const rateLimit = checkRateLimit(clientId);
+
+  if (!rateLimit.allowed) {
+    return new Response(JSON.stringify({
+      error: {
+        code: 'RATE_LIMIT_EXCEEDED',
+        message: 'Too many requests. Please try again later.',
+        retryAfter: Math.ceil(rateLimit.resetIn / 1000)
+      }
+    }), {
+      status: 429,
+      headers: {
+        ...corsHeaders,
+        'Content-Type': 'application/json',
+        'Retry-After': String(Math.ceil(rateLimit.resetIn / 1000)),
+        'X-RateLimit-Remaining': '0'
+      }
+    });
   }
 
   try {
