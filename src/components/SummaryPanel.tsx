@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { type AppState, type Language, type TranscriptMessage } from '../types';
 import { UI_TEXTS } from '../constants';
-import { BrainIcon, CheckIcon, SendIcon } from './icons';
+import { CheckIcon, SendIcon } from './icons';
 import SendSummaryModal from './SendSummaryModal';
 
 interface SummaryPanelProps {
@@ -49,7 +49,7 @@ const SummaryPanel: React.FC<SummaryPanelProps> = ({
       case 'PROCESSING':
         return (
           <div className="flex flex-col items-center justify-center h-full text-center text-slate-600">
-            <BrainIcon className="w-16 h-16 text-blue-500 animate-pulse mb-4" />
+            <div className="w-16 h-16 border-4 border-blue-500/30 border-t-blue-600 rounded-full animate-spin mb-4"></div>
             <h3 className="text-lg font-bold text-slate-800">{texts.summaryProcessingTitle}</h3>
             <p>{texts.summaryProcessingBody}</p>
           </div>

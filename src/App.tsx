@@ -82,7 +82,7 @@ const App: React.FC = () => {
     // Dashboard para médicos con Header
     return (
       <>
-        <Header language={language} isOnline={isOnline} />
+        <Header language={language} isOnline={isOnline} userRole="doctor" />
         <ErrorBoundary>
           <DoctorDashboard language={language} />
         </ErrorBoundary>
@@ -948,6 +948,7 @@ const MainApp: React.FC = () => {
         welcomeSoundEnabled={welcomeSoundEnabled}
         onToggleWelcomeSound={handleToggleWelcomeSound}
         isOnline={isOnline}
+        userRole="patient"
       />
 
       {/* Modal de recuperación de sesión */}
@@ -995,8 +996,8 @@ const MainApp: React.FC = () => {
               />
             )}
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 lg:grid-rows-2 gap-4 md:gap-6">
-              <div className="md:col-span-1 lg:row-span-2 animate-fade-in-scale">
+            <div className="grid grid-cols-1 lg:grid-cols-2 lg:grid-rows-2 gap-4 lg:gap-6">
+              <div className="lg:row-span-2 animate-fade-in-scale">
                 <ErrorBoundary>
                   <ControlPanel
                     appState={appState}
@@ -1013,7 +1014,7 @@ const MainApp: React.FC = () => {
                   />
                 </ErrorBoundary>
               </div>
-              <div className="md:col-span-1 lg:row-span-1 animate-fade-in-up animate-delay-100">
+              <div className="lg:row-span-1 animate-fade-in-up animate-delay-100">
                 <ErrorBoundary>
                   <TranscriptionPanel
                     transcript={transcript}
@@ -1022,7 +1023,7 @@ const MainApp: React.FC = () => {
                   />
                 </ErrorBoundary>
               </div>
-              <div className="md:col-span-1 lg:row-span-1 animate-fade-in-up animate-delay-200">
+              <div className="lg:row-span-1 animate-fade-in-up animate-delay-200">
                 <ErrorBoundary>
                   <SummaryPanel
                     summary={summary}

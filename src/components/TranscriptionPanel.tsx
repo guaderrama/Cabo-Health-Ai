@@ -29,7 +29,7 @@ const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({ transcript, app
       try {
         await navigator.clipboard.writeText(text);
         setShowCopied(true);
-        setTimeout(() => setShowCopied(false), 2000);
+        setTimeout(() => setShowCopied(false), 3000);
       } catch (err) {
         console.error('Failed to copy transcript:', err);
       }
@@ -47,12 +47,12 @@ const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({ transcript, app
             N
           </div>
         )}
-        <div className={`max-w-xs md:max-w-md rounded-2xl px-4 py-3 animate-fade-in-up shadow-sm ${
+        <div className={`max-w-[85%] md:max-w-md rounded-2xl px-4 py-3 animate-fade-in-up shadow-sm ${
           isNova
             ? 'bg-slate-100 text-slate-900 rounded-tl-sm border border-slate-200'
             : 'bg-gradient-to-br from-indigo-600 to-indigo-700 text-white rounded-tr-sm'
         }`}>
-          <p className="text-sm leading-relaxed whitespace-pre-wrap break-words">{message.text}</p>
+          <p className="text-sm md:text-base leading-relaxed whitespace-pre-wrap break-words">{message.text}</p>
         </div>
         {!isNova && (
           <div className="w-8 h-8 rounded-full bg-gradient-to-br from-indigo-500 to-indigo-700 flex-shrink-0 flex items-center justify-center text-white font-bold text-sm shadow-md">
@@ -87,11 +87,11 @@ const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({ transcript, app
           {transcript.length > 0 && (
             <button
               onClick={handleCopy}
-              className="text-sm px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg transition-colors flex items-center active:scale-95"
+              className="min-w-[44px] min-h-[44px] px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg transition-colors flex items-center justify-center active:scale-95 text-sm font-medium"
               aria-label={texts.copyToClipboardButton}
               title={language === 'es' ? 'Copiar transcripción al portapapeles' : 'Copy transcript to clipboard'}
             >
-              <CopyIcon className="w-4 h-4 mr-2" />
+              <CopyIcon className="w-5 h-5 mr-2" />
               {language === 'es' ? 'Copiar' : 'Copy'}
             </button>
           )}

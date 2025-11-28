@@ -9,9 +9,10 @@ interface HeaderProps {
   welcomeSoundEnabled?: boolean;
   onToggleWelcomeSound?: () => void;
   isOnline?: boolean;
+  userRole?: 'patient' | 'doctor';
 }
 
-const Header: React.FC<HeaderProps> = ({ language, welcomeSoundEnabled, onToggleWelcomeSound, isOnline = true }) => {
+const Header: React.FC<HeaderProps> = ({ language, welcomeSoundEnabled, onToggleWelcomeSound, isOnline = true, userRole = 'patient' }) => {
   const { user, signOut } = useAuth();
   const texts = UI_TEXTS[language];
   const [showHistory, setShowHistory] = useState(false);
@@ -121,7 +122,7 @@ const Header: React.FC<HeaderProps> = ({ language, welcomeSoundEnabled, onToggle
     </header>
     
     {showHistory && (
-      <ConsultationHistory language={language} onClose={() => setShowHistory(false)} />
+      <ConsultationHistory language={language} onClose={() => setShowHistory(false)} userRole={userRole} />
     )}
     </>
   );
