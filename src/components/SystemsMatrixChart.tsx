@@ -36,22 +36,47 @@ const SystemsMatrixChart: React.FC<SystemsMatrixChartProps> = ({ summaryHTML }) 
         // Intentar buscar por texto
         const allText = doc.body.textContent || '';
 
-        // Extraer puntuaciones usando regex
-        const digestMatch = allText.match(/DIGESTIÓN[\s\S]*?(\d+)\/10/i);
-        const energyMatch = allText.match(/ENERGÍA[\s\S]*?(\d+)\/10/i);
-        const mindMatch = allText.match(/MENTE[\s\S]*?(\d+)\/10/i);
-        const hormonalMatch = allText.match(/HORMONAL[\s\S]*?(\d+)\/10/i);
-        const immuneMatch = allText.match(/INMUNE[\s\S]*?(\d+)\/10/i);
-        const structureMatch = allText.match(/ESTRUCTURA[\s\S]*?(\d+)\/10/i);
+        // Extraer puntuaciones usando regex mejorado
+        // El prompt genera formato como: "DIGESTIÓN: 7/10" o "DIGESTIÓN</td><td>7/10"
+        // También puede ser: ">DIGESTIÓN</strong>...7/10" en tablas HTML
 
-        if (digestMatch || energyMatch || mindMatch || hormonalMatch || immuneMatch || structureMatch) {
+        const extractSystemScore = (text: string, systemName: string): number | null => {
+          // Patrón 1: "SISTEMA: X/10" o "SISTEMA X/10"
+          const pattern1 = new RegExp(`${systemName}[:\\s]+(?:\\[)?(\\d+)\\/10`, 'i');
+          // Patrón 2: En tabla HTML "SISTEMA</td><td>X/10" o similar
+          const pattern2 = new RegExp(`${systemName}[^\\d]*?(\\d+)\\/10`, 'i');
+          // Patrón 3: Con emojis o estilos "🔵 SISTEMA...X/10"
+          const pattern3 = new RegExp(`${systemName}[^0-9]*?(\\d+)\\s*\\/\\s*10`, 'i');
+
+          const match1 = text.match(pattern1);
+          if (match1?.[1]) return parseInt(match1[1]);
+
+          const match2 = text.match(pattern2);
+          if (match2?.[1]) return parseInt(match2[1]);
+
+          const match3 = text.match(pattern3);
+          if (match3?.[1]) return parseInt(match3[1]);
+
+          return null;
+        };
+
+        const digestScore = extractSystemScore(allText, 'DIGESTIÓN') ?? extractSystemScore(allText, 'DIGESTION');
+        const energyScore = extractSystemScore(allText, 'ENERGÍA') ?? extractSystemScore(allText, 'ENERGIA');
+        const mindScore = extractSystemScore(allText, 'MENTE');
+        const hormonalScore = extractSystemScore(allText, 'HORMONAL');
+        const immuneScore = extractSystemScore(allText, 'INMUNE');
+        const structureScore = extractSystemScore(allText, 'ESTRUCTURA');
+
+        // Solo retornar si encontramos al menos un sistema válido
+        if (digestScore !== null || energyScore !== null || mindScore !== null ||
+            hormonalScore !== null || immuneScore !== null || structureScore !== null) {
           return [
-            { system: 'DIGESTIÓN', score: digestMatch?.[1] ? parseInt(digestMatch[1]) : 5, fullMark: 10 },
-            { system: 'ENERGÍA', score: energyMatch?.[1] ? parseInt(energyMatch[1]) : 5, fullMark: 10 },
-            { system: 'MENTE', score: mindMatch?.[1] ? parseInt(mindMatch[1]) : 5, fullMark: 10 },
-            { system: 'HORMONAL', score: hormonalMatch?.[1] ? parseInt(hormonalMatch[1]) : 5, fullMark: 10 },
-            { system: 'INMUNE', score: immuneMatch?.[1] ? parseInt(immuneMatch[1]) : 5, fullMark: 10 },
-            { system: 'ESTRUCTURA', score: structureMatch?.[1] ? parseInt(structureMatch[1]) : 5, fullMark: 10 },
+            { system: 'DIGESTIÓN', score: digestScore ?? 5, fullMark: 10 },
+            { system: 'ENERGÍA', score: energyScore ?? 5, fullMark: 10 },
+            { system: 'MENTE', score: mindScore ?? 5, fullMark: 10 },
+            { system: 'HORMONAL', score: hormonalScore ?? 5, fullMark: 10 },
+            { system: 'INMUNE', score: immuneScore ?? 5, fullMark: 10 },
+            { system: 'ESTRUCTURA', score: structureScore ?? 5, fullMark: 10 },
           ];
         }
       }

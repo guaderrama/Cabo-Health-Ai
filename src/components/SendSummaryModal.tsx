@@ -156,11 +156,53 @@ const SendSummaryModal: React.FC<SendSummaryModalProps> = ({
 
       logger.debug('✅ Sesión autenticada:', { userId: session.user.id, email: session.user.email });
 
-      // Calcular motivation score del resumen
-      const motivationMatch = summary.match(/Readiness general:\s*\[?(\d+(?:\.\d+)?)/);
-      const motivationScore = motivationMatch && motivationMatch[1] ? parseFloat(motivationMatch[1]) : 5.0;
+      // Calcular motivation score del resumen (con múltiples patrones de fallback)
+      const extractScore = (text: string, patterns: RegExp[]): number | null => {
+        for (const pattern of patterns) {
+          const match = text.match(pattern);
+          if (match?.[1]) return parseFloat(match[1]);
+        }
+        return null;
+      };
 
-      logger.debug('💾 Preparando datos para guardar...');
+      // Patrones para Readiness/Motivación general
+      const readinessPatterns = [
+        /Readiness\s*general[:\s]+\[?(\d+(?:\.\d+)?)/i,
+        /Readiness[:\s]+\[?(\d+(?:\.\d+)?)\s*\/\s*10/i,
+        /Motivación\s*general[:\s]+\[?(\d+(?:\.\d+)?)/i
+      ];
+
+      // Patrones para Importancia
+      const importancePatterns = [
+        /Importancia\s*del\s*cambio[:\s]+\[?(\d+(?:\.\d+)?)/i,
+        /Importancia[:\s]+\[?(\d+(?:\.\d+)?)\s*\/\s*10/i
+      ];
+
+      // Patrones para Confianza (usamos como proxy de empathy)
+      const confidencePatterns = [
+        /Confianza\s*en\s*cambiar[:\s]+\[?(\d+(?:\.\d+)?)/i,
+        /Confianza[:\s]+\[?(\d+(?:\.\d+)?)\s*\/\s*10/i
+      ];
+
+      const readinessScore = extractScore(summary, readinessPatterns);
+      const importanceScore = extractScore(summary, importancePatterns);
+      const confidenceScore = extractScore(summary, confidencePatterns);
+
+      // Motivation score: promedio de readiness e importancia, o solo readiness
+      const motivationScore = readinessScore !== null
+        ? (importanceScore !== null ? (readinessScore + importanceScore) / 2 : readinessScore)
+        : 5.0;
+
+      // Empathy score: usamos confianza como proxy (refleja rapport con el paciente)
+      const empathyScore = confidenceScore;
+
+      logger.debug('💾 Preparando datos para guardar...', {
+        motivationScore,
+        empathyScore,
+        readinessScore,
+        importanceScore,
+        confidenceScore
+      });
       const dataToInsert = {
         user_id: session.user.id,
         session_id: sessionId,
@@ -171,6 +213,7 @@ const SendSummaryModal: React.FC<SendSummaryModalProps> = ({
         transcript: transcript,
         summary: summary,
         motivation_score: motivationScore,
+        empathy_score: empathyScore,
         session_duration: sessionDuration || 0,
         message_count: transcript.length,
         status: 'completed',

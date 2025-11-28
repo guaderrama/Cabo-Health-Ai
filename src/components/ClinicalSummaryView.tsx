@@ -60,11 +60,12 @@ const parseSummaryHTML = (html: string): ParsedSummary => {
     }
   }
 
-  // Extraer scores de motivación
+  // Extraer scores de motivación - regex actualizado para coincidir con formato del prompt
+  // El prompt usa: "Importancia del cambio: [X/10]", "Confianza en cambiar: [X/10]", "Readiness general: [X/10]"
   const motivation: MotivationData = {
-    importance: extractScore(html, /Importancia[:\s]+(\d+)\/10/i),
-    confidence: extractScore(html, /Confianza[:\s]+(\d+)\/10/i),
-    readiness: extractScore(html, /Readiness[:\s]+(\d+)\/10/i)
+    importance: extractScore(html, /Importancia(?:\s+del\s+cambio)?[:\s]+\[?(\d+)\/10/i),
+    confidence: extractScore(html, /Confianza(?:\s+en\s+cambiar)?[:\s]+\[?(\d+)\/10/i),
+    readiness: extractScore(html, /Readiness(?:\s+general)?[:\s]+\[?(\d+)\/10/i)
   };
 
   // Extraer sistemas
@@ -95,14 +96,34 @@ const parseSummaryHTML = (html: string): ParsedSummary => {
   const chiefComplaint = chiefComplaintMatch && chiefComplaintMatch[1] ? chiefComplaintMatch[1].trim() : '';
 
   // Extraer hallazgos clave (del Resumen Ejecutivo)
+  // Función para limpiar HTML tags y entidades
+  const stripHtml = (text: string): string => {
+    return text
+      .replace(/<[^>]*>/g, ' ')           // Eliminar tags HTML
+      .replace(/&nbsp;/g, ' ')            // Reemplazar &nbsp;
+      .replace(/&amp;/g, '&')             // Decodificar &amp;
+      .replace(/&lt;/g, '<')              // Decodificar &lt;
+      .replace(/&gt;/g, '>')              // Decodificar &gt;
+      .replace(/&quot;/g, '"')            // Decodificar &quot;
+      .replace(/&#39;/g, "'")             // Decodificar &#39;
+      .replace(/\s+/g, ' ')               // Normalizar espacios múltiples
+      .trim();
+  };
+
   const keyFindings: string[] = [];
-  const findingsMatches = html.matchAll(/\d+\.\s*(.+?)(?=\d+\.|💪|🔬|📋|$)/gs);
+  // Buscar en la sección de Resumen Ejecutivo específicamente
+  const executiveSummaryMatch = html.match(/Resumen Ejecutivo[\s\S]*?(?=🎯 Análisis|💪 Motivación|🔬 Matriz|$)/i);
+  const summarySection = executiveSummaryMatch ? executiveSummaryMatch[0] : html;
+
+  // Buscar hallazgos numerados (1. texto, 2. texto, etc.)
+  const findingsMatches = summarySection.matchAll(/(?:^|\n|<li>|<p>)\s*(\d+)[.\)]\s*(.+?)(?=(?:\n|<\/li>|<\/p>)\s*\d+[.\)]|💪|🔬|📋|🎯|<\/ul>|<\/ol>|$)/gis);
   let count = 0;
   for (const match of findingsMatches) {
-    if (count < 5 && match[1]) {
-      const finding = match[1].trim().substring(0, 200);
-      if (finding.length > 20) {
-        keyFindings.push(finding);
+    if (count < 5 && match[2]) {
+      const cleanedFinding = stripHtml(match[2]).substring(0, 200);
+      // Filtrar hallazgos muy cortos o que sean solo HTML residual
+      if (cleanedFinding.length > 20 && !cleanedFinding.match(/^[\s\d.,;:]+$/)) {
+        keyFindings.push(cleanedFinding);
         count++;
       }
     }
