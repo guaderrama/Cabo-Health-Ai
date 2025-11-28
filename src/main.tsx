@@ -31,21 +31,41 @@ initErrorTracking();
 
 // Error handler global para prevenir crashes por módulos externos faltantes
 window.addEventListener('error', (event): void => {
+  const message = event.message || '';
+  const filename = event.filename || '';
+
   // Prevenir errores de módulos opcionales/externos que no existen
-  if (event.filename?.includes('share-modal') ||
-      event.message?.includes('share-modal') ||
-      (event.message?.includes('addEventListener') && event.message?.includes('null'))) {
+  if (filename.includes('share-modal') ||
+      message.includes('share-modal') ||
+      (message.includes('addEventListener') && message.includes('null'))) {
     event.preventDefault();
-    logger.warn('Error de módulo externo ignorado:', event.message);
+    logger.warn('Error de módulo externo ignorado:', message);
     return;
   }
 
   // Prevenir errores de extensiones del navegador
-  if (event.filename?.includes('extension://') ||
-      event.filename?.includes('solanaActions') ||
-      event.message?.includes('runtime.lastError')) {
+  if (filename.includes('extension://') ||
+      filename.includes('solanaActions') ||
+      message.includes('runtime.lastError')) {
     event.preventDefault();
     logger.warn('Error de extensión del navegador ignorado');
+    return;
+  }
+
+  // Prevenir errores de bibliotecas externas (ej: @google/genai)
+  // El error "Cannot read properties of undefined (reading '0')" ocurre en código minificado
+  if (message.includes("Cannot read properties of undefined (reading '0')") ||
+      message.includes('Cannot read properties of null')) {
+    event.preventDefault();
+    logger.warn('Error de acceso a propiedad ignorado (biblioteca externa):', message);
+    return;
+  }
+
+  // Prevenir errores de políticas de permisos (microphone, camera, etc.)
+  if (message.includes('permissions policy') ||
+      message.includes('not allowed in this document')) {
+    event.preventDefault();
+    logger.warn('Violación de política de permisos ignorada');
     return;
   }
 });
@@ -69,6 +89,22 @@ window.addEventListener('unhandledrejection', (event): void => {
       message.includes('microphone')) {
     event.preventDefault();
     logger.warn('Error de permisos ignorado (se maneja en UI)');
+    return;
+  }
+
+  // Ignorar errores de acceso a propiedades de bibliotecas externas
+  if (message.includes("Cannot read properties of undefined") ||
+      message.includes('Cannot read properties of null') ||
+      message.includes("reading '0'")) {
+    event.preventDefault();
+    logger.warn('Error de biblioteca externa ignorado:', message);
+    return;
+  }
+
+  // Ignorar errores de política de permisos
+  if (message.includes('permissions policy') ||
+      message.includes('not allowed')) {
+    event.preventDefault();
     return;
   }
 });

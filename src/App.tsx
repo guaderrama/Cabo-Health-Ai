@@ -663,27 +663,38 @@ const MainApp: React.FC = () => {
 
             // 🎙️ ACTIVACIÓN AUTOMÁTICA DE NOVA
             // Gemini Live API necesita recibir audio para "activarse" y empezar a hablar.
-            // Enviamos un pequeño fragmento de silencio (100ms) para que Nova ejecute
-            // su protocolo de apertura y salude al paciente automáticamente.
-            setTimeout(() => {
+            // Enviamos audio silencioso más largo (1 segundo) en múltiples fragmentos
+            // para asegurar que Nova ejecute su protocolo de apertura.
+            const sendActivationAudio = () => {
               sessionPromiseRef.current?.then((session) => {
                 try {
-                  // Crear 100ms de audio silencioso (16kHz, mono, 16-bit PCM)
-                  const silentSamples = 1600; // 100ms @ 16kHz
+                  // Crear 500ms de audio silencioso (16kHz, mono, 16-bit PCM)
+                  const silentSamples = 8000; // 500ms @ 16kHz
                   const silentBuffer = new Int16Array(silentSamples);
-                  // Convertir a Uint8Array para enviar
                   const pcmData = new Uint8Array(silentBuffer.buffer);
                   const activationAudio = {
                     data: encode(pcmData),
                     mimeType: 'audio/pcm;rate=16000',
                   };
                   session.sendRealtimeInput({ media: activationAudio });
-                  logger.debug('✅ Audio de activación enviado - Nova debería saludar ahora');
+                  logger.debug('✅ Audio de activación enviado');
                 } catch (e) {
                   logger.error('Error enviando audio de activación:', e);
                 }
               });
-            }, 500); // Pequeño delay para asegurar que la conexión está estable
+            };
+
+            // Enviar audio de activación después de que la conexión esté estable
+            setTimeout(() => {
+              sendActivationAudio();
+              logger.debug('🎙️ Primer fragmento de activación enviado');
+            }, 300);
+
+            // Segundo intento por si el primero no fue suficiente
+            setTimeout(() => {
+              sendActivationAudio();
+              logger.debug('🎙️ Segundo fragmento de activación enviado - Nova debería saludar');
+            }, 800);
           },
           onmessage: async (message: LiveServerMessage) => {
             if (message.serverContent?.outputTranscription) {
