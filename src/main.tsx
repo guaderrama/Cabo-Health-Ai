@@ -50,6 +50,29 @@ window.addEventListener('error', (event): void => {
   }
 });
 
+// Handler para promesas no manejadas (errores async)
+window.addEventListener('unhandledrejection', (event): void => {
+  const reason = event.reason;
+  const message = reason?.message || String(reason);
+
+  // Ignorar errores de extensiones del navegador
+  if (message.includes('runtime.lastError') ||
+      message.includes('message channel closed') ||
+      message.includes('Extension context invalidated')) {
+    event.preventDefault();
+    return;
+  }
+
+  // Ignorar errores de permisos de micrófono (se manejan en la UI)
+  if (message.includes('Permission denied') ||
+      message.includes('NotAllowedError') ||
+      message.includes('microphone')) {
+    event.preventDefault();
+    logger.warn('Error de permisos ignorado (se maneja en UI)');
+    return;
+  }
+});
+
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <AuthProvider>
