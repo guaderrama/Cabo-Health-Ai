@@ -23,9 +23,11 @@ interface Consultation {
 interface ConsultationHistoryProps {
   language: Language;
   onClose: () => void;
+  userRole?: 'patient' | 'doctor';
 }
 
-const ConsultationHistory: React.FC<ConsultationHistoryProps> = ({ language, onClose }) => {
+const ConsultationHistory: React.FC<ConsultationHistoryProps> = ({ language, onClose, userRole = 'patient' }) => {
+  const isDoctor = userRole === 'doctor';
   const [consultations, setConsultations] = useState<Consultation[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -137,67 +139,71 @@ const ConsultationHistory: React.FC<ConsultationHistoryProps> = ({ language, onC
           </button>
         </div>
 
-        {/* Filters */}
+        {/* Filters - Solo mostrar filtros avanzados para médicos */}
         <div className="p-4 border-b bg-slate-50 space-y-3">
           <div className="flex gap-4 items-center flex-wrap">
-            {/* Search */}
-            <div className="flex-1 min-w-[250px]">
-              <input
-                type="text"
-                placeholder={language === 'es' ? 'Buscar paciente...' : 'Search patient...'}
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              />
-            </div>
+            {/* Search - Solo para médicos */}
+            {isDoctor && (
+              <div className="flex-1 min-w-[250px]">
+                <input
+                  type="text"
+                  placeholder={language === 'es' ? 'Buscar paciente...' : 'Search patient...'}
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                />
+              </div>
+            )}
 
-            {/* Motivation Filter */}
-            <div className="flex gap-2">
-              <button
-                onClick={() => setFilterMotivation('all')}
-                className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors active:scale-95 ${
-                  filterMotivation === 'all'
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-white text-slate-600 border border-slate-300 hover:bg-slate-100'
-                }`}
-                title={language === 'es' ? 'Mostrar todas las consultas' : 'Show all consultations'}
-              >
-                {language === 'es' ? 'Todas' : 'All'}
-              </button>
-              <button
-                onClick={() => setFilterMotivation('high')}
-                className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors active:scale-95 ${
-                  filterMotivation === 'high'
-                    ? 'bg-green-600 text-white'
-                    : 'bg-white text-slate-600 border border-slate-300 hover:bg-slate-100'
-                }`}
-                title={language === 'es' ? 'Filtrar por motivación alta (7-10)' : 'Filter by high motivation (7-10)'}
-              >
-                {language === 'es' ? 'Alta' : 'High'} (≥7)
-              </button>
-              <button
-                onClick={() => setFilterMotivation('medium')}
-                className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors active:scale-95 ${
-                  filterMotivation === 'medium'
-                    ? 'bg-yellow-600 text-white'
-                    : 'bg-white text-slate-600 border border-slate-300 hover:bg-slate-100'
-                }`}
-                title={language === 'es' ? 'Filtrar por motivación media (4-6)' : 'Filter by medium motivation (4-6)'}
-              >
-                {language === 'es' ? 'Media' : 'Medium'} (4-6)
-              </button>
-              <button
-                onClick={() => setFilterMotivation('low')}
-                className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors active:scale-95 ${
-                  filterMotivation === 'low'
-                    ? 'bg-red-600 text-white'
-                    : 'bg-white text-slate-600 border border-slate-300 hover:bg-slate-100'
-                }`}
-                title={language === 'es' ? 'Filtrar por motivación baja (<4)' : 'Filter by low motivation (<4)'}
-              >
-                {language === 'es' ? 'Baja' : 'Low'} (&lt;4)
-              </button>
-            </div>
+            {/* Motivation Filter - Solo para médicos */}
+            {isDoctor && (
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setFilterMotivation('all')}
+                  className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors active:scale-95 ${
+                    filterMotivation === 'all'
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-white text-slate-600 border border-slate-300 hover:bg-slate-100'
+                  }`}
+                  title={language === 'es' ? 'Mostrar todas las consultas' : 'Show all consultations'}
+                >
+                  {language === 'es' ? 'Todas' : 'All'}
+                </button>
+                <button
+                  onClick={() => setFilterMotivation('high')}
+                  className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors active:scale-95 ${
+                    filterMotivation === 'high'
+                      ? 'bg-green-600 text-white'
+                      : 'bg-white text-slate-600 border border-slate-300 hover:bg-slate-100'
+                  }`}
+                  title={language === 'es' ? 'Filtrar por motivación alta (7-10)' : 'Filter by high motivation (7-10)'}
+                >
+                  {language === 'es' ? 'Alta' : 'High'} (≥7)
+                </button>
+                <button
+                  onClick={() => setFilterMotivation('medium')}
+                  className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors active:scale-95 ${
+                    filterMotivation === 'medium'
+                      ? 'bg-yellow-600 text-white'
+                      : 'bg-white text-slate-600 border border-slate-300 hover:bg-slate-100'
+                  }`}
+                  title={language === 'es' ? 'Filtrar por motivación media (4-6)' : 'Filter by medium motivation (4-6)'}
+                >
+                  {language === 'es' ? 'Media' : 'Medium'} (4-6)
+                </button>
+                <button
+                  onClick={() => setFilterMotivation('low')}
+                  className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors active:scale-95 ${
+                    filterMotivation === 'low'
+                      ? 'bg-red-600 text-white'
+                      : 'bg-white text-slate-600 border border-slate-300 hover:bg-slate-100'
+                  }`}
+                  title={language === 'es' ? 'Filtrar por motivación baja (<4)' : 'Filter by low motivation (<4)'}
+                >
+                  {language === 'es' ? 'Baja' : 'Low'} (&lt;4)
+                </button>
+              </div>
+            )}
           </div>
 
           <div className="text-sm text-slate-600">
@@ -309,8 +315,8 @@ const ConsultationHistory: React.FC<ConsultationHistoryProps> = ({ language, onC
                       </div>
                     </div>
 
-                    {/* Motivation Scores */}
-                    {(consultation.motivation_score || consultation.empathy_score) && (
+                    {/* Motivation Scores - Solo visible para médicos */}
+                    {isDoctor && (consultation.motivation_score || consultation.empathy_score) && (
                       <div className="mt-4 space-y-2">
                         <h4 className="text-sm font-semibold text-slate-700 mb-3">
                           📊 {language === 'es' ? 'Scores Motivacionales' : 'Motivational Scores'}
@@ -360,6 +366,16 @@ const ConsultationHistory: React.FC<ConsultationHistoryProps> = ({ language, onC
                             </div>
                           </div>
                         )}
+                      </div>
+                    )}
+
+                    {/* Estado para pacientes - Muestra si fue enviado al médico */}
+                    {!isDoctor && consultation.doctor_email && (
+                      <div className="mt-4 flex items-center gap-2 text-sm text-green-600 bg-green-50 px-3 py-2 rounded-lg">
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                        </svg>
+                        <span>{language === 'es' ? 'Enviado al médico' : 'Sent to doctor'}</span>
                       </div>
                     )}
 
@@ -460,8 +476,8 @@ const ConsultationHistory: React.FC<ConsultationHistoryProps> = ({ language, onC
                 </div>
               )}
 
-              {/* Resumen con HTML renderizado */}
-              {selectedConsultation.summary && (
+              {/* Resumen Clínico - Solo visible para médicos */}
+              {isDoctor && selectedConsultation.summary && (
                 <div>
                   <h4 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
                     <span className="text-2xl">📋</span>
@@ -477,6 +493,25 @@ const ConsultationHistory: React.FC<ConsultationHistoryProps> = ({ language, onC
                   />
                 </div>
               )}
+
+              {/* Mensaje para pacientes - El resumen fue enviado al médico */}
+              {!isDoctor && selectedConsultation.summary && (
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-6 text-center">
+                  <div className="w-12 h-12 bg-blue-100 rounded-full mx-auto flex items-center justify-center mb-3">
+                    <svg className="w-6 h-6 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                  </div>
+                  <h4 className="text-lg font-semibold text-blue-800 mb-2">
+                    {language === 'es' ? 'Resumen enviado a tu médico' : 'Summary sent to your doctor'}
+                  </h4>
+                  <p className="text-sm text-blue-600">
+                    {language === 'es'
+                      ? 'El resumen clínico de esta consulta ha sido enviado a tu médico para su revisión.'
+                      : 'The clinical summary of this consultation has been sent to your doctor for review.'}
+                  </p>
+                </div>
+              )}
             </div>
 
             <div className="p-6 border-t bg-slate-50 rounded-b-xl flex justify-end gap-3">
@@ -487,39 +522,42 @@ const ConsultationHistory: React.FC<ConsultationHistoryProps> = ({ language, onC
               >
                 {language === 'es' ? 'Cerrar' : 'Close'}
               </button>
-              <button
-                onClick={() => {
-                  const printWindow = window.open('', '_blank');
-                  if (printWindow) {
-                    printWindow.document.write(`
-                      <html>
-                        <head>
-                          <title>Consulta - ${selectedConsultation.patient_name}</title>
-                          <style>
-                            body { font-family: Arial, sans-serif; padding: 20px; }
-                            h1 { color: #1e293b; }
-                            .summary { margin-top: 20px; }
-                          </style>
-                        </head>
-                        <body>
-                          <h1>Consulta - ${selectedConsultation.patient_name}</h1>
-                          <p><strong>Fecha:</strong> ${formatDate(selectedConsultation.created_at)}</p>
-                          <div class="summary">${sanitizeHtml(selectedConsultation.summary)}</div>
-                        </body>
-                      </html>
-                    `);
-                    printWindow.document.close();
-                    printWindow.print();
-                  }
-                }}
-                className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-semibold flex items-center gap-2 active:scale-95"
-                title={language === 'es' ? 'Imprimir resumen clínico' : 'Print clinical summary'}
-              >
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
-                </svg>
-                {language === 'es' ? 'Imprimir' : 'Print'}
-              </button>
+              {/* Botón de imprimir - Solo para médicos */}
+              {isDoctor && (
+                <button
+                  onClick={() => {
+                    const printWindow = window.open('', '_blank');
+                    if (printWindow) {
+                      printWindow.document.write(`
+                        <html>
+                          <head>
+                            <title>Consulta - ${selectedConsultation.patient_name}</title>
+                            <style>
+                              body { font-family: Arial, sans-serif; padding: 20px; }
+                              h1 { color: #1e293b; }
+                              .summary { margin-top: 20px; }
+                            </style>
+                          </head>
+                          <body>
+                            <h1>Consulta - ${selectedConsultation.patient_name}</h1>
+                            <p><strong>Fecha:</strong> ${formatDate(selectedConsultation.created_at)}</p>
+                            <div class="summary">${sanitizeHtml(selectedConsultation.summary)}</div>
+                          </body>
+                        </html>
+                      `);
+                      printWindow.document.close();
+                      printWindow.print();
+                    }
+                  }}
+                  className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-semibold flex items-center gap-2 active:scale-95"
+                  title={language === 'es' ? 'Imprimir resumen clínico' : 'Print clinical summary'}
+                >
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                  </svg>
+                  {language === 'es' ? 'Imprimir' : 'Print'}
+                </button>
+              )}
             </div>
           </div>
         </div>

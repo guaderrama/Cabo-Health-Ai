@@ -82,7 +82,7 @@ const App: React.FC = () => {
     // Dashboard para médicos con Header
     return (
       <>
-        <Header language={language} isOnline={isOnline} />
+        <Header language={language} isOnline={isOnline} userRole="doctor" />
         <ErrorBoundary>
           <DoctorDashboard language={language} />
         </ErrorBoundary>
@@ -948,6 +948,7 @@ const MainApp: React.FC = () => {
         welcomeSoundEnabled={welcomeSoundEnabled}
         onToggleWelcomeSound={handleToggleWelcomeSound}
         isOnline={isOnline}
+        userRole="patient"
       />
 
       {/* Modal de recuperación de sesión */}
