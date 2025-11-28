@@ -32,7 +32,10 @@ import {
 // FIX: A local 'LiveSession' type is defined here based on its usage to resolve the import error.
 type LiveSession = {
   sendRealtimeInput(input: { media: { data: string; mimeType: string } }): void;
-  sendClientContent(params: { turns?: unknown; turnComplete?: boolean }): void;
+  sendClientContent(params: {
+    turns?: Array<{ role: string; parts: Array<{ text: string }> }> | string;
+    turnComplete?: boolean
+  }): void;
   close(): void;
 };
 
@@ -663,17 +666,20 @@ const MainApp: React.FC = () => {
             logger.debug('🔌 Conexión WebSocket abierta, activando Nova...');
 
             // 🎙️ ACTIVACIÓN AUTOMÁTICA DE NOVA
-            // Usamos sendClientContent con turnComplete para señalar a Gemini que es su turno.
-            // El audio silencioso no funciona porque el VAD (Voice Activity Detection) no lo detecta.
-            // sendClientContent({ turnComplete: true }) le dice a Gemini "es tu turno de hablar".
+            // Enviamos un mensaje de texto inicial para activar el saludo de Nova.
+            // El audio silencioso no funciona porque el VAD no lo detecta.
+            // turnComplete solo no funciona porque conflicta con el modo de audio.
             setTimeout(() => {
               sessionPromiseRef.current?.then((session) => {
                 try {
-                  // Señalar que el turno del usuario "terminó" para que Nova inicie
-                  session.sendClientContent({ turnComplete: true });
-                  logger.debug('✅ Señal turnComplete enviada - Nova debería saludar ahora');
+                  // Enviar un texto inicial que active a Nova
+                  session.sendClientContent({
+                    turns: [{ role: 'user', parts: [{ text: '[Sesión iniciada - Por favor saluda al paciente]' }] }],
+                    turnComplete: true
+                  });
+                  logger.debug('✅ Mensaje de activación enviado - Nova debería saludar ahora');
                 } catch (e) {
-                  logger.error('Error enviando señal de activación:', e);
+                  logger.error('Error enviando mensaje de activación:', e);
                 }
               });
             }, 500);
