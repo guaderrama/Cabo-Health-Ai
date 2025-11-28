@@ -32,6 +32,7 @@ import {
 // FIX: A local 'LiveSession' type is defined here based on its usage to resolve the import error.
 type LiveSession = {
   sendRealtimeInput(input: { media: { data: string; mimeType: string } }): void;
+  sendClientContent(params: { turns?: unknown; turnComplete?: boolean }): void;
   close(): void;
 };
 
@@ -662,39 +663,20 @@ const MainApp: React.FC = () => {
             logger.debug('🔌 Conexión WebSocket abierta, activando Nova...');
 
             // 🎙️ ACTIVACIÓN AUTOMÁTICA DE NOVA
-            // Gemini Live API necesita recibir audio para "activarse" y empezar a hablar.
-            // Enviamos audio silencioso más largo (1 segundo) en múltiples fragmentos
-            // para asegurar que Nova ejecute su protocolo de apertura.
-            const sendActivationAudio = () => {
+            // Usamos sendClientContent con turnComplete para señalar a Gemini que es su turno.
+            // El audio silencioso no funciona porque el VAD (Voice Activity Detection) no lo detecta.
+            // sendClientContent({ turnComplete: true }) le dice a Gemini "es tu turno de hablar".
+            setTimeout(() => {
               sessionPromiseRef.current?.then((session) => {
                 try {
-                  // Crear 500ms de audio silencioso (16kHz, mono, 16-bit PCM)
-                  const silentSamples = 8000; // 500ms @ 16kHz
-                  const silentBuffer = new Int16Array(silentSamples);
-                  const pcmData = new Uint8Array(silentBuffer.buffer);
-                  const activationAudio = {
-                    data: encode(pcmData),
-                    mimeType: 'audio/pcm;rate=16000',
-                  };
-                  session.sendRealtimeInput({ media: activationAudio });
-                  logger.debug('✅ Audio de activación enviado');
+                  // Señalar que el turno del usuario "terminó" para que Nova inicie
+                  session.sendClientContent({ turnComplete: true });
+                  logger.debug('✅ Señal turnComplete enviada - Nova debería saludar ahora');
                 } catch (e) {
-                  logger.error('Error enviando audio de activación:', e);
+                  logger.error('Error enviando señal de activación:', e);
                 }
               });
-            };
-
-            // Enviar audio de activación después de que la conexión esté estable
-            setTimeout(() => {
-              sendActivationAudio();
-              logger.debug('🎙️ Primer fragmento de activación enviado');
-            }, 300);
-
-            // Segundo intento por si el primero no fue suficiente
-            setTimeout(() => {
-              sendActivationAudio();
-              logger.debug('🎙️ Segundo fragmento de activación enviado - Nova debería saludar');
-            }, 800);
+            }, 500);
           },
           onmessage: async (message: LiveServerMessage) => {
             if (message.serverContent?.outputTranscription) {
