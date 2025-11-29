@@ -790,11 +790,11 @@ const MainApp: React.FC = () => {
             // Detectar errores específicos y proporcionar pasos de solución
             let userErrorMessage = '';
 
-            // Error de API key
-            if (errorMessage.includes('API') || errorMessage.includes('api') || errorMessage.includes('key') || errorMessage.includes('401') || errorMessage.includes('403')) {
+            // Error de API key o API inválida
+            if (errorMessage.includes('API') || errorMessage.includes('api') || errorMessage.includes('Invalid') || errorMessage.includes('invalid') || errorMessage.includes('key') || errorMessage.includes('401') || errorMessage.includes('403') || errorMessage.includes('authentication') || errorMessage.includes('unauthorized')) {
               userErrorMessage = language === 'es'
-                ? `❌ Error de autenticación con Gemini API\n\n📋 Pasos para arreglar:\n1. Verifica que VITE_GEMINI_API_KEY esté en tu archivo .env\n2. Asegúrate de que la API key es válida en Google AI Studio\n3. Reinicia el servidor de desarrollo (pnpm dev)\n4. Recarga esta página\n\n💡 Guía: docs/API.md`
-                : `❌ Gemini API authentication error\n\n📋 Steps to fix:\n1. Verify VITE_GEMINI_API_KEY is in your .env file\n2. Ensure the API key is valid in Google AI Studio\n3. Restart the development server (pnpm dev)\n4. Reload this page\n\n💡 Guide: docs/API.md`;
+                ? `❌ Error de autenticación con Gemini API\n\n📋 Pasos para arreglar:\n1. Verifica que VITE_GEMINI_API_KEY esté en tu archivo .env\n2. Asegúrate de que la API key es válida en Google AI Studio\n3. Verifica que la API key tenga permisos para Gemini Live/Audio\n4. Reinicia el servidor de desarrollo (pnpm dev)\n5. Recarga esta página\n\n💡 Guía: docs/API.md\n\nError: ${errorMessage.substring(0, 100)}`
+                : `❌ Gemini API authentication error\n\n📋 Steps to fix:\n1. Verify VITE_GEMINI_API_KEY is in your .env file\n2. Ensure the API key is valid in Google AI Studio\n3. Verify the API key has permissions for Gemini Live/Audio\n4. Restart the development server (pnpm dev)\n5. Reload this page\n\n💡 Guide: docs/API.md\n\nError: ${errorMessage.substring(0, 100)}`;
               setApiKeyError(UI_TEXTS[language]?.errorApiKey ?? 'API key error');
             }
             // Error de rate limit
