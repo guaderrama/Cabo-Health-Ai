@@ -656,7 +656,16 @@ const MainApp: React.FC = () => {
           inputAudioTranscription: {},
           outputAudioTranscription: {},
           systemInstruction: SYSTEM_INSTRUCTIONS[language],
-        },
+          // Parámetros adicionales requeridos para el modelo de audio nativo
+          // Ver: https://github.com/googleapis/python-genai/issues/1710
+          speechConfig: {
+            voiceConfig: {
+              prebuiltVoiceConfig: {
+                voiceName: 'Aoede'
+              }
+            }
+          }
+        } as any,
         callbacks: {
           onopen: () => {
             setAppState('LISTENING');
@@ -790,11 +799,12 @@ const MainApp: React.FC = () => {
             // Detectar errores específicos y proporcionar pasos de solución
             let userErrorMessage = '';
 
-            // Error de API key
-            if (errorMessage.includes('API') || errorMessage.includes('api') || errorMessage.includes('key') || errorMessage.includes('401') || errorMessage.includes('403')) {
+            // Error de API key o API inválida (incluyendo falsos positivos de "leaked key")
+            // Ver: https://github.com/googleapis/python-genai/issues/1710
+            if (errorMessage.includes('API') || errorMessage.includes('api') || errorMessage.includes('Invalid') || errorMessage.includes('invalid') || errorMessage.includes('key') || errorMessage.includes('401') || errorMessage.includes('403') || errorMessage.includes('authentication') || errorMessage.includes('unauthorized') || errorMessage.includes('leaked')) {
               userErrorMessage = language === 'es'
-                ? `❌ Error de autenticación con Gemini API\n\n📋 Pasos para arreglar:\n1. Verifica que VITE_GEMINI_API_KEY esté en tu archivo .env\n2. Asegúrate de que la API key es válida en Google AI Studio\n3. Reinicia el servidor de desarrollo (pnpm dev)\n4. Recarga esta página\n\n💡 Guía: docs/API.md`
-                : `❌ Gemini API authentication error\n\n📋 Steps to fix:\n1. Verify VITE_GEMINI_API_KEY is in your .env file\n2. Ensure the API key is valid in Google AI Studio\n3. Restart the development server (pnpm dev)\n4. Reload this page\n\n💡 Guide: docs/API.md`;
+                ? `❌ Error de autenticación con Gemini API\n\n📋 Pasos para arreglar:\n1. Genera una NUEVA API key en Google AI Studio\n2. Actualiza VITE_GEMINI_API_KEY en tu archivo .env o en Vercel\n3. Reinicia el servidor de desarrollo (pnpm dev)\n4. Recarga esta página\n\n⚠️ Nota: El modelo de audio nativo puede rechazar keys válidas incorrectamente.\nSi el problema persiste, contacta a soporte de Google AI.\n\nError: ${errorMessage.substring(0, 150)}`
+                : `❌ Gemini API authentication error\n\n📋 Steps to fix:\n1. Generate a NEW API key in Google AI Studio\n2. Update VITE_GEMINI_API_KEY in your .env file or Vercel\n3. Restart the development server (pnpm dev)\n4. Reload this page\n\n⚠️ Note: The native audio model may incorrectly reject valid keys.\nIf the problem persists, contact Google AI support.\n\nError: ${errorMessage.substring(0, 150)}`;
               setApiKeyError(UI_TEXTS[language]?.errorApiKey ?? 'API key error');
             }
             // Error de rate limit
