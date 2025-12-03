@@ -1,7 +1,8 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
 import { type Language } from '../types';
 import { sanitizeHtml } from '../utils/sanitizeHtml';
+import { formatDate, formatDuration, getMotivationLevel } from '../utils/consultation';
 
 interface Consultation {
   id: string;
@@ -80,31 +81,7 @@ const ConsultationHistory: React.FC<ConsultationHistoryProps> = ({ language, onC
     }
   };
 
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString(language, {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
-  };
-
-  const formatDuration = (seconds: number) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins} min ${secs} seg`;
-  };
-
-  const getMotivationLevel = (score?: number) => {
-    if (!score) return { level: 'unknown', color: 'bg-gray-200', textColor: 'text-gray-600' };
-    if (score >= 7) return { level: 'high', color: 'bg-green-500', textColor: 'text-green-700' };
-    if (score >= 4) return { level: 'medium', color: 'bg-yellow-500', textColor: 'text-yellow-700' };
-    return { level: 'low', color: 'bg-red-500', textColor: 'text-red-700' };
-  };
-
-  const filteredConsultations = consultations.filter(c => {
+  const filteredConsultations = useMemo(() => consultations.filter(c => {
     const matchesSearch = c.patient_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
                          c.patient_email?.toLowerCase().includes(searchQuery.toLowerCase());
 
@@ -116,7 +93,7 @@ const ConsultationHistory: React.FC<ConsultationHistoryProps> = ({ language, onC
     if (filterMotivation === 'low') return (c.motivation_score || 0) < 4;
 
     return true;
-  });
+  }), [consultations, searchQuery, filterMotivation]);
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
@@ -302,7 +279,7 @@ const ConsultationHistory: React.FC<ConsultationHistoryProps> = ({ language, onC
                           </div>
                           <div className="flex items-center gap-1">
                             <span className="text-lg">📅</span>
-                            <span>{formatDate(consultation.created_at)}</span>
+                            <span>{formatDate(consultation.created_at, language)}</span>
                           </div>
                           {consultation.duration && (
                             <div className="flex items-center gap-1">
@@ -407,7 +384,7 @@ const ConsultationHistory: React.FC<ConsultationHistoryProps> = ({ language, onC
                   {language === 'es' ? 'Detalle de Consulta' : 'Consultation Detail'}
                 </h3>
                 <p className="text-sm text-slate-600 mt-1">
-                  {selectedConsultation.patient_name} • {formatDate(selectedConsultation.created_at)}
+                  {selectedConsultation.patient_name} • {formatDate(selectedConsultation.created_at, language)}
                 </p>
               </div>
               <button
@@ -525,7 +502,7 @@ const ConsultationHistory: React.FC<ConsultationHistoryProps> = ({ language, onC
                           </head>
                           <body>
                             <h1>Consulta - ${selectedConsultation.patient_name}</h1>
-                            <p><strong>Fecha:</strong> ${formatDate(selectedConsultation.created_at)}</p>
+                            <p><strong>Fecha:</strong> ${formatDate(selectedConsultation.created_at, language)}</p>
                             <div class="summary">${sanitizeHtml(selectedConsultation.summary)}</div>
                           </body>
                         </html>

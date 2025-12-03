@@ -46,7 +46,15 @@
       "Bash(curl:*)",
       "Bash(gh auth:*)",
       "Bash(where:*)",
-      "Bash(git tag:*)"
+      "Bash(git tag:*)",
+      "Bash(git pull:*)",
+      "Bash(git checkout:*)",
+      "Bash(git merge:*)",
+      "Bash(git push:*)",
+      "Bash(find:*)",
+      "Bash(tree:*)",
+      "Bash(timeout /t 5 /nobreak)",
+      "Bash(timeout:*)"
     ],
     "deny": [],
     "ask": []

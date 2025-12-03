@@ -695,10 +695,10 @@ const MainApp: React.FC = () => {
           },
           onmessage: async (message: LiveServerMessage) => {
             if (message.serverContent?.outputTranscription) {
-              currentOutputTranscription.current += message.serverContent.outputTranscription.text;
+              currentOutputTranscription.current += message.serverContent.outputTranscription?.text ?? '';
             }
             if (message.serverContent?.inputTranscription) {
-              const transcribedText = message.serverContent.inputTranscription.text ?? '';
+              const transcribedText = message.serverContent.inputTranscription?.text ?? '';
 
               // FILTRO MÍNIMO - Solo rechazar casos MUY CLAROS de idioma incorrecto
               // Preferimos incluir texto dudoso a perder información del paciente
