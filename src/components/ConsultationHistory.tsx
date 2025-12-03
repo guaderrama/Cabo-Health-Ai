@@ -13,7 +13,7 @@ interface Consultation {
   language: string;
   created_at: string;
   duration: number;
-  transcriptions: any[];
+  transcript: any[];
   summary: string;
   motivation_score?: number;
   empathy_score?: number;
@@ -384,7 +384,7 @@ const ConsultationHistory: React.FC<ConsultationHistoryProps> = ({ language, onC
                         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" />
                         </svg>
-                        <span>{consultation.transcriptions?.length || 0} {language === 'es' ? 'mensajes' : 'messages'}</span>
+                        <span>{consultation.transcript?.length || 0} {language === 'es' ? 'mensajes' : 'messages'}</span>
                       </div>
                       <button
                         className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-semibold active:scale-95"
@@ -439,7 +439,7 @@ const ConsultationHistory: React.FC<ConsultationHistoryProps> = ({ language, onC
 
             <div className="flex-1 overflow-y-auto p-6 space-y-6">
               {/* Transcripción en formato chat */}
-              {selectedConsultation.transcriptions && selectedConsultation.transcriptions.length > 0 && (
+              {selectedConsultation.transcript && selectedConsultation.transcript.length > 0 && (
                 <div>
                   <h4 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
                     <span className="text-2xl">💬</span>
@@ -449,7 +449,7 @@ const ConsultationHistory: React.FC<ConsultationHistoryProps> = ({ language, onC
                     </span>
                   </h4>
                   <div className="space-y-3 max-h-96 overflow-y-auto bg-gradient-to-b from-slate-50 to-white rounded-lg p-4 border border-slate-200">
-                    {selectedConsultation.transcriptions.map((t: any, idx: number) => {
+                    {selectedConsultation.transcript.map((t: any, idx: number) => {
                       const isNova = t.sender === 'Nova' || t.sender === 'nova';
                       const timestamp = t.timestamp ? new Date(t.timestamp).toLocaleTimeString(language, { hour: '2-digit', minute: '2-digit' }) : '';
 
