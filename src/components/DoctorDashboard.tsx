@@ -731,19 +731,19 @@ const DoctorDashboard: React.FC<DoctorDashboardProps> = ({ language }) => {
                           </div>
 
                           <!-- Motivational Scores -->
-                          ${selectedConsultation.motivation_score || selectedConsultation.empathy_score ? `
+                          ${selectedConsultation.motivation_score != null || selectedConsultation.empathy_score != null ? `
                             <div class="scores">
-                              ${selectedConsultation.motivation_score !== undefined ? `
+                              ${selectedConsultation.motivation_score != null ? `
                                 <div class="score-card">
                                   <div class="score-label">Motivación al Cambio</div>
-                                  <div class="score-value">${selectedConsultation.motivation_score.toFixed(1)}</div>
+                                  <div class="score-value">${Number(selectedConsultation.motivation_score).toFixed(1)}</div>
                                   <div class="score-label">/10</div>
                                 </div>
                               ` : ''}
-                              ${selectedConsultation.empathy_score !== undefined ? `
+                              ${selectedConsultation.empathy_score != null ? `
                                 <div class="score-card">
                                   <div class="score-label">Empatía de Nova</div>
-                                  <div class="score-value">${selectedConsultation.empathy_score.toFixed(1)}</div>
+                                  <div class="score-value">${Number(selectedConsultation.empathy_score).toFixed(1)}</div>
                                   <div class="score-label">/10</div>
                                 </div>
                               ` : ''}

@@ -322,11 +322,11 @@ const ConsultationHistory: React.FC<ConsultationHistoryProps> = ({ language, onC
                           📊 {language === 'es' ? 'Scores Motivacionales' : 'Motivational Scores'}
                         </h4>
 
-                        {consultation.motivation_score !== undefined && (
+                        {consultation.motivation_score != null && (
                           <div>
                             <div className="flex justify-between text-xs text-slate-600 mb-1">
                               <span>{language === 'es' ? 'Motivación al Cambio' : 'Change Motivation'}</span>
-                              <span className="font-semibold">{consultation.motivation_score.toFixed(1)}/10</span>
+                              <span className="font-semibold">{Number(consultation.motivation_score).toFixed(1)}/10</span>
                             </div>
                             <div className="w-full bg-slate-200 rounded-full h-3">
                               <div
@@ -337,11 +337,11 @@ const ConsultationHistory: React.FC<ConsultationHistoryProps> = ({ language, onC
                           </div>
                         )}
 
-                        {consultation.empathy_score !== undefined && (
+                        {consultation.empathy_score != null && (
                           <div>
                             <div className="flex justify-between text-xs text-slate-600 mb-1">
                               <span>{language === 'es' ? 'Empatía de Nova' : 'Nova Empathy'}</span>
-                              <span className="font-semibold">{consultation.empathy_score.toFixed(1)}/10</span>
+                              <span className="font-semibold">{Number(consultation.empathy_score).toFixed(1)}/10</span>
                             </div>
                             <div className="w-full bg-slate-200 rounded-full h-3">
                               <div
@@ -352,11 +352,11 @@ const ConsultationHistory: React.FC<ConsultationHistoryProps> = ({ language, onC
                           </div>
                         )}
 
-                        {consultation.reflection_ratio !== undefined && (
+                        {consultation.reflection_ratio != null && (
                           <div>
                             <div className="flex justify-between text-xs text-slate-600 mb-1">
                               <span>{language === 'es' ? 'Ratio de Reflexión' : 'Reflection Ratio'}</span>
-                              <span className="font-semibold">{consultation.reflection_ratio.toFixed(2)}</span>
+                              <span className="font-semibold">{Number(consultation.reflection_ratio).toFixed(2)}</span>
                             </div>
                             <div className="w-full bg-slate-200 rounded-full h-3">
                               <div
