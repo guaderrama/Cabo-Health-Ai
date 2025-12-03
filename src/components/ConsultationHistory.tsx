@@ -17,7 +17,6 @@ interface Consultation {
   summary: string;
   motivation_score?: number;
   empathy_score?: number;
-  reflection_ratio?: number;
 }
 
 interface ConsultationHistoryProps {
@@ -352,20 +351,6 @@ const ConsultationHistory: React.FC<ConsultationHistoryProps> = ({ language, onC
                           </div>
                         )}
 
-                        {consultation.reflection_ratio != null && (
-                          <div>
-                            <div className="flex justify-between text-xs text-slate-600 mb-1">
-                              <span>{language === 'es' ? 'Ratio de Reflexión' : 'Reflection Ratio'}</span>
-                              <span className="font-semibold">{Number(consultation.reflection_ratio).toFixed(2)}</span>
-                            </div>
-                            <div className="w-full bg-slate-200 rounded-full h-3">
-                              <div
-                                className="bg-blue-500 h-3 rounded-full transition-all duration-500"
-                                style={{ width: `${Math.min((consultation.reflection_ratio / 1) * 100, 100)}%` }}
-                              ></div>
-                            </div>
-                          </div>
-                        )}
                       </div>
                     )}
 
