@@ -946,15 +946,23 @@ export const SUMMARY_PROMPT: Record<Language, (transcript: string) => string> = 
        - Red Flags: Listar TODOS los signos de alarma detectados con formato ⚠️. Si no hay, escribir "✅ No se detectaron alertas críticas"
        - Barras de progreso: Reemplazar [X] con el número exacto (ej: si Importancia es 8/10, el width debe ser "width: 80%")
 
-    8. **MATRIZ DE SISTEMAS - EVALUAR Y PUNTUAR:**
-       Evalúa cada uno de los 6 sistemas del 0-10 basado en la información recopilada:
-       - 🍽️ DIGESTIÓN (0-10): Basado en síntomas digestivos, hábitos intestinales, sensibilidades alimentarias
-       - ⚡ ENERGÍA (0-10): Basado en nivel energético diario, calidad de sueño, fatiga
-       - 🧠 MENTE (0-10): Basado en nivel de estrés, estado de ánimo, bienestar emocional
-       - 🔬 HORMONAL (0-10): Basado en señales hormonales, ciclo menstrual, libido, cambios de peso
-       - 🛡️ INMUNE (0-10): Basado en frecuencia de infecciones, tiempo de recuperación, inflamación
-       - 🏃 ESTRUCTURA (0-10): Basado en actividad física, dolor musculoesquelético, movilidad
-       Para cada sistema: reemplazar [X] con el score numérico y el width con el porcentaje (ej: score 6/10 → width="60%")
+    8. **MATRIZ DE SISTEMAS - EVALUAR Y PUNTUAR (MUY IMPORTANTE):**
+       🚨 CRÍTICO: Debes REEMPLAZAR cada "[X/10]" con un NÚMERO REAL del 0 al 10.
+
+       Evalúa cada sistema basado en la información recopilada:
+       - 🍽️ DIGESTIÓN: Síntomas digestivos, hábitos intestinales, sensibilidades alimentarias
+       - ⚡ ENERGÍA: Nivel energético diario, calidad de sueño, fatiga
+       - 🧠 MENTE: Nivel de estrés, estado de ánimo, bienestar emocional
+       - 🔬 HORMONAL: Señales hormonales, ciclo menstrual, libido, cambios de peso
+       - 🛡️ INMUNE: Frecuencia de infecciones, tiempo de recuperación, inflamación
+       - 🏃 ESTRUCTURA: Actividad física, dolor musculoesquelético, movilidad
+
+       EJEMPLO DE REEMPLAZO CORRECTO:
+       ❌ INCORRECTO: <span>[X/10]</span>  ← NO dejes el placeholder
+       ✅ CORRECTO:   <span>7/10</span>    ← Reemplaza con número real
+
+       También ajusta el width de la barra de progreso: score 7/10 → width="70%"
+
        En "Interpretación General": Analizar interrelaciones entre sistemas y priorizar el enfoque más impactante`,
   en: (transcript: string) => `
     You are an expert medical AI analyst specialized in Functional Medicine and Motivational Interviewing.
@@ -1329,14 +1337,22 @@ export const SUMMARY_PROMPT: Record<Language, (transcript: string) => string> = 
        - Red Flags: List ALL warning signs detected with ⚠️ format. If none, write "✅ No critical alerts detected"
        - Progress bars: Replace [X] with exact number (e.g. if Importance is 8/10, width should be "width: 80%")
 
-    8. **SYSTEMS MATRIX - EVALUATE AND SCORE:**
-       Evaluate each of the 6 systems from 0-10 based on collected information:
-       - 🍽️ DIGESTION (0-10): Based on digestive symptoms, bowel habits, food sensitivities
-       - ⚡ ENERGY (0-10): Based on daily energy level, sleep quality, fatigue
-       - 🧠 MIND (0-10): Based on stress level, mood, emotional wellbeing
-       - 🔬 HORMONAL (0-10): Based on hormonal signals, menstrual cycle, libido, weight changes
-       - 🛡️ IMMUNE (0-10): Based on infection frequency, recovery time, inflammation
-       - 🏃 STRUCTURE (0-10): Based on physical activity, musculoskeletal pain, mobility
-       For each system: replace [X] with numeric score and width with percentage (e.g. score 6/10 → width="60%")
+    8. **SYSTEMS MATRIX - EVALUATE AND SCORE (VERY IMPORTANT):**
+       🚨 CRITICAL: You MUST REPLACE each "[X/10]" with a REAL NUMBER from 0 to 10.
+
+       Evaluate each system based on collected information:
+       - 🍽️ DIGESTION: Digestive symptoms, bowel habits, food sensitivities
+       - ⚡ ENERGY: Daily energy level, sleep quality, fatigue
+       - 🧠 MIND: Stress level, mood, emotional wellbeing
+       - 🔬 HORMONAL: Hormonal signals, menstrual cycle, libido, weight changes
+       - 🛡️ IMMUNE: Infection frequency, recovery time, inflammation
+       - 🏃 STRUCTURE: Physical activity, musculoskeletal pain, mobility
+
+       CORRECT REPLACEMENT EXAMPLE:
+       ❌ WRONG: <span>[X/10]</span>  ← Do NOT leave the placeholder
+       ✅ RIGHT: <span>7/10</span>    ← Replace with actual number
+
+       Also adjust the progress bar width: score 7/10 → width="70%"
+
        In "General Interpretation": Analyze system interrelations and prioritize most impactful focus`
 };
