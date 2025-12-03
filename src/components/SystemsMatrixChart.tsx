@@ -87,6 +87,13 @@ const SystemsMatrixChart: React.FC<SystemsMatrixChartProps> = ({ summaryHTML }) 
     return defaultSystems;
   }, [summaryHTML]);
 
+  // Detectar si tenemos datos reales o solo valores por defecto
+  const hasRealData = useMemo(() => {
+    // Si todos los scores son exactamente 5, probablemente son valores por defecto
+    const allDefaultValues = systemsData.every(s => s.score === 5);
+    return !allDefaultValues;
+  }, [systemsData]);
+
   // Calcular promedio
   const averageScore = useMemo(() => {
     if (systemsData.length === 0) return '0.0';
@@ -126,6 +133,17 @@ const SystemsMatrixChart: React.FC<SystemsMatrixChartProps> = ({ summaryHTML }) 
           <div className="text-xs text-slate-600">Promedio</div>
         </div>
       </div>
+
+      {/* Aviso si no hay datos reales */}
+      {!hasRealData && (
+        <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg flex items-center gap-2">
+          <span className="text-amber-500 text-xl">⚠️</span>
+          <p className="text-amber-700 text-sm">
+            <strong>Datos no disponibles:</strong> Esta consulta fue realizada antes de la actualización.
+            Las nuevas consultas mostrarán puntuaciones reales para cada sistema.
+          </p>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Spider/Radar Chart */}
