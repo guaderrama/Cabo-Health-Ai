@@ -89,6 +89,7 @@ const SystemsMatrixChart: React.FC<SystemsMatrixChartProps> = ({ summaryHTML }) 
 
   // Calcular promedio
   const averageScore = useMemo(() => {
+    if (systemsData.length === 0) return '0.0';
     const total = systemsData.reduce((sum, system) => sum + system.score, 0);
     return (total / systemsData.length).toFixed(1);
   }, [systemsData]);

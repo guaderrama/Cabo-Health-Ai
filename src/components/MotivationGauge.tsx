@@ -57,7 +57,7 @@ const MotivationGauge: React.FC<MotivationGaugeProps> = ({ score, label, maxScor
         <div className="absolute inset-0 flex items-center justify-center">
           <div className="text-center">
             <div className="text-2xl font-bold" style={{ color: getColor() }}>
-              {score.toFixed(1)}
+              {(score ?? 0).toFixed(1)}
             </div>
             <div className="text-xs text-slate-400">/{maxScore}</div>
           </div>

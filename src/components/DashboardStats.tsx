@@ -49,7 +49,7 @@ const DashboardStats: React.FC<DashboardStatsProps> = ({ consultations, language
 
     return {
       total,
-      avgMotivation: avgMotivation.toFixed(1),
+      avgMotivation: (avgMotivation || 0).toFixed(1),
       atRisk,
       thisWeek,
       avgCriticalSystems
