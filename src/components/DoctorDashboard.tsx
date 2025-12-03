@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
 import { type Language } from '../types';
 import { useAuth } from '../contexts/AuthContext';
@@ -7,6 +7,7 @@ import DashboardStats from './DashboardStats';
 import MotivationGauge from './MotivationGauge';
 import ClinicalSummaryView from './ClinicalSummaryView';
 import { logger } from '../lib/logger';
+import { formatDate, formatDuration, getMotivationLevel } from '../utils/consultation';
 
 interface Consultation {
   id: string;
@@ -99,31 +100,6 @@ const DoctorDashboard: React.FC<DoctorDashboardProps> = ({ language }) => {
     }
   };
 
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString(language, {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
-  };
-
-  const formatDuration = (seconds?: number) => {
-    if (!seconds) return 'N/A';
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins} min ${secs} seg`;
-  };
-
-  const getMotivationLevel = (score?: number) => {
-    if (!score) return { level: 'unknown', color: 'bg-gray-200', textColor: 'text-gray-600' };
-    if (score >= 7) return { level: 'high', color: 'bg-green-500', textColor: 'text-green-700' };
-    if (score >= 4) return { level: 'medium', color: 'bg-yellow-500', textColor: 'text-yellow-700' };
-    return { level: 'low', color: 'bg-red-500', textColor: 'text-red-700' };
-  };
-
   const getAlertBadge = (consultation: Consultation) => {
     const motivationScore = consultation.motivation_score || 0;
     let criticalSystemsCount = 0;
@@ -180,7 +156,7 @@ const DoctorDashboard: React.FC<DoctorDashboardProps> = ({ language }) => {
     return null;
   };
 
-  const filteredConsultations = consultations.filter(c => {
+  const filteredConsultations = useMemo(() => consultations.filter(c => {
     const matchesSearch = c.patient_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       (c.patient_email && c.patient_email.toLowerCase().includes(searchQuery.toLowerCase()));
 
@@ -192,7 +168,7 @@ const DoctorDashboard: React.FC<DoctorDashboardProps> = ({ language }) => {
     if (filterMotivation === 'low') return (c.motivation_score || 0) < 4;
 
     return true;
-  });
+  }), [consultations, searchQuery, filterMotivation]);
 
 
   return (
@@ -347,7 +323,7 @@ const DoctorDashboard: React.FC<DoctorDashboardProps> = ({ language }) => {
                       <div className="flex items-center gap-4 text-sm text-slate-600 mt-3">
                         <div className="flex items-center gap-1">
                           <span>📅</span>
-                          <span>{formatDate(consultation.created_at)}</span>
+                          <span>{formatDate(consultation.created_at, language)}</span>
                         </div>
                         {consultation.session_duration && (
                           <div className="flex items-center gap-1">
@@ -460,7 +436,7 @@ const DoctorDashboard: React.FC<DoctorDashboardProps> = ({ language }) => {
                   {language === 'es' ? 'Detalle de Consulta' : 'Consultation Detail'}
                 </h3>
                 <p className="text-sm text-slate-600 mt-1">
-                  {selectedConsultation.patient_name} • {formatDate(selectedConsultation.created_at)}
+                  {selectedConsultation.patient_name} • {formatDate(selectedConsultation.created_at, language)}
                 </p>
               </div>
               <button
@@ -722,7 +698,7 @@ const DoctorDashboard: React.FC<DoctorDashboardProps> = ({ language }) => {
                             </div>
                             <div class="info-row">
                               <div class="info-label">Fecha de Consulta:</div>
-                              <div class="info-value">${formatDate(selectedConsultation.created_at)}</div>
+                              <div class="info-value">${formatDate(selectedConsultation.created_at, language)}</div>
                             </div>
                             <div class="info-row">
                               <div class="info-label">Duración de Sesión:</div>

@@ -412,25 +412,25 @@ const ClinicalSummaryView: React.FC<ClinicalSummaryViewProps> = ({ summaryHTML, 
         {/* Otras tabs muestran el contenido completo */}
         {activeTab === 'soap' && (
           <div className="prose prose-sm max-w-none">
-            <div dangerouslySetInnerHTML={{ __html: sanitizeHtml(summaryHTML.match(/🩺 Análisis Clínico[\s\S]*?(?=🎯 Análisis|$)/i)?.[0] || summaryHTML) }} />
+            <div dangerouslySetInnerHTML={{ __html: sanitizeHtml(summaryHTML.match(/🩺 Análisis Clínico[\s\S]*?(?=🎯 Análisis|$)/i)?.[0] || '') || '<p class="text-gray-500">Sección no disponible</p>' }} />
           </div>
         )}
 
         {activeTab === 'systems' && (
           <div className="prose prose-sm max-w-none">
-            <div dangerouslySetInnerHTML={{ __html: sanitizeHtml(summaryHTML.match(/🔬 Matriz de Sistemas[\s\S]*?(?=📋 Resumen|$)/i)?.[0] || summaryHTML) }} />
+            <div dangerouslySetInnerHTML={{ __html: sanitizeHtml(summaryHTML.match(/🔬 Matriz de Sistemas[\s\S]*?(?=📋 Resumen|$)/i)?.[0] || '') || '<p class="text-gray-500">Sección no disponible</p>' }} />
           </div>
         )}
 
         {activeTab === 'motivation' && (
           <div className="prose prose-sm max-w-none">
-            <div dangerouslySetInnerHTML={{ __html: sanitizeHtml(summaryHTML.match(/🎯 Análisis de Motivación[\s\S]*?(?=✅ Checklist|$)/i)?.[0] || summaryHTML) }} />
+            <div dangerouslySetInnerHTML={{ __html: sanitizeHtml(summaryHTML.match(/🎯 Análisis de Motivación[\s\S]*?(?=✅ Checklist|$)/i)?.[0] || '') || '<p class="text-gray-500">Sección no disponible</p>' }} />
           </div>
         )}
 
         {activeTab === 'plan' && (
           <div className="prose prose-sm max-w-none">
-            <div dangerouslySetInnerHTML={{ __html: sanitizeHtml(summaryHTML.match(/P - PLAN[\s\S]*?(?=🔬 Estudios|📆 Plan de seguimiento|$)/i)?.[0] || summaryHTML) }} />
+            <div dangerouslySetInnerHTML={{ __html: sanitizeHtml(summaryHTML.match(/P - PLAN[\s\S]*?(?=🔬 Estudios|📆 Plan de seguimiento|$)/i)?.[0] || '') || '<p class="text-gray-500">Sección no disponible</p>' }} />
           </div>
         )}
       </div>
