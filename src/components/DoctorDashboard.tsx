@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useMemo } from 'react';
+import { z } from 'zod';
 import { supabase } from '../lib/supabase';
 import { type Language } from '../types';
 import { useAuth } from '../contexts/AuthContext';
@@ -8,6 +9,24 @@ import MotivationGauge from './MotivationGauge';
 import ClinicalSummaryView from './ClinicalSummaryView';
 import { logger } from '../lib/logger';
 import { formatDate, formatDuration, getMotivationLevel } from '../utils/consultation';
+
+// Schema de validación para consultas de Supabase
+const ConsultationSchema = z.object({
+  id: z.string(),
+  session_id: z.string(),
+  patient_name: z.string(),
+  patient_dob: z.string(),
+  patient_email: z.string().nullable(),
+  language: z.string(),
+  created_at: z.string(),
+  session_duration: z.number(),
+  transcript: z.array(z.any()),
+  summary: z.string(),
+  motivation_score: z.number().nullable().optional(),
+  empathy_score: z.number().nullable().optional(),
+  message_count: z.number().nullable().optional(),
+  status: z.string().nullable().optional(),
+});
 
 interface Consultation {
   id: string;
@@ -86,7 +105,23 @@ const DoctorDashboard: React.FC<DoctorDashboardProps> = ({ language }) => {
       logger.debug('✅ Consultas cargadas:', data?.length || 0);
 
       if (data) {
-        setConsultations(data);
+        // Validar cada consulta y filtrar las inválidas
+        const validConsultations = data.filter((consultation, index) => {
+          const result = ConsultationSchema.safeParse(consultation);
+          if (!result.success) {
+            logger.warn(`Consulta #${index} inválida (id: ${consultation.id || 'unknown'}):`, {
+              errors: result.error.issues.map(i => `${i.path.join('.')}: ${i.message}`)
+            });
+            return false;
+          }
+          return true;
+        });
+
+        if (validConsultations.length < data.length) {
+          logger.warn(`${data.length - validConsultations.length} consultas filtradas por datos inválidos`);
+        }
+
+        setConsultations(validConsultations);
       }
     } catch (err) {
       logger.error('Error al cargar consultas:', err);

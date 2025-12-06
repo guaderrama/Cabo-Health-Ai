@@ -54,7 +54,8 @@
       "Bash(find:*)",
       "Bash(tree:*)",
       "Bash(timeout /t 5 /nobreak)",
-      "Bash(timeout:*)"
+      "Bash(timeout:*)",
+      "Bash(cat:*)"
     ],
     "deny": [],
     "ask": []
