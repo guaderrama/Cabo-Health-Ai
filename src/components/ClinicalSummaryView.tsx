@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { type Language } from '../types';
 import { sanitizeHtml } from '../utils/sanitizeHtml';
+import { logger } from '../lib/logger';
 
 interface ClinicalSummaryViewProps {
   summaryHTML: string;
@@ -63,9 +64,9 @@ const parseSummaryHTML = (html: string): ParsedSummary => {
   // Extraer scores de motivación - regex actualizado para coincidir con formato del prompt
   // El prompt usa: "Importancia del cambio: [X/10]", "Confianza en cambiar: [X/10]", "Readiness general: [X/10]"
   const motivation: MotivationData = {
-    importance: extractScore(html, /Importancia(?:\s+del\s+cambio)?[:\s]+\[?(\d+)\/10/i),
-    confidence: extractScore(html, /Confianza(?:\s+en\s+cambiar)?[:\s]+\[?(\d+)\/10/i),
-    readiness: extractScore(html, /Readiness(?:\s+general)?[:\s]+\[?(\d+)\/10/i)
+    importance: extractScore(html, /Importancia(?:\s+del\s+cambio)?[:\s]+\[?(\d+)\/10/i, 'Importancia'),
+    confidence: extractScore(html, /Confianza(?:\s+en\s+cambiar)?[:\s]+\[?(\d+)\/10/i, 'Confianza'),
+    readiness: extractScore(html, /Readiness(?:\s+general)?[:\s]+\[?(\d+)\/10/i, 'Readiness')
   };
 
   // Extraer sistemas
@@ -132,9 +133,13 @@ const parseSummaryHTML = (html: string): ParsedSummary => {
   return { alerts, motivation, systems, completeness, duration, chiefComplaint, keyFindings };
 };
 
-const extractScore = (html: string, regex: RegExp): number => {
+const extractScore = (html: string, regex: RegExp, fieldName: string): number => {
   const match = html.match(regex);
-  return match && match[1] ? parseInt(match[1]) : 0;
+  if (!match || !match[1]) {
+    logger.warn(`Parsing fallido para ${fieldName}`, { pattern: regex.toString().substring(0, 50) });
+    return 0;
+  }
+  return parseInt(match[1]);
 };
 
 const ClinicalSummaryView: React.FC<ClinicalSummaryViewProps> = ({ summaryHTML, language }) => {
