@@ -5,6 +5,47 @@ import { UI_TEXTS } from '../constants';
 import { UserIcon, CalendarIcon, SendIcon, CheckIcon, XIcon } from './icons';
 import { logger } from '../lib/logger';
 
+// Key para respaldo local de consultas pendientes
+const PENDING_CONSULTATION_KEY = 'cabo_health_pending_consultation';
+
+// Guardar consulta pendiente en localStorage como respaldo
+const savePendingConsultation = (data: Record<string, unknown>) => {
+  try {
+    localStorage.setItem(PENDING_CONSULTATION_KEY, JSON.stringify({
+      ...data,
+      savedAt: new Date().toISOString()
+    }));
+    logger.debug('💾 Consulta respaldada en localStorage');
+  } catch (e) {
+    logger.error('Error al respaldar en localStorage:', e);
+  }
+};
+
+// Limpiar consulta pendiente después de éxito
+const clearPendingConsultation = () => {
+  try {
+    localStorage.removeItem(PENDING_CONSULTATION_KEY);
+    logger.debug('🗑️ Respaldo local eliminado (guardado exitoso)');
+  } catch (e) {
+    logger.error('Error al limpiar localStorage:', e);
+  }
+};
+
+// Obtener consulta pendiente (para recuperación)
+export const getPendingConsultation = (): Record<string, unknown> | null => {
+  try {
+    const data = localStorage.getItem(PENDING_CONSULTATION_KEY);
+    if (data) {
+      const parsed = JSON.parse(data);
+      logger.debug('📂 Consulta pendiente encontrada:', { sessionId: parsed.session_id });
+      return parsed;
+    }
+  } catch (e) {
+    logger.error('Error al leer localStorage:', e);
+  }
+  return null;
+};
+
 interface SendSummaryModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -226,6 +267,10 @@ const SendSummaryModal: React.FC<SendSummaryModalProps> = ({
         message_count: dataToInsert.message_count
       });
 
+      // 🔒 RESPALDO: Guardar en localStorage ANTES de intentar Supabase
+      // Si Supabase falla, los datos no se perderán
+      savePendingConsultation(dataToInsert);
+
       // Guardar directamente en consultations (estructura simplificada)
       const { data: consultationData, error: saveError } = await supabase
         .from('consultations')
@@ -243,6 +288,9 @@ const SendSummaryModal: React.FC<SendSummaryModalProps> = ({
         patient_name: consultationData?.patient_name
       });
 
+      // 🗑️ Limpiar respaldo local - ya no es necesario
+      clearPendingConsultation();
+
       const consultationId = consultationData?.id;
       setConfirmationId((consultationId || sessionId).substring(0, 8).toUpperCase());
       setSubmissionState('SUCCESS');
@@ -259,31 +307,31 @@ const SendSummaryModal: React.FC<SendSummaryModalProps> = ({
         // Error de autenticación
         if (errorText.includes('auth') || errorText.includes('login') || errorText.includes('session')) {
           errorMessage = language === 'es'
-            ? 'Error de autenticación.\n\n📋 Pasos:\n1. Cierra sesión en el menú superior\n2. Vuelve a iniciar sesión\n3. Intenta guardar nuevamente\n\nSi el problema persiste, recarga la página.'
-            : 'Authentication error.\n\n📋 Steps:\n1. Log out from the top menu\n2. Log in again\n3. Try saving again\n\nIf the problem persists, reload the page.';
+            ? 'Error de autenticación.\n\n📋 Pasos:\n1. Cierra sesión en el menú superior\n2. Vuelve a iniciar sesión\n3. Intenta guardar nuevamente\n\n✅ Tus datos están respaldados localmente.'
+            : 'Authentication error.\n\n📋 Steps:\n1. Log out from the top menu\n2. Log in again\n3. Try saving again\n\n✅ Your data is backed up locally.';
         }
         // Error de permisos RLS
         else if (errorText.includes('rls') || errorText.includes('policy') || errorText.includes('permission')) {
           errorMessage = language === 'es'
-            ? 'Error de permisos en la base de datos.\n\n📋 Pasos:\n1. Verifica que iniciaste sesión correctamente\n2. Cierra sesión y vuelve a iniciar\n3. Contacta al administrador si persiste\n\nCódigo técnico: RLS Policy Violation'
-            : 'Database permissions error.\n\n📋 Steps:\n1. Verify you are logged in correctly\n2. Log out and log in again\n3. Contact administrator if it persists\n\nTechnical code: RLS Policy Violation';
+            ? 'Error de permisos en la base de datos.\n\n📋 Pasos:\n1. Verifica que iniciaste sesión correctamente\n2. Cierra sesión y vuelve a iniciar\n3. Contacta al administrador si persiste\n\n✅ Tus datos están respaldados localmente.'
+            : 'Database permissions error.\n\n📋 Steps:\n1. Verify you are logged in correctly\n2. Log out and log in again\n3. Contact administrator if it persists\n\n✅ Your data is backed up locally.';
         }
         // Error de red
         else if (errorText.includes('network') || errorText.includes('fetch') || errorText.includes('timeout')) {
           errorMessage = language === 'es'
-            ? 'Error de conexión a internet.\n\n📋 Pasos:\n1. Verifica tu conexión a internet\n2. Recarga la página\n3. Intenta guardar nuevamente\n\nTus datos NO se han perdido, están en memoria.'
-            : 'Internet connection error.\n\n📋 Steps:\n1. Check your internet connection\n2. Reload the page\n3. Try saving again\n\nYour data is NOT lost, it is in memory.';
+            ? 'Error de conexión a internet.\n\n📋 Pasos:\n1. Verifica tu conexión a internet\n2. Haz clic en "Enviar" nuevamente\n\n✅ Tus datos están respaldados localmente y no se perderán.'
+            : 'Internet connection error.\n\n📋 Steps:\n1. Check your internet connection\n2. Click "Send" again\n\n✅ Your data is backed up locally and will not be lost.';
         }
         // Error genérico con mensaje original
         else {
           errorMessage = err.message + '\n\n📋 ' + (language === 'es'
-            ? 'Pasos:\n1. Intenta nuevamente en unos segundos\n2. Si persiste, recarga la página\n3. Contacta soporte si el problema continúa'
-            : 'Steps:\n1. Try again in a few seconds\n2. If it persists, reload the page\n3. Contact support if the problem continues');
+            ? 'Pasos:\n1. Intenta nuevamente en unos segundos\n2. Si persiste, recarga la página\n\n✅ Tus datos están respaldados localmente.'
+            : 'Steps:\n1. Try again in a few seconds\n2. If it persists, reload the page\n\n✅ Your data is backed up locally.');
         }
       } else {
         errorMessage = language === 'es'
-          ? 'Error desconocido al guardar.\n\n📋 Pasos:\n1. Recarga la página\n2. Vuelve a intentar\n3. Si persiste, contacta soporte técnico'
-          : 'Unknown error while saving.\n\n📋 Steps:\n1. Reload the page\n2. Try again\n3. If it persists, contact technical support';
+          ? 'Error desconocido al guardar.\n\n📋 Pasos:\n1. Haz clic en "Enviar" nuevamente\n2. Si persiste, recarga la página\n\n✅ Tus datos están respaldados localmente.'
+          : 'Unknown error while saving.\n\n📋 Steps:\n1. Click "Send" again\n2. If it persists, reload the page\n\n✅ Your data is backed up locally.';
       }
 
       setError(errorMessage);
