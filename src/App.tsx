@@ -120,6 +120,11 @@ const MainApp: React.FC = () => {
   // Estados para detector de silencio
   const [silenceWarningShown, setSilenceWarningShown] = useState(false);
 
+  // Estados para session resumption (reconexión automática)
+  const [sessionResumptionHandle, setSessionResumptionHandle] = useState<string | null>(null);
+  const reconnectAttemptsRef = useRef(0);
+  const maxReconnectAttempts = 3;
+
   // Estado para detección de conexión
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [connectionLostDuringSession, setConnectionLostDuringSession] = useState(false);
@@ -547,13 +552,18 @@ const MainApp: React.FC = () => {
   const handleStartSession = useCallback(async () => {
     setAppState('CONNECTING');
     setError(null);
-    setTranscript([]);
-    setSummary('');
 
-    // Generar ID de sesión y registrar inicio
-    const newSessionId = `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    setSessionId(newSessionId);
-    setSessionStartTime(Date.now());
+    // Solo resetear transcript y summary si es sesión nueva (no reconexión)
+    // Si hay sessionResumptionHandle, estamos reconectando y mantenemos los datos
+    if (!sessionResumptionHandle) {
+      reconnectAttemptsRef.current = 0;
+      setTranscript([]);
+      setSummary('');
+      // Generar ID de sesión solo para sesiones nuevas
+      const newSessionId = `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      setSessionId(newSessionId);
+      setSessionStartTime(Date.now());
+    }
 
     // Resetear contadores de checkpoint
     setLastSavedMessageCount(0);
@@ -656,6 +666,12 @@ const MainApp: React.FC = () => {
           inputAudioTranscription: {},
           outputAudioTranscription: {},
           systemInstruction: SYSTEM_INSTRUCTIONS[language],
+          // Context Window Compression para sesiones ilimitadas (sin esto: máx 15 min)
+          // Ver: https://ai.google.dev/gemini-api/docs/live-session
+          contextWindowCompression: { slidingWindow: {} },
+          // Session Resumption para reconexión automática después de cortes
+          // Tokens válidos por 2 horas después de terminación
+          sessionResumption: sessionResumptionHandle ? { handle: sessionResumptionHandle } : {},
           // Parámetros adicionales requeridos para el modelo de audio nativo
           // Ver: https://github.com/googleapis/python-genai/issues/1710
           speechConfig: {
@@ -694,6 +710,22 @@ const MainApp: React.FC = () => {
             }, 500);
           },
           onmessage: async (message: LiveServerMessage) => {
+            // Manejar Session Resumption Update - guardar handle para reconexión
+            if ((message as any).sessionResumptionUpdate) {
+              const update = (message as any).sessionResumptionUpdate;
+              if (update.resumable && update.newHandle) {
+                setSessionResumptionHandle(update.newHandle);
+                logger.debug('🔄 Session resumption handle actualizado');
+              }
+            }
+
+            // Manejar GoAway - advertencia de cierre inminente
+            if ((message as any).goAway) {
+              const timeLeft = (message as any).goAway.timeLeft;
+              logger.warn(`⚠️ GoAway recibido - Conexión terminará en: ${timeLeft}`);
+              // La reconexión se manejará automáticamente en onclose
+            }
+
             if (message.serverContent?.outputTranscription) {
               currentOutputTranscription.current += message.serverContent.outputTranscription?.text ?? '';
             }
@@ -833,11 +865,37 @@ const MainApp: React.FC = () => {
           onclose: (e: CloseEvent) => {
             logger.debug('Session closed by server:', e.code, e.reason);
 
-            // Solo notificar si estamos en estado LISTENING (conexión inesperada cerrada)
-            if (appStateRef.current === 'LISTENING') {
+            // Solo intentar reconexión si:
+            // 1. Estamos en estado LISTENING (sesión activa)
+            // 2. Tenemos un handle de resumption
+            // 3. No hemos excedido los intentos máximos
+            if (appStateRef.current === 'LISTENING' &&
+                sessionResumptionHandle &&
+                reconnectAttemptsRef.current < maxReconnectAttempts) {
+
+              logger.debug(`🔄 Intentando reconexión automática (${reconnectAttemptsRef.current + 1}/${maxReconnectAttempts})...`);
+              reconnectAttemptsRef.current++;
+
+              // Limpiar audio pero mantener estado de sesión
+              cleanupAudio();
+
+              // Mostrar mensaje de reconexión al usuario
+              setError(language === 'es'
+                ? `🔄 Reconectando automáticamente... (intento ${reconnectAttemptsRef.current}/${maxReconnectAttempts})`
+                : `🔄 Automatically reconnecting... (attempt ${reconnectAttemptsRef.current}/${maxReconnectAttempts})`);
+
+              // Reintentar conexión después de 1 segundo
+              setTimeout(() => {
+                if (appStateRef.current !== 'COMPLETED') {
+                  handleStartSession(); // Usará el sessionResumptionHandle guardado
+                }
+              }, 1000);
+
+            } else if (appStateRef.current === 'LISTENING') {
+              // No hay handle o excedimos intentos - mostrar error final
               const errorMsg = language === 'es'
-                ? 'La conexión se cerró inesperadamente. Tu progreso está guardado. Puedes recargar la página para continuar.'
-                : 'Connection closed unexpectedly. Your progress is saved. You can reload the page to continue.';
+                ? 'La conexión se cerró inesperadamente. Tu progreso está guardado. Puedes usar "Reintentar Conexión" para continuar.'
+                : 'Connection closed unexpectedly. Your progress is saved. You can use "Retry Connection" to continue.';
 
               setError(errorMsg);
               setAppState('ERROR');
@@ -903,7 +961,7 @@ const MainApp: React.FC = () => {
       setAppState('ERROR');
       cleanupAudio();
     }
-  }, [language, cleanupAudio, handleEndSession]);
+  }, [language, cleanupAudio, handleEndSession, sessionResumptionHandle]);
 
   // FIX: Completed the truncated function and added state resets.
   const handleNewSession = useCallback(() => {
@@ -917,6 +975,9 @@ const MainApp: React.FC = () => {
     setSummary('');
     setError(null);
     setPatientName('');
+    // Limpiar handle de resumption para nueva sesión
+    setSessionResumptionHandle(null);
+    reconnectAttemptsRef.current = 0;
   }, [cleanupAudio]);
 
   const handleRetryConnection = useCallback(() => {
@@ -928,7 +989,9 @@ const MainApp: React.FC = () => {
     }
     setError(null);
     setAppState('IDLE');
-    // NO limpiar transcript, patientName, ni sessionId para mantener progreso
+    // Resetear intentos para permitir nuevos reintentos manuales
+    reconnectAttemptsRef.current = 0;
+    // NO limpiar transcript, patientName, sessionId, ni sessionResumptionHandle para mantener progreso
   }, [cleanupAudio]);
 
   useEffect(() => {
