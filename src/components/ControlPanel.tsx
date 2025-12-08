@@ -17,6 +17,7 @@ interface ControlPanelProps {
   onPatientNameChange: (name: string) => void;
   onOpenDiagnostic?: () => void;
   onRetry?: () => void;
+  waitingForNova?: boolean; // Indica si estamos esperando respuesta de Nova
 }
 
 const ControlPanel: React.FC<ControlPanelProps> = ({
@@ -30,7 +31,8 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
   patientName,
   onPatientNameChange,
   onOpenDiagnostic,
-  onRetry
+  onRetry,
+  waitingForNova
 }) => {
   const texts = UI_TEXTS[language];
   const isIdle = appState === 'IDLE';
@@ -188,6 +190,14 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
             {language === 'es' ? '🎤 Nivel de Audio' : '🎤 Audio Level'}
           </p>
           <MicLevelIndicator />
+        </div>
+      )}
+
+      {/* Indicador de espera de Nova */}
+      {waitingForNova && isListening && (
+        <div className="flex items-center gap-2 text-yellow-600 text-sm animate-pulse mt-2">
+          <span>●</span>
+          <span>{language === 'es' ? 'Esperando a Nova...' : 'Waiting for Nova...'}</span>
         </div>
       )}
 

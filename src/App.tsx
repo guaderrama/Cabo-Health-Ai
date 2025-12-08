@@ -17,6 +17,7 @@ import ProgressIndicator from './components/ProgressIndicator';
 import ErrorBoundary from './components/ErrorBoundary';
 import { playWelcomeSound } from './services/audioService';
 import { logger } from './lib/logger';
+import { resetMetrics, logNovaResponse, logTimeout, logError, logReconnect } from './lib/sessionTelemetry';
 
 // Lazy loading de componentes no críticos para mejorar performance inicial
 const SessionRecoveryModal = lazy(() => import('./components/SessionRecoveryModal'));
@@ -128,6 +129,11 @@ const MainApp: React.FC = () => {
   // Estado para detección de conexión
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [connectionLostDuringSession, setConnectionLostDuringSession] = useState(false);
+
+  // Estados para detección de silencio de Nova (cuando Nova no responde)
+  const [waitingForNova, setWaitingForNova] = useState(false);
+  const userSpokeAtRef = useRef<number | null>(null);
+  const NOVA_RESPONSE_TIMEOUT = 10000; // 10 segundos - timeout agresivo para detectar problemas rápido
 
   // Estado para sonido de bienvenida (cargar de localStorage con fallback seguro)
   const [welcomeSoundEnabled, setWelcomeSoundEnabled] = useState(() => {
@@ -280,6 +286,38 @@ const MainApp: React.FC = () => {
 
     return () => clearInterval(interval);
   }, [appState, avgFrequency, language, silenceWarningShown, transcript]);
+
+  // Detector de silencio de NOVA (cuando Nova no responde después de que el usuario habla)
+  useEffect(() => {
+    if (!waitingForNova || appState !== 'LISTENING') return;
+
+    // Advertencia a los 10 segundos
+    const warningTimeout = setTimeout(() => {
+      if (waitingForNova) {
+        logger.warn('⏰ Nova no ha respondido en 10 segundos');
+        logTimeout();
+        setError(language === 'es'
+          ? '⏳ Nova está tardando en responder...'
+          : '⏳ Nova is taking a while to respond...');
+      }
+    }, NOVA_RESPONSE_TIMEOUT);
+
+    // Mensaje crítico a los 20 segundos
+    const criticalTimeout = setTimeout(() => {
+      if (waitingForNova) {
+        logger.error('❌ Nova timeout crítico - 20 segundos sin respuesta');
+        logError('Nova timeout crítico - 20s sin respuesta');
+        setError(language === 'es'
+          ? '⚠️ Nova no responde. Puedes usar "Reintentar Conexión"'
+          : '⚠️ Nova is not responding. Try "Retry Connection"');
+      }
+    }, NOVA_RESPONSE_TIMEOUT * 2);
+
+    return () => {
+      clearTimeout(warningTimeout);
+      clearTimeout(criticalTimeout);
+    };
+  }, [waitingForNova, appState, language, NOVA_RESPONSE_TIMEOUT]);
 
   // Detector de pérdida de conexión
   useEffect(() => {
@@ -552,6 +590,8 @@ const MainApp: React.FC = () => {
   const handleStartSession = useCallback(async () => {
     setAppState('CONNECTING');
     setError(null);
+    setWaitingForNova(false); // Resetear estado de espera de Nova
+    userSpokeAtRef.current = null;
 
     // Solo resetear transcript y summary si es sesión nueva (no reconexión)
     // Si hay sessionResumptionHandle, estamos reconectando y mantenemos los datos
@@ -563,6 +603,12 @@ const MainApp: React.FC = () => {
       const newSessionId = `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
       setSessionId(newSessionId);
       setSessionStartTime(Date.now());
+      // Resetear métricas de telemetría para nueva sesión
+      resetMetrics();
+    } else {
+      // Estamos reconectando - registrar reconexión
+      logReconnect();
+      logger.debug('🔄 Reconexión registrada en telemetría');
     }
 
     // Resetear contadores de checkpoint
@@ -797,6 +843,11 @@ const MainApp: React.FC = () => {
                       timestamp: new Date().toISOString()
                     });
                     currentInputAudio.current = [];
+
+                    // Tracking: Usuario terminó de hablar, esperamos respuesta de Nova
+                    userSpokeAtRef.current = Date.now();
+                    setWaitingForNova(true);
+                    logger.debug('👤 Usuario terminó de hablar, esperando a Nova...');
                   }
 
                   if (outputText) {
@@ -822,6 +873,15 @@ const MainApp: React.FC = () => {
             // Fix: Usar optional chaining también en el acceso al índice del array
             const audioDataB64 = message.serverContent?.modelTurn?.parts?.[0]?.inlineData?.data;
             if (audioDataB64 && outputAudioContextRef.current) {
+              // Tracking: Nova está respondiendo - registrar tiempo de respuesta
+              if (waitingForNova && userSpokeAtRef.current) {
+                const responseTime = Date.now() - userSpokeAtRef.current;
+                logNovaResponse(responseTime);
+                logger.debug(`🤖 Nova respondió en ${responseTime}ms`);
+              }
+              setWaitingForNova(false);
+              setError(null); // Limpiar cualquier mensaje de timeout anterior
+
               const audioContext = outputAudioContextRef.current;
               nextAudioStartTime.current = Math.max(
                 nextAudioStartTime.current,
@@ -1110,6 +1170,7 @@ const MainApp: React.FC = () => {
                     onPatientNameChange={setPatientName}
                     onOpenDiagnostic={handleOpenMicrophoneDiagnostic}
                     onRetry={handleRetryConnection}
+                    waitingForNova={waitingForNova}
                   />
                 </ErrorBoundary>
               </div>
