@@ -659,6 +659,13 @@ const MainApp: React.FC = () => {
         throw new Error('VITE_GEMINI_API_KEY no está configurada en las variables de entorno');
       }
       const ai = new GoogleGenAI({ apiKey: apiKey as string });
+      // Log para debugging de configuración de sesión
+      logger.debug('🔧 Configurando sesión con:', {
+        contextWindowCompression: 'enabled (slidingWindow)',
+        sessionResumption: sessionResumptionHandle ? 'reconnecting with handle' : 'new session',
+        model: 'gemini-2.5-flash-native-audio-preview-09-2025'
+      });
+
       sessionPromiseRef.current = ai.live.connect({
         model: 'gemini-2.5-flash-native-audio-preview-09-2025',
         config: {
@@ -711,19 +718,36 @@ const MainApp: React.FC = () => {
           },
           onmessage: async (message: LiveServerMessage) => {
             // Manejar Session Resumption Update - guardar handle para reconexión
+            // Esto es enviado por el servidor periódicamente cuando sessionResumption está habilitado
             if ((message as any).sessionResumptionUpdate) {
               const update = (message as any).sessionResumptionUpdate;
+              logger.debug('📥 sessionResumptionUpdate recibido:', {
+                resumable: update.resumable,
+                hasNewHandle: !!update.newHandle,
+                handleLength: update.newHandle?.length
+              });
               if (update.resumable && update.newHandle) {
                 setSessionResumptionHandle(update.newHandle);
-                logger.debug('🔄 Session resumption handle actualizado');
+                logger.debug('✅ Session resumption handle guardado exitosamente');
               }
             }
 
-            // Manejar GoAway - advertencia de cierre inminente
+            // Manejar setupComplete - confirma que la sesión está lista
+            if ((message as any).setupComplete) {
+              logger.debug('✅ setupComplete: Sesión establecida correctamente con contextWindowCompression');
+            }
+
+            // Manejar GoAway - advertencia de cierre inminente (típicamente 60 segundos antes)
             if ((message as any).goAway) {
               const timeLeft = (message as any).goAway.timeLeft;
               logger.warn(`⚠️ GoAway recibido - Conexión terminará en: ${timeLeft}`);
-              // La reconexión se manejará automáticamente en onclose
+              // Guardar checkpoint preventivo antes de la desconexión
+              if (user?.id && sessionId && transcript.length > 0) {
+                saveSessionCheckpoint(
+                  user.id, sessionId, patientName, language, 'LISTENING',
+                  transcript, currentInputTranscription.current, currentOutputTranscription.current, sessionStartTime
+                ).catch(err => logger.error('Error guardando checkpoint preventivo:', err));
+              }
             }
 
             if (message.serverContent?.outputTranscription) {
@@ -863,17 +887,19 @@ const MainApp: React.FC = () => {
             cleanupAudio();
           },
           onclose: (e: CloseEvent) => {
-            logger.debug('Session closed by server:', e.code, e.reason);
+            logger.debug('Session closed by server:', e.code, e.reason, {
+              appState: appStateRef.current,
+              hasHandle: !!sessionResumptionHandle,
+              reconnectAttempts: reconnectAttemptsRef.current
+            });
 
-            // Solo intentar reconexión si:
-            // 1. Estamos en estado LISTENING (sesión activa)
-            // 2. Tenemos un handle de resumption
-            // 3. No hemos excedido los intentos máximos
+            // Solo intentar reconexión si estamos en sesión activa y no hemos excedido intentos
+            // NOTA: Intentamos reconectar incluso sin handle (comenzará nueva sesión pero mantiene transcript)
             if (appStateRef.current === 'LISTENING' &&
-                sessionResumptionHandle &&
                 reconnectAttemptsRef.current < maxReconnectAttempts) {
 
-              logger.debug(`🔄 Intentando reconexión automática (${reconnectAttemptsRef.current + 1}/${maxReconnectAttempts})...`);
+              const hasHandle = !!sessionResumptionHandle;
+              logger.debug(`🔄 Intentando reconexión automática (${reconnectAttemptsRef.current + 1}/${maxReconnectAttempts})${hasHandle ? ' con handle' : ' sin handle'}...`);
               reconnectAttemptsRef.current++;
 
               // Limpiar audio pero mantener estado de sesión
@@ -887,12 +913,12 @@ const MainApp: React.FC = () => {
               // Reintentar conexión después de 1 segundo
               setTimeout(() => {
                 if (appStateRef.current !== 'COMPLETED') {
-                  handleStartSession(); // Usará el sessionResumptionHandle guardado
+                  handleStartSession(); // Usará el sessionResumptionHandle si existe
                 }
               }, 1000);
 
             } else if (appStateRef.current === 'LISTENING') {
-              // No hay handle o excedimos intentos - mostrar error final
+              // Excedimos intentos - mostrar error final
               const errorMsg = language === 'es'
                 ? 'La conexión se cerró inesperadamente. Tu progreso está guardado. Puedes usar "Reintentar Conexión" para continuar.'
                 : 'Connection closed unexpectedly. Your progress is saved. You can use "Retry Connection" to continue.';
