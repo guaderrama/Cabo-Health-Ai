@@ -799,6 +799,16 @@ const MainApp: React.FC = () => {
             }
 
             if (message.serverContent?.outputTranscription) {
+              // Nova está hablando - cancelar timeout inmediatamente
+              if (waitingForNova) {
+                if (userSpokeAtRef.current) {
+                  const responseTime = Date.now() - userSpokeAtRef.current;
+                  logNovaResponse(responseTime);
+                  logger.debug(`🤖 Nova comenzó a responder en ${responseTime}ms`);
+                }
+                setWaitingForNova(false);
+                setError(null); // Limpiar mensaje de timeout
+              }
               currentOutputTranscription.current += message.serverContent.outputTranscription?.text ?? '';
             }
             if (message.serverContent?.inputTranscription) {
