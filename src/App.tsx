@@ -136,6 +136,7 @@ const MainApp: React.FC = () => {
   // Estados para detección de silencio de Nova (cuando Nova no responde)
   const [waitingForNova, setWaitingForNova] = useState(false);
   const userSpokeAtRef = useRef<number | null>(null);
+  const sessionStartTimeRef = useRef<number | null>(null); // Para grace period inicial
 
   // Estado para sonido de bienvenida (cargar de localStorage con fallback seguro)
   const [welcomeSoundEnabled, setWelcomeSoundEnabled] = useState(() => {
@@ -292,6 +293,17 @@ const MainApp: React.FC = () => {
   // Detector de silencio de NOVA (cuando Nova no responde después de que el usuario habla)
   useEffect(() => {
     if (!waitingForNova || appState !== 'LISTENING') return;
+
+    // Grace period: No mostrar timeout en los primeros 15 segundos de sesión
+    // Nova puede tardar más en el saludo inicial por el procesamiento del contexto
+    const GRACE_PERIOD = 15000;
+    const sessionAge = sessionStartTimeRef.current ? Date.now() - sessionStartTimeRef.current : 0;
+    const isInGracePeriod = sessionAge < GRACE_PERIOD;
+
+    if (isInGracePeriod) {
+      logger.debug('🕐 En grace period inicial, timeout desactivado');
+      return;
+    }
 
     // Advertencia a los 10 segundos
     const warningTimeout = setTimeout(() => {
@@ -740,6 +752,7 @@ const MainApp: React.FC = () => {
         callbacks: {
           onopen: () => {
             setAppState('LISTENING');
+            sessionStartTimeRef.current = Date.now(); // Marcar inicio para grace period
             source.connect(analyser);
             analyser.connect(workletNode);
             workletNode.connect(audioContextRef.current!.destination);
