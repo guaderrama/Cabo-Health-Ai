@@ -42,6 +42,9 @@ type LiveSession = {
 
 const generateUniqueId = () => `${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
 
+// Constante de timeout para respuesta de Nova (fuera del componente para evitar re-renders)
+const NOVA_RESPONSE_TIMEOUT = 10000; // 10 segundos
+
 const App: React.FC = () => {
   const { user, userRole, loading } = useAuth();
   const [language, setLanguage] = useState<Language>('es');
@@ -133,7 +136,6 @@ const MainApp: React.FC = () => {
   // Estados para detección de silencio de Nova (cuando Nova no responde)
   const [waitingForNova, setWaitingForNova] = useState(false);
   const userSpokeAtRef = useRef<number | null>(null);
-  const NOVA_RESPONSE_TIMEOUT = 10000; // 10 segundos - timeout agresivo para detectar problemas rápido
 
   // Estado para sonido de bienvenida (cargar de localStorage con fallback seguro)
   const [welcomeSoundEnabled, setWelcomeSoundEnabled] = useState(() => {
@@ -317,7 +319,7 @@ const MainApp: React.FC = () => {
       clearTimeout(warningTimeout);
       clearTimeout(criticalTimeout);
     };
-  }, [waitingForNova, appState, language, NOVA_RESPONSE_TIMEOUT]);
+  }, [waitingForNova, appState, language]);
 
   // Detector de pérdida de conexión
   useEffect(() => {
@@ -830,6 +832,13 @@ const MainApp: React.FC = () => {
               const inputText = currentInputTranscription.current.trim();
               const outputText = currentOutputTranscription.current.trim();
 
+              // Tracking: Si el usuario habló, registrar timestamp ANTES de actualizar estado
+              if (inputText) {
+                userSpokeAtRef.current = Date.now();
+                setWaitingForNova(true);
+                logger.debug('👤 Usuario terminó de hablar, esperando a Nova...');
+              }
+
               if (inputText || outputText) {
                 setTranscript(prev => {
                   const newMessages: TranscriptMessage[] = [];
@@ -843,11 +852,6 @@ const MainApp: React.FC = () => {
                       timestamp: new Date().toISOString()
                     });
                     currentInputAudio.current = [];
-
-                    // Tracking: Usuario terminó de hablar, esperamos respuesta de Nova
-                    userSpokeAtRef.current = Date.now();
-                    setWaitingForNova(true);
-                    logger.debug('👤 Usuario terminó de hablar, esperando a Nova...');
                   }
 
                   if (outputText) {
