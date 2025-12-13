@@ -126,6 +126,7 @@ const MainApp: React.FC = () => {
 
   // Estados para session resumption (reconexión automática)
   const [sessionResumptionHandle, setSessionResumptionHandle] = useState<string | null>(null);
+  const sessionResumptionHandleRef = useRef<string | null>(null); // Ref para evitar stale closures
   const reconnectAttemptsRef = useRef(0);
   const maxReconnectAttempts = 3;
 
@@ -184,6 +185,11 @@ const MainApp: React.FC = () => {
   useEffect(() => {
     appStateRef.current = appState;
   }, [appState]);
+
+  // Sincronizar ref de sessionResumptionHandle para evitar stale closures en callbacks de WebSocket
+  useEffect(() => {
+    sessionResumptionHandleRef.current = sessionResumptionHandle;
+  }, [sessionResumptionHandle]);
 
   useEffect(() => {
     // Vite solo expone variables con prefijo VITE_
@@ -602,14 +608,17 @@ const MainApp: React.FC = () => {
   }, [transcript, language, cleanupAudio, user?.id, sessionId]);
 
   const handleStartSession = useCallback(async () => {
+    // Usar ref para obtener el valor actual del handle (evita stale closures)
+    const currentHandle = sessionResumptionHandleRef.current;
+
     setAppState('CONNECTING');
     setError(null);
     setWaitingForNova(false); // Resetear estado de espera de Nova
     userSpokeAtRef.current = null;
 
     // Solo resetear transcript y summary si es sesión nueva (no reconexión)
-    // Si hay sessionResumptionHandle, estamos reconectando y mantenemos los datos
-    if (!sessionResumptionHandle) {
+    // Si hay currentHandle, estamos reconectando y mantenemos los datos
+    if (!currentHandle) {
       reconnectAttemptsRef.current = 0;
       setTranscript([]);
       setSummary('');
@@ -622,7 +631,7 @@ const MainApp: React.FC = () => {
     } else {
       // Estamos reconectando - registrar reconexión
       logReconnect();
-      logger.debug('🔄 Reconexión registrada en telemetría');
+      logger.debug('🔄 Reconexión registrada en telemetría con handle');
     }
 
     // Resetear contadores de checkpoint
@@ -719,10 +728,10 @@ const MainApp: React.FC = () => {
         throw new Error('VITE_GEMINI_API_KEY no está configurada en las variables de entorno');
       }
       const ai = new GoogleGenAI({ apiKey: apiKey as string });
-      // Log para debugging de configuración de sesión
+      // Log para debugging de configuraci��n de sesión
       logger.debug('🔧 Configurando sesión con:', {
         contextWindowCompression: 'enabled (slidingWindow)',
-        sessionResumption: sessionResumptionHandle ? 'reconnecting with handle' : 'new session',
+        sessionResumption: currentHandle ? 'reconnecting with handle' : 'new session',
         model: 'gemini-2.5-flash-native-audio-preview-09-2025'
       });
 
@@ -738,7 +747,7 @@ const MainApp: React.FC = () => {
           contextWindowCompression: { slidingWindow: {} },
           // Session Resumption para reconexión automática después de cortes
           // Tokens válidos por 2 horas después de terminación
-          sessionResumption: sessionResumptionHandle ? { handle: sessionResumptionHandle } : {},
+          sessionResumption: currentHandle ? { handle: currentHandle } : {},
           // Parámetros adicionales requeridos para el modelo de audio nativo
           // Ver: https://github.com/googleapis/python-genai/issues/1710
           speechConfig: {
@@ -974,9 +983,11 @@ const MainApp: React.FC = () => {
             cleanupAudio();
           },
           onclose: (e: CloseEvent) => {
+            // Usar ref para obtener el valor actual (evita stale closure)
+            const currentHandle = sessionResumptionHandleRef.current;
             logger.debug('Session closed by server:', e.code, e.reason, {
               appState: appStateRef.current,
-              hasHandle: !!sessionResumptionHandle,
+              hasHandle: !!currentHandle,
               reconnectAttempts: reconnectAttemptsRef.current
             });
 
@@ -985,8 +996,8 @@ const MainApp: React.FC = () => {
             if (appStateRef.current === 'LISTENING' &&
                 reconnectAttemptsRef.current < maxReconnectAttempts) {
 
-              const hasHandle = !!sessionResumptionHandle;
-              logger.debug(`🔄 Intentando reconexión automática (${reconnectAttemptsRef.current + 1}/${maxReconnectAttempts})${hasHandle ? ' con handle' : ' sin handle'}...`);
+              const hasHandle = !!currentHandle;
+              logger.debug(`🔄 Intentando reconexi��n automática (${reconnectAttemptsRef.current + 1}/${maxReconnectAttempts})${hasHandle ? ' con handle' : ' sin handle'}...`);
               reconnectAttemptsRef.current++;
 
               // Limpiar audio pero mantener estado de sesión
@@ -1074,7 +1085,7 @@ const MainApp: React.FC = () => {
       setAppState('ERROR');
       cleanupAudio();
     }
-  }, [language, cleanupAudio, handleEndSession, sessionResumptionHandle]);
+  }, [language, cleanupAudio, handleEndSession]); // sessionResumptionHandle accedido via ref
 
   // FIX: Completed the truncated function and added state resets.
   const handleNewSession = useCallback(() => {
