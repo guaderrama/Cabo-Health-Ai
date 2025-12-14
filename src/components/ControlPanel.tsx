@@ -239,25 +239,9 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
             ))}
           </div>
 
-          {/* Module transition button */}
-          {isListening && currentModule !== 'MODULE_3' && onModuleTransition && (
-            <button
-              onClick={onModuleTransition}
-              disabled={isTransitioningModule}
-              className="w-full mt-2 px-3 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-colors disabled:bg-indigo-400 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-            >
-              {isTransitioningModule ? (
-                <>
-                  <div className="w-4 h-4 border-2 border-white/50 border-t-white rounded-full animate-spin"></div>
-                  {language === 'es' ? 'Guardando...' : 'Saving...'}
-                </>
-              ) : (
-                <>
-                  {language === 'es' ? 'Continuar al Modulo' : 'Continue to Module'} {currentModule === 'MODULE_1' ? '2' : '3'} →
-                </>
-              )}
-            </button>
-          )}
+          {/* Nota: La transición de módulos ahora es automática por voz.
+              Nova pregunta "¿Continuamos?" y el usuario responde "Sí".
+              El botón fue eliminado para simplificar la experiencia de ancianos. */}
 
           {/* Final module - show end session hint */}
           {isListening && currentModule === 'MODULE_3' && (

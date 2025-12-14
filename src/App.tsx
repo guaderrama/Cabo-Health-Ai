@@ -132,6 +132,10 @@ const MainApp: React.FC = () => {
   const [isTransitioningModule, setIsTransitioningModule] = useState(false);
   const pendingModuleStartRef = useRef<InterviewModule | null>(null); // Para auto-iniciar después de transición
 
+  // Estado para transición automática por voz
+  const [novaAskedTransition, setNovaAskedTransition] = useState(false);
+  const novaAskedTransitionRef = useRef(false); // Ref para evitar stale closures en callbacks
+
   // Estados para detector de silencio
   const [silenceWarningShown, setSilenceWarningShown] = useState(false);
 
@@ -201,6 +205,11 @@ const MainApp: React.FC = () => {
   useEffect(() => {
     sessionResumptionHandleRef.current = sessionResumptionHandle;
   }, [sessionResumptionHandle]);
+
+  // Sincronizar ref de novaAskedTransition para evitar stale closures en callbacks de WebSocket
+  useEffect(() => {
+    novaAskedTransitionRef.current = novaAskedTransition;
+  }, [novaAskedTransition]);
 
   // Auto-iniciar sesión después de transición de módulo
   useEffect(() => {
@@ -669,6 +678,7 @@ const MainApp: React.FC = () => {
 
     logger.debug('🔄 Iniciando transición de módulo:', currentModule, '→', nextModule);
     setIsTransitioningModule(true);
+    setNovaAskedTransition(false); // Resetear estado de transición por voz
     setError(null);
 
     try {
@@ -1042,6 +1052,63 @@ const MainApp: React.FC = () => {
 
                   return [...prev, ...newMessages];
                 });
+
+                // ============================================================
+                // DETECCIÓN DE TRANSICIÓN AUTOMÁTICA POR VOZ
+                // ============================================================
+                // Frases que Nova usa para preguntar si continuamos
+                const moduleTransitionPhrases = [
+                  '¿te parece si continuamos',
+                  '¿continuamos con',
+                  '¿seguimos con',
+                  'te parece si continuamos',
+                  'continuamos con más',
+                  'seguimos con la',
+                  'shall we continue',
+                  'ready to continue',
+                  'continue with'
+                ];
+
+                // Respuestas afirmativas del usuario
+                const affirmativeResponses = [
+                  'sí', 'si', 'claro', 'adelante', 'ok', 'está bien', 'esta bien',
+                  'por supuesto', 'dale', 'va', 'bueno', 'perfecto', 'listo',
+                  'yes', 'sure', 'okay', 'go ahead', 'let\'s continue', 'of course',
+                  'absolutely', 'yeah', 'yep', 'right'
+                ];
+
+                const outputLower = outputText.toLowerCase();
+                const inputLower = inputText.toLowerCase();
+
+                // Detectar si Nova preguntó sobre transición (solo en módulos 1 y 2)
+                if (outputText && currentModule !== 'MODULE_3') {
+                  const isAskingTransition = moduleTransitionPhrases.some(phrase =>
+                    outputLower.includes(phrase)
+                  );
+                  if (isAskingTransition) {
+                    logger.debug('🔄 Nova preguntó transición de módulo');
+                    setNovaAskedTransition(true);
+                  }
+                }
+
+                // Detectar respuesta afirmativa del usuario si Nova preguntó transición
+                if (inputText && novaAskedTransitionRef.current) {
+                  const isAffirmative = affirmativeResponses.some(response =>
+                    inputLower.includes(response)
+                  );
+                  if (isAffirmative) {
+                    logger.debug('✅ Usuario confirmó transición de módulo');
+                    setNovaAskedTransition(false);
+                    // Pequeña pausa para que el audio termine, luego transicionar
+                    setTimeout(() => {
+                      if (appStateRef.current === 'LISTENING' && !isTransitioningModule) {
+                        logger.debug('🚀 Iniciando transición automática de módulo');
+                        handleModuleTransition();
+                      }
+                    }, 2000);
+                  }
+                }
+                // ============================================================
               }
 
               // Limpiar refs inmediatamente después de agregar al transcript
@@ -1249,6 +1316,7 @@ const MainApp: React.FC = () => {
     setCurrentModule('MODULE_1');
     setCompletedModules([]);
     setModuleTranscripts(createEmptyModuleTranscripts());
+    setNovaAskedTransition(false);
   }, [cleanupAudio]);
 
   const handleRetryConnection = useCallback(() => {
