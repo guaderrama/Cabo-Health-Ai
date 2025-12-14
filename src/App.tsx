@@ -1,8 +1,8 @@
 
 import React, { useState, useEffect, useRef, useCallback, Suspense, lazy } from 'react';
 import { GoogleGenAI, Modality, LiveServerMessage } from '@google/genai';
-import { type AppState, type Language, type TranscriptMessage, type RecoverableSession } from './types';
-import { SYSTEM_INSTRUCTIONS, UI_TEXTS, SUMMARY_PROMPT } from './constants';
+import { type AppState, type Language, type TranscriptMessage, type RecoverableSession, type InterviewModule } from './types';
+import { UI_TEXTS, SUMMARY_PROMPT, getModuleInstructions, getNextModule, MODULE_CONFIGS } from './constants';
 import { encode, decode, decodeAudioData, concatenateUint8Arrays } from './utils/audioUtils';
 import { sanitizeHtml } from './utils/sanitizeHtml';
 import { uploadAudioFragmentWav } from './utils/audioStorage';
@@ -28,6 +28,10 @@ import {
   shouldSaveCheckpoint,
   clearCheckpoint,
   validateCheckpoint,
+  saveModuleTranscript,
+  mergeModuleTranscripts,
+  createEmptyModuleTranscripts,
+  clearModuleData,
 } from './services/sessionPersistence';
 
 // FIX: A local 'LiveSession' type is defined here based on its usage to resolve the import error.
@@ -121,6 +125,13 @@ const MainApp: React.FC = () => {
   // Estados para diagnóstico de micrófono
   const [showMicrophoneDiagnostic, setShowMicrophoneDiagnostic] = useState(false);
 
+  // Estados para sistema de módulos
+  const [currentModule, setCurrentModule] = useState<InterviewModule>('MODULE_1');
+  const [completedModules, setCompletedModules] = useState<InterviewModule[]>([]);
+  const [moduleTranscripts, setModuleTranscripts] = useState<Record<InterviewModule, TranscriptMessage[]>>(createEmptyModuleTranscripts());
+  const [isTransitioningModule, setIsTransitioningModule] = useState(false);
+  const pendingModuleStartRef = useRef<InterviewModule | null>(null); // Para auto-iniciar después de transición
+
   // Estados para detector de silencio
   const [silenceWarningShown, setSilenceWarningShown] = useState(false);
 
@@ -190,6 +201,22 @@ const MainApp: React.FC = () => {
   useEffect(() => {
     sessionResumptionHandleRef.current = sessionResumptionHandle;
   }, [sessionResumptionHandle]);
+
+  // Auto-iniciar sesión después de transición de módulo
+  useEffect(() => {
+    if (!isTransitioningModule && pendingModuleStartRef.current && appState === 'IDLE') {
+      const moduleToStart = pendingModuleStartRef.current;
+      pendingModuleStartRef.current = null; // Limpiar ref antes de iniciar
+
+      logger.debug('🚀 Módulo listo después de transición:', moduleToStart);
+
+      // Verificar que el módulo actual coincide con el pendiente
+      if (currentModule === moduleToStart) {
+        // El usuario verá el UI de "Módulo X de 3" y puede iniciar cuando esté listo
+        logger.debug('✅ Módulo', moduleToStart, 'configurado. Usuario puede iniciar.');
+      }
+    }
+  }, [isTransitioningModule, appState, currentModule]);
 
   useEffect(() => {
     // Vite solo expone variables con prefijo VITE_
@@ -539,9 +566,10 @@ const MainApp: React.FC = () => {
     }
     cleanupAudio();
 
-    const finalTranscript = [...transcript];
+    // Agregar transcripciones pendientes al transcript actual
+    const currentModuleTranscript = [...transcript];
     if (currentInputTranscription.current.trim()) {
-      finalTranscript.push({
+      currentModuleTranscript.push({
         id: generateUniqueId(),
         sender: 'You',
         text: currentInputTranscription.current.trim(),
@@ -549,12 +577,27 @@ const MainApp: React.FC = () => {
       });
     }
     if (currentOutputTranscription.current.trim()) {
-      finalTranscript.push({
+      currentModuleTranscript.push({
         id: generateUniqueId(),
         sender: 'Nova',
         text: currentOutputTranscription.current.trim(),
         lang: language,
       });
+    }
+
+    // Combinar transcripts de todos los módulos completados + módulo actual
+    let finalTranscript: TranscriptMessage[];
+    if (completedModules.length > 0) {
+      // Hay módulos completados - combinar todos
+      const allModuleTranscripts = {
+        ...moduleTranscripts,
+        [currentModule]: currentModuleTranscript,
+      };
+      finalTranscript = mergeModuleTranscripts(allModuleTranscripts);
+      logger.debug('📋 Combinando transcripts de', completedModules.length + 1, 'módulos para resumen');
+    } else {
+      // Solo un módulo (sin transiciones) - usar transcript actual
+      finalTranscript = currentModuleTranscript;
     }
 
     setTranscript(finalTranscript);
@@ -585,9 +628,10 @@ const MainApp: React.FC = () => {
       setSummary(sanitizedSummary);
       setAppState('COMPLETED');
 
-      // Limpiar checkpoint al completar sesión exitosamente
+      // Limpiar checkpoint y datos de módulos al completar sesión exitosamente
       if (user?.id && sessionId) {
         await clearCheckpoint(sessionId, user.id);
+        clearModuleData(sessionId);
       }
     } catch (err) {
       logger.error('Summary generation failed:', err);
@@ -605,7 +649,70 @@ const MainApp: React.FC = () => {
       // Liberar el lock al finalizar (éxito o error)
       endSessionLockRef.current = false;
     }
-  }, [transcript, language, cleanupAudio, user?.id, sessionId]);
+  }, [transcript, language, cleanupAudio, user?.id, sessionId, completedModules, moduleTranscripts, currentModule]);
+
+  /**
+   * Maneja la transición entre módulos de la entrevista
+   * 1. Guarda el transcript del módulo actual
+   * 2. Cierra la conexión WebSocket actual
+   * 3. Avanza al siguiente módulo
+   * 4. Inicia nueva conexión con instrucciones del nuevo módulo
+   */
+  const handleModuleTransition = useCallback(async () => {
+    const nextModule = getNextModule(currentModule);
+
+    if (!nextModule) {
+      // Ya estamos en el último módulo - finalizar entrevista
+      logger.debug('📋 Último módulo completado, finalizando entrevista...');
+      return;
+    }
+
+    logger.debug('🔄 Iniciando transición de módulo:', currentModule, '→', nextModule);
+    setIsTransitioningModule(true);
+    setError(null);
+
+    try {
+      // 1. Guardar transcript del módulo actual
+      const updatedTranscripts = await saveModuleTranscript(
+        user?.id || '',
+        sessionId,
+        currentModule,
+        transcript,
+        moduleTranscripts
+      );
+      setModuleTranscripts(updatedTranscripts);
+
+      // 2. Marcar módulo actual como completado
+      setCompletedModules(prev => [...prev, currentModule]);
+
+      // 3. Cerrar conexión actual (sin generar resumen)
+      cleanupAudio();
+      setAppState('IDLE');
+
+      // 4. Limpiar transcript para el nuevo módulo
+      setTranscript([]);
+
+      // 5. Avanzar al siguiente módulo
+      setCurrentModule(nextModule);
+
+      // 6. Marcar que necesitamos auto-iniciar el siguiente módulo
+      pendingModuleStartRef.current = nextModule;
+
+      // 7. Pequeña pausa para mostrar UI de transición
+      await new Promise(resolve => setTimeout(resolve, 1500));
+
+      logger.debug('✅ Módulo', currentModule, 'guardado. Listo para iniciar módulo', nextModule);
+
+    } catch (error) {
+      logger.error('Error en transición de módulo:', error);
+      setError(language === 'es'
+        ? 'Error al cambiar de módulo. Por favor, intenta de nuevo.'
+        : 'Error transitioning modules. Please try again.');
+      pendingModuleStartRef.current = null;
+    } finally {
+      setIsTransitioningModule(false);
+    }
+  }, [currentModule, transcript, moduleTranscripts, user?.id, sessionId, cleanupAudio, language]);
 
   const handleStartSession = useCallback(async () => {
     // Usar ref para obtener el valor actual del handle (evita stale closures)
@@ -628,6 +735,12 @@ const MainApp: React.FC = () => {
       setSessionStartTime(Date.now());
       // Resetear métricas de telemetría para nueva sesión
       resetMetrics();
+      // Resetear estado de módulos para nueva sesión (no aplica si estamos en transición de módulo)
+      if (!isTransitioningModule) {
+        setCurrentModule('MODULE_1');
+        setCompletedModules([]);
+        setModuleTranscripts(createEmptyModuleTranscripts());
+      }
     } else {
       // Estamos reconectando - registrar reconexión
       logReconnect();
@@ -735,13 +848,17 @@ const MainApp: React.FC = () => {
         model: 'gemini-2.5-flash-native-audio-preview-09-2025'
       });
 
+      // Determinar qué instrucciones usar basado en el módulo actual
+      const moduleInstructions = getModuleInstructions(currentModule, language);
+      logger.debug('📋 Usando instrucciones del módulo:', currentModule, 'hasGreeting:', MODULE_CONFIGS[currentModule].hasGreeting);
+
       sessionPromiseRef.current = ai.live.connect({
         model: 'gemini-2.5-flash-native-audio-preview-09-2025',
         config: {
           responseModalities: [Modality.AUDIO],
           inputAudioTranscription: {},
           outputAudioTranscription: {},
-          systemInstruction: SYSTEM_INSTRUCTIONS[language],
+          systemInstruction: moduleInstructions,
           // Context Window Compression para sesiones ilimitadas (sin esto: máx 15 min)
           // Ver: https://ai.google.dev/gemini-api/docs/live-session
           contextWindowCompression: { slidingWindow: {} },
@@ -768,18 +885,29 @@ const MainApp: React.FC = () => {
             logger.debug('🔌 Conexión WebSocket abierta, activando Nova...');
 
             // 🎙️ ACTIVACIÓN AUTOMÁTICA DE NOVA
-            // Enviamos un mensaje de texto inicial para activar el saludo de Nova.
-            // El audio silencioso no funciona porque el VAD no lo detecta.
-            // turnComplete solo no funciona porque conflicta con el modo de audio.
+            // Enviamos un mensaje de texto inicial para activar a Nova.
+            // El mensaje varía según el módulo:
+            // - Módulo 1: Saludo completo
+            // - Módulos 2 y 3: Continúa directamente sin saludar
             setTimeout(() => {
               sessionPromiseRef.current?.then((session) => {
                 try {
-                  // Enviar un texto inicial que active a Nova
+                  const moduleConfig = MODULE_CONFIGS[currentModule];
+                  let activationMessage: string;
+
+                  if (moduleConfig.hasGreeting) {
+                    // Módulo 1: Saludo inicial
+                    activationMessage = '[Sesión iniciada - Por favor saluda al paciente]';
+                  } else {
+                    // Módulos 2 y 3: Continuar sin saludo
+                    activationMessage = '[Continuación de entrevista - Continúa directamente con las preguntas de este módulo SIN saludar]';
+                  }
+
                   session.sendClientContent({
-                    turns: [{ role: 'user', parts: [{ text: '[Sesión iniciada - Por favor saluda al paciente]' }] }],
+                    turns: [{ role: 'user', parts: [{ text: activationMessage }] }],
                     turnComplete: true
                   });
-                  logger.debug('✅ Mensaje de activación enviado - Nova debería saludar ahora');
+                  logger.debug('✅ Mensaje de activación enviado para módulo:', currentModule, 'hasGreeting:', moduleConfig.hasGreeting);
                 } catch (e) {
                   logger.error('Error enviando mensaje de activación:', e);
                 }
@@ -1085,7 +1213,7 @@ const MainApp: React.FC = () => {
       setAppState('ERROR');
       cleanupAudio();
     }
-  }, [language, cleanupAudio, handleEndSession]); // sessionResumptionHandle accedido via ref
+  }, [language, cleanupAudio, handleEndSession, currentModule, isTransitioningModule]); // sessionResumptionHandle accedido via ref, currentModule para instrucciones de módulo
 
   // FIX: Completed the truncated function and added state resets.
   const handleNewSession = useCallback(() => {
@@ -1102,6 +1230,10 @@ const MainApp: React.FC = () => {
     // Limpiar handle de resumption para nueva sesión
     setSessionResumptionHandle(null);
     reconnectAttemptsRef.current = 0;
+    // Resetear estado de módulos para nueva sesión
+    setCurrentModule('MODULE_1');
+    setCompletedModules([]);
+    setModuleTranscripts(createEmptyModuleTranscripts());
   }, [cleanupAudio]);
 
   const handleRetryConnection = useCallback(() => {
@@ -1209,6 +1341,11 @@ const MainApp: React.FC = () => {
                     onOpenDiagnostic={handleOpenMicrophoneDiagnostic}
                     onRetry={handleRetryConnection}
                     waitingForNova={waitingForNova}
+                    // Module system props
+                    currentModule={currentModule}
+                    completedModules={completedModules}
+                    onModuleTransition={handleModuleTransition}
+                    isTransitioningModule={isTransitioningModule}
                   />
                 </ErrorBoundary>
               </div>

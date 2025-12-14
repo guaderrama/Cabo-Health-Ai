@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { type AppState, type Language } from '../types';
-import { UI_TEXTS } from '../constants';
+import { type AppState, type Language, type InterviewModule } from '../types';
+import { UI_TEXTS, MODULE_CONFIGS } from '../constants';
 import ListeningVisualizer from './ListeningVisualizer';
 import { MicrophoneIcon, StopIcon } from './icons';
 import ConfirmationModal from './ConfirmationModal';
@@ -18,6 +18,11 @@ interface ControlPanelProps {
   onOpenDiagnostic?: () => void;
   onRetry?: () => void;
   waitingForNova?: boolean; // Indica si estamos esperando respuesta de Nova
+  // Module system props
+  currentModule?: InterviewModule;
+  completedModules?: InterviewModule[];
+  onModuleTransition?: () => void;
+  isTransitioningModule?: boolean;
 }
 
 const ControlPanel: React.FC<ControlPanelProps> = ({
@@ -32,7 +37,12 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
   onPatientNameChange,
   onOpenDiagnostic,
   onRetry,
-  waitingForNova
+  waitingForNova,
+  // Module system props
+  currentModule = 'MODULE_1',
+  completedModules = [],
+  onModuleTransition,
+  isTransitioningModule = false,
 }) => {
   const texts = UI_TEXTS[language];
   const isIdle = appState === 'IDLE';
@@ -198,6 +208,77 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
         <div className="flex items-center gap-2 text-yellow-600 text-sm animate-pulse mt-2">
           <span>●</span>
           <span>{language === 'es' ? 'Esperando a Nova...' : 'Waiting for Nova...'}</span>
+        </div>
+      )}
+
+      {/* Module Progress Indicator */}
+      {(isListening || isTransitioningModule) && (
+        <div className="w-full max-w-xs mt-4 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-xl p-3">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs font-semibold text-blue-700 uppercase tracking-wide">
+              {language === 'es' ? 'Modulo' : 'Module'} {currentModule.replace('MODULE_', '')} {language === 'es' ? 'de' : 'of'} 3
+            </span>
+            <span className="text-xs text-blue-600">
+              {MODULE_CONFIGS[currentModule][language === 'es' ? 'nameEs' : 'name']}
+            </span>
+          </div>
+
+          {/* Progress bar */}
+          <div className="flex gap-1 mb-2">
+            {(['MODULE_1', 'MODULE_2', 'MODULE_3'] as InterviewModule[]).map((mod) => (
+              <div
+                key={mod}
+                className={`h-2 flex-1 rounded-full transition-all duration-300 ${
+                  completedModules.includes(mod)
+                    ? 'bg-green-500'
+                    : mod === currentModule
+                    ? 'bg-blue-500'
+                    : 'bg-slate-200'
+                }`}
+              />
+            ))}
+          </div>
+
+          {/* Module transition button */}
+          {isListening && currentModule !== 'MODULE_3' && onModuleTransition && (
+            <button
+              onClick={onModuleTransition}
+              disabled={isTransitioningModule}
+              className="w-full mt-2 px-3 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-colors disabled:bg-indigo-400 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+            >
+              {isTransitioningModule ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-white/50 border-t-white rounded-full animate-spin"></div>
+                  {language === 'es' ? 'Guardando...' : 'Saving...'}
+                </>
+              ) : (
+                <>
+                  {language === 'es' ? 'Continuar al Modulo' : 'Continue to Module'} {currentModule === 'MODULE_1' ? '2' : '3'} →
+                </>
+              )}
+            </button>
+          )}
+
+          {/* Final module - show end session hint */}
+          {isListening && currentModule === 'MODULE_3' && (
+            <p className="text-xs text-center text-indigo-600 mt-2">
+              {language === 'es'
+                ? 'Ultimo modulo - Presiona "Finalizar" cuando termines'
+                : 'Last module - Press "End Session" when done'}
+            </p>
+          )}
+        </div>
+      )}
+
+      {/* Transitioning Module Overlay */}
+      {isTransitioningModule && (
+        <div className="w-full max-w-xs mt-2 text-center">
+          <div className="flex items-center justify-center gap-2 text-indigo-600">
+            <div className="w-5 h-5 border-2 border-indigo-300 border-t-indigo-600 rounded-full animate-spin"></div>
+            <span className="text-sm font-medium">
+              {language === 'es' ? 'Preparando siguiente modulo...' : 'Preparing next module...'}
+            </span>
+          </div>
         </div>
       )}
 

@@ -1,5 +1,5 @@
 import { supabase } from '../lib/supabase';
-import type { SessionCheckpoint, RecoverableSession, TranscriptMessage, AppState, Language } from '../types';
+import type { SessionCheckpoint, RecoverableSession, TranscriptMessage, AppState, Language, InterviewModule } from '../types';
 
 const CHECKPOINT_INTERVAL = 2; // Guardar cada 2 mensajes
 const LOCAL_STORAGE_KEY = 'cabo_health_session_checkpoint';
@@ -19,7 +19,11 @@ export async function saveSessionCheckpoint(
   transcript: TranscriptMessage[],
   currentInputTranscription: string,
   currentOutputTranscription: string,
-  sessionStartTime: number
+  sessionStartTime: number,
+  // Module system parameters (optional for backwards compatibility)
+  currentModule?: InterviewModule,
+  completedModules?: InterviewModule[],
+  moduleTranscripts?: Record<InterviewModule, TranscriptMessage[]>
 ): Promise<{ success: boolean; error?: string }> {
   const checkpoint: SessionCheckpoint = {
     user_id: userId,
@@ -33,6 +37,10 @@ export async function saveSessionCheckpoint(
     session_start_time: sessionStartTime,
     last_checkpoint_time: Date.now(),
     message_count: transcript.length,
+    // Module system fields
+    current_module: currentModule,
+    completed_modules: completedModules,
+    module_transcripts: moduleTranscripts,
   };
 
   // Guardar en localStorage inmediatamente
@@ -261,4 +269,108 @@ export function validateCheckpoint(checkpoint: SessionCheckpoint): boolean {
     typeof checkpoint.session_start_time === 'number' &&
     typeof checkpoint.message_count === 'number'
   );
+}
+
+// ==========================================
+// MODULE SYSTEM HELPERS
+// ==========================================
+
+/**
+ * Saves a completed module's transcript
+ * Called when transitioning between modules
+ */
+export async function saveModuleTranscript(
+  userId: string,
+  sessionId: string,
+  module: InterviewModule,
+  transcript: TranscriptMessage[],
+  existingModuleTranscripts: Record<InterviewModule, TranscriptMessage[]>
+): Promise<Record<InterviewModule, TranscriptMessage[]>> {
+  const updatedTranscripts = {
+    ...existingModuleTranscripts,
+    [module]: transcript,
+  };
+
+  // Save to localStorage for quick access
+  try {
+    const moduleKey = `cabo_health_module_${sessionId}`;
+    localStorage.setItem(moduleKey, JSON.stringify(updatedTranscripts));
+  } catch (e) {
+    console.error('Error saving module transcript to localStorage:', e);
+  }
+
+  return updatedTranscripts;
+}
+
+/**
+ * Merges all module transcripts into a single transcript for summary generation
+ */
+export function mergeModuleTranscripts(
+  moduleTranscripts: Record<InterviewModule, TranscriptMessage[]>
+): TranscriptMessage[] {
+  const modules: InterviewModule[] = ['MODULE_1', 'MODULE_2', 'MODULE_3'];
+  const merged: TranscriptMessage[] = [];
+
+  for (const module of modules) {
+    const transcript = moduleTranscripts[module];
+    if (transcript && transcript.length > 0) {
+      merged.push(...transcript);
+    }
+  }
+
+  return merged;
+}
+
+/**
+ * Gets the total message count across all modules
+ */
+export function getTotalModuleMessageCount(
+  moduleTranscripts: Record<InterviewModule, TranscriptMessage[]>
+): number {
+  let total = 0;
+  for (const module of Object.keys(moduleTranscripts) as InterviewModule[]) {
+    total += moduleTranscripts[module]?.length || 0;
+  }
+  return total;
+}
+
+/**
+ * Clears module-specific data from localStorage
+ */
+export function clearModuleData(sessionId: string): void {
+  try {
+    const moduleKey = `cabo_health_module_${sessionId}`;
+    localStorage.removeItem(moduleKey);
+  } catch (e) {
+    console.error('Error clearing module data from localStorage:', e);
+  }
+}
+
+/**
+ * Loads module transcripts from localStorage
+ */
+export function loadModuleTranscripts(
+  sessionId: string
+): Record<InterviewModule, TranscriptMessage[]> | null {
+  try {
+    const moduleKey = `cabo_health_module_${sessionId}`;
+    const data = localStorage.getItem(moduleKey);
+    if (data) {
+      return JSON.parse(data);
+    }
+  } catch (e) {
+    console.error('Error loading module transcripts from localStorage:', e);
+  }
+  return null;
+}
+
+/**
+ * Creates an empty module transcripts record
+ */
+export function createEmptyModuleTranscripts(): Record<InterviewModule, TranscriptMessage[]> {
+  return {
+    MODULE_1: [],
+    MODULE_2: [],
+    MODULE_3: [],
+  };
 }
