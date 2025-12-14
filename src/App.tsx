@@ -685,7 +685,17 @@ const MainApp: React.FC = () => {
       // 2. Marcar módulo actual como completado
       setCompletedModules(prev => [...prev, currentModule]);
 
-      // 3. Cerrar conexión actual (sin generar resumen)
+      // 3. Cerrar conexión WebSocket actual apropiadamente
+      if (sessionPromiseRef.current) {
+        try {
+          const session = await sessionPromiseRef.current;
+          session.close();
+        } catch (e) {
+          logger.error('Error closing session during module transition:', e);
+        } finally {
+          sessionPromiseRef.current = null;
+        }
+      }
       cleanupAudio();
       setAppState('IDLE');
 
@@ -723,24 +733,29 @@ const MainApp: React.FC = () => {
     setWaitingForNova(false); // Resetear estado de espera de Nova
     userSpokeAtRef.current = null;
 
-    // Solo resetear transcript y summary si es sesión nueva (no reconexión)
+    // Solo resetear transcript y summary si es sesión nueva (no reconexión ni transición de módulo)
     // Si hay currentHandle, estamos reconectando y mantenemos los datos
-    if (!currentHandle) {
+    // Si hay módulos completados, estamos en transición entre módulos
+    const isModuleTransition = completedModules.length > 0;
+
+    if (!currentHandle && !isModuleTransition) {
+      // Sesión completamente nueva
       reconnectAttemptsRef.current = 0;
       setTranscript([]);
       setSummary('');
-      // Generar ID de sesión solo para sesiones nuevas
       const newSessionId = `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
       setSessionId(newSessionId);
       setSessionStartTime(Date.now());
-      // Resetear métricas de telemetría para nueva sesión
       resetMetrics();
-      // Resetear estado de módulos para nueva sesión (no aplica si estamos en transición de módulo)
-      if (!isTransitioningModule) {
-        setCurrentModule('MODULE_1');
-        setCompletedModules([]);
-        setModuleTranscripts(createEmptyModuleTranscripts());
-      }
+      setCurrentModule('MODULE_1');
+      setCompletedModules([]);
+      setModuleTranscripts(createEmptyModuleTranscripts());
+    } else if (!currentHandle && isModuleTransition) {
+      // Transición entre módulos - mantener sessionId y datos de módulos anteriores
+      reconnectAttemptsRef.current = 0;
+      // transcript ya fue limpiado en handleModuleTransition
+      // NO resetear sessionId, sessionStartTime, ni moduleTranscripts
+      logger.debug('📋 Iniciando módulo', currentModule, 'manteniendo sessionId:', sessionId);
     } else {
       // Estamos reconectando - registrar reconexión
       logReconnect();
@@ -1213,7 +1228,7 @@ const MainApp: React.FC = () => {
       setAppState('ERROR');
       cleanupAudio();
     }
-  }, [language, cleanupAudio, handleEndSession, currentModule, isTransitioningModule]); // sessionResumptionHandle accedido via ref, currentModule para instrucciones de módulo
+  }, [language, cleanupAudio, handleEndSession, currentModule, completedModules, sessionId]); // sessionResumptionHandle accedido via ref, currentModule para instrucciones de módulo
 
   // FIX: Completed the truncated function and added state resets.
   const handleNewSession = useCallback(() => {
