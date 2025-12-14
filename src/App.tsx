@@ -52,6 +52,19 @@ const NOVA_RESPONSE_TIMEOUT = 10000; // 10 segundos
 // Límite de chunks de audio para prevenir memory leak en sesiones largas
 const MAX_AUDIO_CHUNKS = 500; // ~500 chunks = ~32KB, suficiente para el turn actual
 
+// Helper para agregar timeout a promesas (evita UI congelada si WebSocket cuelga)
+const withTimeout = <T,>(promise: Promise<T>, ms: number): Promise<T> => {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) =>
+      setTimeout(() => reject(new Error('Timeout')), ms)
+    )
+  ]);
+};
+
+// Intervalo de actualización de frecuencia (throttle para reducir re-renders)
+const FREQUENCY_UPDATE_INTERVAL = 100; // 100ms = 10 updates/segundo en lugar de 60
+
 const App: React.FC = () => {
   const { user, userRole, loading } = useAuth();
   const [language, setLanguage] = useState<Language>('es');
@@ -579,10 +592,11 @@ const MainApp: React.FC = () => {
 
     if (sessionPromiseRef.current) {
       try {
-        const session = await sessionPromiseRef.current;
+        // Timeout de 5s para evitar UI congelada si WebSocket está colgado
+        const session = await withTimeout(sessionPromiseRef.current, 5000);
         session.close();
       } catch (e) {
-        logger.error("Error closing live session:", e);
+        logger.error("Error or timeout closing live session:", e);
       } finally {
         sessionPromiseRef.current = null;
       }
@@ -712,10 +726,11 @@ const MainApp: React.FC = () => {
       // 3. Cerrar conexión WebSocket actual apropiadamente
       if (sessionPromiseRef.current) {
         try {
-          const session = await sessionPromiseRef.current;
+          // Timeout de 5s para evitar UI congelada si WebSocket está colgado
+          const session = await withTimeout(sessionPromiseRef.current, 5000);
           session.close();
         } catch (e) {
-          logger.error('Error closing session during module transition:', e);
+          logger.error('Error or timeout closing session during module transition:', e);
         } finally {
           sessionPromiseRef.current = null;
         }
@@ -871,11 +886,21 @@ const MainApp: React.FC = () => {
 
       const dataArray = new Uint8Array(analyser.frequencyBinCount);
 
+      // Throttle de actualización de frecuencia: 10 updates/seg en lugar de 60
+      // Reduce re-renders de React en 83%, mejora rendimiento en dispositivos lentos
+      let lastFrequencyUpdate = 0;
+
       const loop = () => {
         if (appStateRef.current !== 'LISTENING') return;
-        analyser.getByteFrequencyData(dataArray);
-        const sum = dataArray.reduce((a, b) => a + b, 0);
-        setAvgFrequency(sum / dataArray.length);
+
+        const now = Date.now();
+        if (now - lastFrequencyUpdate >= FREQUENCY_UPDATE_INTERVAL) {
+          analyser.getByteFrequencyData(dataArray);
+          const sum = dataArray.reduce((a, b) => a + b, 0);
+          setAvgFrequency(sum / dataArray.length);
+          lastFrequencyUpdate = now;
+        }
+
         animationFrameRef.current = requestAnimationFrame(loop);
       };
       loop();
