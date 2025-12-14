@@ -211,7 +211,10 @@ const MainApp: React.FC = () => {
     novaAskedTransitionRef.current = novaAskedTransition;
   }, [novaAskedTransition]);
 
-  // Auto-iniciar sesión después de transición de módulo
+  // Ref para auto-iniciar sesión después de transición de módulo
+  const shouldAutoStartRef = useRef(false);
+
+  // Detectar cuando debemos auto-iniciar después de transición de módulo
   useEffect(() => {
     if (!isTransitioningModule && pendingModuleStartRef.current && appState === 'IDLE') {
       const moduleToStart = pendingModuleStartRef.current;
@@ -221,8 +224,8 @@ const MainApp: React.FC = () => {
 
       // Verificar que el módulo actual coincide con el pendiente
       if (currentModule === moduleToStart) {
-        // El usuario verá el UI de "Módulo X de 3" y puede iniciar cuando esté listo
-        logger.debug('✅ Módulo', moduleToStart, 'configurado. Usuario puede iniciar.');
+        logger.debug('✅ Marcando para auto-iniciar módulo', moduleToStart);
+        shouldAutoStartRef.current = true;
       }
     }
   }, [isTransitioningModule, appState, currentModule]);
@@ -1296,6 +1299,22 @@ const MainApp: React.FC = () => {
       cleanupAudio();
     }
   }, [language, cleanupAudio, handleEndSession, currentModule, completedModules, sessionId]); // sessionResumptionHandle accedido via ref, currentModule para instrucciones de módulo
+
+  // Auto-iniciar sesión después de transición de módulo (debe estar DESPUÉS de handleStartSession)
+  useEffect(() => {
+    if (shouldAutoStartRef.current && appState === 'IDLE') {
+      shouldAutoStartRef.current = false;
+      logger.debug('🚀 Auto-iniciando sesión para siguiente módulo');
+      // Pequeño delay para que la UI se actualice
+      const timer = setTimeout(() => {
+        if (appStateRef.current === 'IDLE') {
+          handleStartSession();
+        }
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+    return undefined;
+  }, [appState, handleStartSession]);
 
   // FIX: Completed the truncated function and added state resets.
   const handleNewSession = useCallback(() => {
