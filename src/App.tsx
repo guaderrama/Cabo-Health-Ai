@@ -49,6 +49,9 @@ const generateUniqueId = () => `${Date.now()}-${Math.random().toString(36).subst
 // Constante de timeout para respuesta de Nova (fuera del componente para evitar re-renders)
 const NOVA_RESPONSE_TIMEOUT = 10000; // 10 segundos
 
+// Límite de chunks de audio para prevenir memory leak en sesiones largas
+const MAX_AUDIO_CHUNKS = 500; // ~500 chunks = ~32KB, suficiente para el turn actual
+
 const App: React.FC = () => {
   const { user, userRole, loading } = useAuth();
   const [language, setLanguage] = useState<Language>('es');
@@ -144,6 +147,8 @@ const MainApp: React.FC = () => {
   const sessionResumptionHandleRef = useRef<string | null>(null); // Ref para evitar stale closures
   const reconnectAttemptsRef = useRef(0);
   const maxReconnectAttempts = 3;
+  const isReconnectingRef = useRef(false); // Prevenir race condition en reconexiones múltiples
+  const bufferCleanupIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null); // Limpieza periódica de buffers
 
   // Estado para detección de conexión
   const [isOnline, setIsOnline] = useState(navigator.onLine);
@@ -468,6 +473,12 @@ const MainApp: React.FC = () => {
   };
 
   const cleanupAudio = useCallback(() => {
+    // Cancelar interval de limpieza periódica de buffers
+    if (bufferCleanupIntervalRef.current) {
+      clearInterval(bufferCleanupIntervalRef.current);
+      bufferCleanupIntervalRef.current = null;
+    }
+
     // Cancelar animación
     if (animationFrameRef.current) {
       cancelAnimationFrame(animationFrameRef.current);
@@ -832,6 +843,12 @@ const MainApp: React.FC = () => {
       workletNode.port.onmessage = (event) => {
         const pcmData = new Uint8Array(event.data);
 
+        // Limitar tamaño del buffer para prevenir memory leak en sesiones largas
+        if (currentInputAudio.current.length >= MAX_AUDIO_CHUNKS) {
+          // Mantener solo los últimos 250 chunks (mitad del límite)
+          currentInputAudio.current = currentInputAudio.current.slice(-250);
+        }
+
         // Guardar audio para almacenamiento posterior
         currentInputAudio.current.push(pcmData);
 
@@ -862,6 +879,18 @@ const MainApp: React.FC = () => {
         animationFrameRef.current = requestAnimationFrame(loop);
       };
       loop();
+
+      // Limpieza periódica de buffers como seguro adicional contra memory leaks
+      bufferCleanupIntervalRef.current = setInterval(() => {
+        if (currentInputAudio.current.length > MAX_AUDIO_CHUNKS) {
+          logger.debug('🧹 Limpieza periódica de buffer de input audio');
+          currentInputAudio.current = currentInputAudio.current.slice(-250);
+        }
+        if (currentOutputAudio.current.length > MAX_AUDIO_CHUNKS) {
+          logger.debug('🧹 Limpieza periódica de buffer de output audio');
+          currentOutputAudio.current = currentOutputAudio.current.slice(-250);
+        }
+      }, 30000); // Cada 30 segundos
 
       // Vite solo expone variables con prefijo VITE_
       const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
@@ -1196,6 +1225,12 @@ const MainApp: React.FC = () => {
             cleanupAudio();
           },
           onclose: (e: CloseEvent) => {
+            // Prevenir múltiples reconexiones simultáneas (race condition)
+            if (isReconnectingRef.current) {
+              logger.debug('⏳ Reconexión ya en progreso, ignorando onclose duplicado');
+              return;
+            }
+
             // Usar ref para obtener el valor actual (evita stale closure)
             const currentHandle = sessionResumptionHandleRef.current;
             logger.debug('Session closed by server:', e.code, e.reason, {
@@ -1209,8 +1244,11 @@ const MainApp: React.FC = () => {
             if (appStateRef.current === 'LISTENING' &&
                 reconnectAttemptsRef.current < maxReconnectAttempts) {
 
+              // Marcar que estamos reconectando para prevenir race conditions
+              isReconnectingRef.current = true;
+
               const hasHandle = !!currentHandle;
-              logger.debug(`🔄 Intentando reconexi��n automática (${reconnectAttemptsRef.current + 1}/${maxReconnectAttempts})${hasHandle ? ' con handle' : ' sin handle'}...`);
+              logger.debug(`🔄 Intentando reconexión automática (${reconnectAttemptsRef.current + 1}/${maxReconnectAttempts})${hasHandle ? ' con handle' : ' sin handle'}...`);
               reconnectAttemptsRef.current++;
 
               // Limpiar audio pero mantener estado de sesión
@@ -1224,7 +1262,11 @@ const MainApp: React.FC = () => {
               // Reintentar conexión después de 1 segundo
               setTimeout(() => {
                 if (appStateRef.current !== 'COMPLETED') {
-                  handleStartSession(); // Usará el sessionResumptionHandle si existe
+                  handleStartSession().finally(() => {
+                    isReconnectingRef.current = false; // Liberar flag de reconexión
+                  });
+                } else {
+                  isReconnectingRef.current = false;
                 }
               }, 1000);
 
