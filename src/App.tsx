@@ -229,8 +229,9 @@ const MainApp: React.FC = () => {
     novaAskedTransitionRef.current = novaAskedTransition;
   }, [novaAskedTransition]);
 
-  // Ref para auto-iniciar sesión después de transición de módulo
-  const shouldAutoStartRef = useRef(false);
+  // Estado para auto-iniciar sesión después de transición de módulo
+  // NOTA: Debe ser estado (no ref) para disparar el useEffect de auto-start
+  const [shouldAutoStart, setShouldAutoStart] = useState(false);
 
   // Detectar cuando debemos auto-iniciar después de transición de módulo
   useEffect(() => {
@@ -243,7 +244,7 @@ const MainApp: React.FC = () => {
       // Verificar que el módulo actual coincide con el pendiente
       if (currentModule === moduleToStart) {
         logger.debug('✅ Marcando para auto-iniciar módulo', moduleToStart);
-        shouldAutoStartRef.current = true;
+        setShouldAutoStart(true); // Usar setState para disparar el useEffect de auto-start
       }
     }
   }, [isTransitioningModule, appState, currentModule]);
@@ -1369,8 +1370,8 @@ const MainApp: React.FC = () => {
 
   // Auto-iniciar sesión después de transición de módulo (debe estar DESPUÉS de handleStartSession)
   useEffect(() => {
-    if (shouldAutoStartRef.current && appState === 'IDLE') {
-      shouldAutoStartRef.current = false;
+    if (shouldAutoStart && appState === 'IDLE') {
+      setShouldAutoStart(false); // Resetear inmediatamente para evitar loops
       logger.debug('🚀 Auto-iniciando sesión para siguiente módulo');
       // Pequeño delay para que la UI se actualice
       const timer = setTimeout(() => {
@@ -1381,7 +1382,7 @@ const MainApp: React.FC = () => {
       return () => clearTimeout(timer);
     }
     return undefined;
-  }, [appState, handleStartSession]);
+  }, [shouldAutoStart, appState, handleStartSession]);
 
   // FIX: Completed the truncated function and added state resets.
   const handleNewSession = useCallback(() => {
@@ -1403,6 +1404,7 @@ const MainApp: React.FC = () => {
     setCompletedModules([]);
     setModuleTranscripts(createEmptyModuleTranscripts());
     setNovaAskedTransition(false);
+    setShouldAutoStart(false); // Resetear estado de auto-start
   }, [cleanupAudio]);
 
   const handleRetryConnection = useCallback(() => {
