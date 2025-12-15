@@ -567,26 +567,20 @@ const MainApp: React.FC = () => {
 
       logger.debug('🔧 Configurando sesion de TEXTO con:', {
         mode: 'TEXT',
-        model: 'gemini-2.5-flash-native-audio-preview-09-2025',
+        model: 'gemini-2.5-flash', // Modelo standard para texto (no native-audio)
         sessionResumption: currentHandle ? 'reconnecting' : 'new session'
       });
 
-      // Conexion WebSocket para modo texto (usa Modality.TEXT para respuestas)
+      // Conexion WebSocket para modo texto (usa modelo standard, no native-audio)
+      // El modelo native-audio solo soporta Modality.AUDIO, no TEXT
       sessionPromiseRef.current = ai.live.connect({
-        model: 'gemini-2.5-flash-native-audio-preview-09-2025',
+        model: 'gemini-2.5-flash', // Usar modelo standard para respuestas de texto
         config: {
           responseModalities: [Modality.TEXT], // Respuestas en texto (no audio)
-          outputAudioTranscription: {},
           systemInstruction: moduleInstructions,
           contextWindowCompression: { slidingWindow: {} },
-          sessionResumption: currentHandle ? { handle: currentHandle } : {},
-          speechConfig: {
-            voiceConfig: {
-              prebuiltVoiceConfig: {
-                voiceName: 'Aoede'
-              }
-            }
-          }
+          sessionResumption: currentHandle ? { handle: currentHandle } : {}
+          // No se necesita speechConfig ni outputAudioTranscription para modo texto
         } as any,
         callbacks: {
           onopen: () => {
