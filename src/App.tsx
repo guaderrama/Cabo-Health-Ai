@@ -596,7 +596,19 @@ const MainApp: React.FC = () => {
 
             // Activar Nova con mensaje inicial
             setTimeout(() => {
+              // Verificar que la sesion sigue activa antes de enviar
+              if (appStateRef.current !== 'LISTENING') {
+                logger.debug('⏭️ Sesion TEXT ya no esta activa, cancelando mensaje de activacion');
+                return;
+              }
+
               sessionPromiseRef.current?.then((session) => {
+                // Doble verificacion por si el estado cambio durante la promesa
+                if (appStateRef.current !== 'LISTENING') {
+                  logger.debug('⏭️ Sesion TEXT cerrada antes de enviar activacion');
+                  return;
+                }
+
                 try {
                   const moduleConfig = MODULE_CONFIGS[currentModule];
                   const activationMessage = moduleConfig.hasGreeting
@@ -674,6 +686,9 @@ const MainApp: React.FC = () => {
               // Marcar que estamos reconectando para prevenir race conditions
               isReconnectingRef.current = true;
               reconnectAttemptsRef.current++;
+
+              // Cambiar estado INMEDIATAMENTE para cancelar cualquier setTimeout pendiente
+              setAppState('CONNECTING');
 
               setError(language === 'es'
                 ? `Reconectando (${reconnectAttemptsRef.current}/3)...`
