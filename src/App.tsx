@@ -659,14 +659,34 @@ const MainApp: React.FC = () => {
             setAppState('ERROR');
           },
           onclose: (e: CloseEvent) => {
-            logger.debug('Sesion TEXT cerrada:', e.code, e.reason);
+            // Prevenir multiples reconexiones simultaneas (race condition)
+            if (isReconnectingRef.current) {
+              logger.debug('⏳ Reconexion TEXT ya en progreso, ignorando onclose duplicado');
+              return;
+            }
+
+            logger.debug('Sesion TEXT cerrada:', e.code, e.reason, {
+              appState: appStateRef.current,
+              reconnectAttempts: reconnectAttemptsRef.current
+            });
+
             if (appStateRef.current === 'LISTENING' && reconnectAttemptsRef.current < 3) {
+              // Marcar que estamos reconectando para prevenir race conditions
+              isReconnectingRef.current = true;
               reconnectAttemptsRef.current++;
+
               setError(language === 'es'
                 ? `Reconectando (${reconnectAttemptsRef.current}/3)...`
                 : `Reconnecting (${reconnectAttemptsRef.current}/3)...`);
+
               setTimeout(() => {
-                handleStartTextSession();
+                if (appStateRef.current !== 'COMPLETED') {
+                  handleStartTextSession().finally(() => {
+                    isReconnectingRef.current = false; // Liberar flag de reconexion
+                  });
+                } else {
+                  isReconnectingRef.current = false;
+                }
               }, 1000);
             } else if (appStateRef.current === 'LISTENING') {
               setError(language === 'es'
