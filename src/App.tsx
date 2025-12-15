@@ -571,11 +571,11 @@ const MainApp: React.FC = () => {
         sessionResumption: currentHandle ? 'reconnecting' : 'new session'
       });
 
-      // Conexion WebSocket sin audio (modo texto)
+      // Conexion WebSocket para modo texto (usa Modality.TEXT para respuestas)
       sessionPromiseRef.current = ai.live.connect({
         model: 'gemini-2.5-flash-native-audio-preview-09-2025',
         config: {
-          responseModalities: [], // Sin audio de respuesta - solo texto
+          responseModalities: [Modality.TEXT], // Respuestas en texto (no audio)
           outputAudioTranscription: {},
           systemInstruction: moduleInstructions,
           contextWindowCompression: { slidingWindow: {} },
@@ -635,7 +635,16 @@ const MainApp: React.FC = () => {
               }
             }
 
-            // Manejar transcripcion de salida (lo que dice Nova)
+            // Manejar respuesta de texto (modelTurn.parts contiene el texto con Modality.TEXT)
+            if (message.serverContent?.modelTurn?.parts) {
+              for (const part of message.serverContent.modelTurn.parts) {
+                if (part.text) {
+                  currentOutputTranscription.current += part.text;
+                }
+              }
+            }
+
+            // Fallback: Manejar transcripcion de salida (por si el modelo envia outputTranscription)
             if (message.serverContent?.outputTranscription?.text) {
               const novaText = message.serverContent.outputTranscription.text;
               currentOutputTranscription.current += novaText;

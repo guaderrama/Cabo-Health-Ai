@@ -40,3 +40,4 @@ mcp.json.json
 # Vite cache
 .vite-cache/
 NUL
+.mcp.json
