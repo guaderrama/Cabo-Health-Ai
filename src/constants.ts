@@ -48,6 +48,23 @@ export const UI_TEXTS: Record<Language, Record<string, string>> = {
     doneButton: "Hecho",
     formError: "Por favor, complete todos los campos requeridos.",
     modalTitleSend: "Enviar Resumen Clínico al Médico",
+    // Mode selection texts
+    modeSelectionTitle: "Elige cómo prefieres comunicarte con Nova",
+    modeVoiceTitle: "Hablar con Nova",
+    modeVoiceDesc: "Conversación de voz",
+    modeTextTitle: "Escribir a Nova",
+    modeTextDesc: "Chat con dictado",
+    // Text chat panel texts
+    chatPlaceholder: "Escribe tu mensaje...",
+    sendButton: "Enviar",
+    dictateButton: "Dictar",
+    stopDictation: "Detener",
+    listeningDictation: "Escuchando...",
+    novaTyping: "Nova está escribiendo...",
+    switchToVoice: "Cambiar a voz",
+    listenResponse: "Escuchar respuesta",
+    dictationNotSupported: "Tu navegador no soporta dictado por voz",
+    dictationError: "Error en dictado. Intenta de nuevo.",
   },
   en: {
     title: "Cabo Health Nova",
@@ -96,6 +113,23 @@ export const UI_TEXTS: Record<Language, Record<string, string>> = {
     doneButton: "Done",
     formError: "Please fill out all required fields.",
     modalTitleSend: "Send Clinical Summary to Doctor",
+    // Mode selection texts
+    modeSelectionTitle: "Choose how you prefer to communicate with Nova",
+    modeVoiceTitle: "Talk to Nova",
+    modeVoiceDesc: "Voice conversation",
+    modeTextTitle: "Write to Nova",
+    modeTextDesc: "Chat with dictation",
+    // Text chat panel texts
+    chatPlaceholder: "Type your message...",
+    sendButton: "Send",
+    dictateButton: "Dictate",
+    stopDictation: "Stop",
+    listeningDictation: "Listening...",
+    novaTyping: "Nova is typing...",
+    switchToVoice: "Switch to voice",
+    listenResponse: "Listen to response",
+    dictationNotSupported: "Your browser does not support voice dictation",
+    dictationError: "Dictation error. Try again.",
   },
 };
 

@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef, useCallback, Suspense, lazy } from 'react';
 import { GoogleGenAI, Modality, LiveServerMessage } from '@google/genai';
-import { type AppState, type Language, type TranscriptMessage, type RecoverableSession, type InterviewModule } from './types';
+import { type AppState, type Language, type TranscriptMessage, type RecoverableSession, type InterviewModule, type InterviewMode } from './types';
 import { UI_TEXTS, SUMMARY_PROMPT, getModuleInstructions, getNextModule, MODULE_CONFIGS } from './constants';
 import { encode, decode, decodeAudioData, concatenateUint8Arrays } from './utils/audioUtils';
 import { sanitizeHtml } from './utils/sanitizeHtml';
@@ -11,6 +11,8 @@ import AuthForm from './components/AuthForm';
 import DoctorDashboard from './components/DoctorDashboard';
 import Header from './components/Header';
 import ControlPanel from './components/ControlPanel';
+import ModeSelector from './components/ModeSelector';
+import TextChatPanel from './components/TextChatPanel';
 import TranscriptionPanel from './components/TranscriptionPanel';
 import SummaryPanel from './components/SummaryPanel';
 import ProgressIndicator from './components/ProgressIndicator';
@@ -123,6 +125,7 @@ const MainApp: React.FC = () => {
   const [appState, setAppState] = useState<AppState>('IDLE');
   const [language, setLanguage] = useState<Language>('es');
   const [patientName, setPatientName] = useState('');
+  const [interviewMode, setInterviewMode] = useState<InterviewMode | null>(null);
   const [transcript, setTranscript] = useState<TranscriptMessage[]>([]);
   const [summary, setSummary] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
@@ -213,11 +216,17 @@ const MainApp: React.FC = () => {
   const outputSourcesRef = useRef<Set<AudioBufferSourceNode>>(new Set());
 
   const appStateRef = useRef(appState);
+  const interviewModeRef = useRef(interviewMode);
   const endSessionLockRef = useRef(false); // Lock para prevenir race condition en handleEndSession
 
   useEffect(() => {
     appStateRef.current = appState;
   }, [appState]);
+
+  // Sincronizar ref de interviewMode para evitar stale closures en callbacks
+  useEffect(() => {
+    interviewModeRef.current = interviewMode;
+  }, [interviewMode]);
 
   // Sincronizar ref de sessionResumptionHandle para evitar stale closures en callbacks de WebSocket
   useEffect(() => {
@@ -485,6 +494,198 @@ const MainApp: React.FC = () => {
   const handleCloseMicrophoneDiagnostic = () => {
     setShowMicrophoneDiagnostic(false);
   };
+
+  // Handler para seleccionar modo de entrevista
+  const handleSelectMode = useCallback((mode: InterviewMode) => {
+    setInterviewMode(mode);
+    logger.debug(`Modo de entrevista seleccionado: ${mode}`);
+  }, []);
+
+  // Handler para enviar mensaje de texto en modo TEXT
+  const handleSendTextMessage = useCallback(async (text: string) => {
+    if (!sessionPromiseRef.current || !text.trim()) return;
+
+    // Agregar mensaje del usuario al transcript
+    const userMessage: TranscriptMessage = {
+      id: generateUniqueId(),
+      sender: 'You',
+      text: text.trim(),
+      lang: language,
+      timestamp: new Date().toISOString(),
+    };
+    setTranscript(prev => [...prev, userMessage]);
+
+    // Enviar a Gemini usando sendClientContent
+    try {
+      const session = await sessionPromiseRef.current;
+      session.sendClientContent({
+        turns: [{ role: 'user', parts: [{ text: text.trim() }] }],
+        turnComplete: true
+      });
+      logger.debug('📤 Mensaje de texto enviado a Gemini:', text.substring(0, 50) + '...');
+    } catch (e) {
+      logger.error('Error enviando mensaje de texto:', e);
+      setError(language === 'es'
+        ? 'Error al enviar mensaje. Intenta de nuevo.'
+        : 'Error sending message. Try again.');
+    }
+  }, [language]);
+
+  // Handler para iniciar sesión en modo TEXTO (sin captura de audio)
+  const handleStartTextSession = useCallback(async () => {
+    const currentHandle = sessionResumptionHandleRef.current;
+
+    setAppState('CONNECTING');
+    setError(null);
+    setWaitingForNova(false);
+
+    // Resetear para nueva sesión si no hay handle
+    if (!currentHandle) {
+      reconnectAttemptsRef.current = 0;
+      setTranscript([]);
+      setSummary('');
+      const newSessionId = `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      setSessionId(newSessionId);
+      setSessionStartTime(Date.now());
+      resetMetrics();
+      setCurrentModule('MODULE_1');
+      setCompletedModules([]);
+      setModuleTranscripts(createEmptyModuleTranscripts());
+    }
+
+    setLastSavedMessageCount(0);
+    setLastCheckpointTime(null);
+
+    try {
+      const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+      if (!apiKey || apiKey.trim() === '') {
+        throw new Error('VITE_GEMINI_API_KEY no esta configurada');
+      }
+
+      const ai = new GoogleGenAI({ apiKey: apiKey as string });
+      const moduleInstructions = getModuleInstructions(currentModule, language);
+
+      logger.debug('🔧 Configurando sesion de TEXTO con:', {
+        mode: 'TEXT',
+        model: 'gemini-2.5-flash-native-audio-preview-09-2025',
+        sessionResumption: currentHandle ? 'reconnecting' : 'new session'
+      });
+
+      // Conexion WebSocket sin audio (modo texto)
+      sessionPromiseRef.current = ai.live.connect({
+        model: 'gemini-2.5-flash-native-audio-preview-09-2025',
+        config: {
+          responseModalities: [], // Sin audio de respuesta - solo texto
+          outputAudioTranscription: {},
+          systemInstruction: moduleInstructions,
+          contextWindowCompression: { slidingWindow: {} },
+          sessionResumption: currentHandle ? { handle: currentHandle } : {},
+          speechConfig: {
+            voiceConfig: {
+              prebuiltVoiceConfig: {
+                voiceName: 'Aoede'
+              }
+            }
+          }
+        } as any,
+        callbacks: {
+          onopen: () => {
+            setAppState('LISTENING');
+            sessionStartTimeRef.current = Date.now();
+            logger.debug('🔌 Conexion WebSocket TEXT abierta, activando Nova...');
+
+            // Activar Nova con mensaje inicial
+            setTimeout(() => {
+              sessionPromiseRef.current?.then((session) => {
+                try {
+                  const moduleConfig = MODULE_CONFIGS[currentModule];
+                  const activationMessage = moduleConfig.hasGreeting
+                    ? '[Sesion de TEXTO iniciada - Por favor saluda al paciente]'
+                    : '[Continuacion de entrevista TEXTO - Continua directamente sin saludar]';
+
+                  session.sendClientContent({
+                    turns: [{ role: 'user', parts: [{ text: activationMessage }] }],
+                    turnComplete: true
+                  });
+                  logger.debug('✅ Mensaje de activacion TEXT enviado');
+                } catch (e) {
+                  logger.error('Error enviando mensaje de activacion TEXT:', e);
+                }
+              });
+            }, 500);
+          },
+          onmessage: async (message: LiveServerMessage) => {
+            // Manejar Session Resumption Update
+            if ((message as any).sessionResumptionUpdate) {
+              const update = (message as any).sessionResumptionUpdate;
+              if (update.resumable && update.newHandle) {
+                setSessionResumptionHandle(update.newHandle);
+              }
+            }
+
+            // Manejar transcripcion de salida (lo que dice Nova)
+            if (message.serverContent?.outputTranscription?.text) {
+              const novaText = message.serverContent.outputTranscription.text;
+              currentOutputTranscription.current += novaText;
+            }
+
+            // Manejar fin de turno - agregar respuesta de Nova al transcript
+            if (message.serverContent?.turnComplete) {
+              if (currentOutputTranscription.current.trim()) {
+                const novaMessage: TranscriptMessage = {
+                  id: generateUniqueId(),
+                  sender: 'Nova',
+                  text: currentOutputTranscription.current.trim(),
+                  lang: language,
+                  timestamp: new Date().toISOString(),
+                };
+                setTranscript(prev => [...prev, novaMessage]);
+                logNovaResponse(0); // 0 para modo texto (no medimos tiempo de audio)
+              }
+              currentOutputTranscription.current = '';
+              setWaitingForNova(false);
+            }
+
+            // Setup complete
+            if ((message as any).setupComplete) {
+              logger.debug('✅ Sesion TEXT establecida correctamente');
+            }
+          },
+          onerror: (e: ErrorEvent) => {
+            logger.error('Error en sesion TEXT:', e);
+            setError(language === 'es'
+              ? 'Error de conexion. Intenta de nuevo.'
+              : 'Connection error. Try again.');
+            setAppState('ERROR');
+          },
+          onclose: (e: CloseEvent) => {
+            logger.debug('Sesion TEXT cerrada:', e.code, e.reason);
+            if (appStateRef.current === 'LISTENING' && reconnectAttemptsRef.current < 3) {
+              reconnectAttemptsRef.current++;
+              setError(language === 'es'
+                ? `Reconectando (${reconnectAttemptsRef.current}/3)...`
+                : `Reconnecting (${reconnectAttemptsRef.current}/3)...`);
+              setTimeout(() => {
+                handleStartTextSession();
+              }, 1000);
+            } else if (appStateRef.current === 'LISTENING') {
+              setError(language === 'es'
+                ? 'Conexion perdida. Tu progreso esta guardado.'
+                : 'Connection lost. Your progress is saved.');
+              setAppState('ERROR');
+            }
+          }
+        }
+      }) as Promise<LiveSession>;
+
+    } catch (e: any) {
+      logger.error('Error iniciando sesion TEXT:', e);
+      setError(language === 'es'
+        ? 'No se pudo conectar. Verifica tu conexion.'
+        : 'Could not connect. Check your connection.');
+      setAppState('ERROR');
+    }
+  }, [currentModule, language]);
 
   const cleanupAudio = useCallback(() => {
     // Cancelar interval de limpieza periódica de buffers
@@ -1405,6 +1606,7 @@ const MainApp: React.FC = () => {
     setModuleTranscripts(createEmptyModuleTranscripts());
     setNovaAskedTransition(false);
     setShouldAutoStart(false); // Resetear estado de auto-start
+    setInterviewMode(null); // Resetear modo de entrevista para mostrar selector
   }, [cleanupAudio]);
 
   const handleRetryConnection = useCallback(() => {
@@ -1496,54 +1698,145 @@ const MainApp: React.FC = () => {
               />
             )}
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 lg:grid-rows-2 gap-4 lg:gap-6">
-              <div className="lg:row-span-2 animate-fade-in-scale">
-                <ErrorBoundary>
-                  <ControlPanel
-                    appState={appState}
-                    language={language}
-                    onLanguageChange={handleLanguageChange}
-                    onStartSession={handleStartSession}
-                    onEndSession={handleEndSession}
-                    audioFrequency={avgFrequency}
-                    error={error}
-                    patientName={patientName}
-                    onPatientNameChange={setPatientName}
-                    onOpenDiagnostic={handleOpenMicrophoneDiagnostic}
-                    onRetry={handleRetryConnection}
-                    waitingForNova={waitingForNova}
-                    // Module system props
-                    currentModule={currentModule}
-                    completedModules={completedModules}
-                    onModuleTransition={handleModuleTransition}
-                    isTransitioningModule={isTransitioningModule}
-                  />
-                </ErrorBoundary>
+            {/* Selector de modo - solo se muestra cuando no hay modo seleccionado */}
+            {!interviewMode && appState === 'IDLE' && (
+              <div className="grid grid-cols-1 lg:grid-cols-2 lg:grid-rows-2 gap-4 lg:gap-6">
+                <div className="lg:row-span-2 animate-fade-in-scale">
+                  <ErrorBoundary>
+                    <ModeSelector
+                      language={language}
+                      onSelectMode={handleSelectMode}
+                      patientName={patientName}
+                      onPatientNameChange={setPatientName}
+                      onLanguageChange={handleLanguageChange}
+                    />
+                  </ErrorBoundary>
+                </div>
+                <div className="lg:row-span-1 animate-fade-in-up animate-delay-100">
+                  <ErrorBoundary>
+                    <TranscriptionPanel
+                      transcript={transcript}
+                      appState={appState}
+                      language={language}
+                    />
+                  </ErrorBoundary>
+                </div>
+                <div className="lg:row-span-1 animate-fade-in-up animate-delay-200">
+                  <ErrorBoundary>
+                    <SummaryPanel
+                      summary={summary}
+                      appState={appState}
+                      language={language}
+                      patientName={patientName}
+                      onNewSession={handleNewSession}
+                      transcript={transcript}
+                      sessionId={sessionId}
+                      sessionDuration={sessionStartTime > 0 ? Math.floor((Date.now() - sessionStartTime) / 1000) : 0}
+                    />
+                  </ErrorBoundary>
+                </div>
               </div>
-              <div className="lg:row-span-1 animate-fade-in-up animate-delay-100">
-                <ErrorBoundary>
-                  <TranscriptionPanel
-                    transcript={transcript}
-                    appState={appState}
-                    language={language}
-                  />
-                </ErrorBoundary>
+            )}
+
+            {/* Modo VOZ - ControlPanel con audio bidireccional */}
+            {interviewMode === 'VOICE' && (
+              <div className="grid grid-cols-1 lg:grid-cols-2 lg:grid-rows-2 gap-4 lg:gap-6">
+                <div className="lg:row-span-2 animate-fade-in-scale">
+                  <ErrorBoundary>
+                    <ControlPanel
+                      appState={appState}
+                      language={language}
+                      onLanguageChange={handleLanguageChange}
+                      onStartSession={handleStartSession}
+                      onEndSession={handleEndSession}
+                      audioFrequency={avgFrequency}
+                      error={error}
+                      patientName={patientName}
+                      onPatientNameChange={setPatientName}
+                      onOpenDiagnostic={handleOpenMicrophoneDiagnostic}
+                      onRetry={handleRetryConnection}
+                      waitingForNova={waitingForNova}
+                      // Module system props
+                      currentModule={currentModule}
+                      completedModules={completedModules}
+                      onModuleTransition={handleModuleTransition}
+                      isTransitioningModule={isTransitioningModule}
+                    />
+                  </ErrorBoundary>
+                </div>
+                <div className="lg:row-span-1 animate-fade-in-up animate-delay-100">
+                  <ErrorBoundary>
+                    <TranscriptionPanel
+                      transcript={transcript}
+                      appState={appState}
+                      language={language}
+                    />
+                  </ErrorBoundary>
+                </div>
+                <div className="lg:row-span-1 animate-fade-in-up animate-delay-200">
+                  <ErrorBoundary>
+                    <SummaryPanel
+                      summary={summary}
+                      appState={appState}
+                      language={language}
+                      patientName={patientName}
+                      onNewSession={handleNewSession}
+                      transcript={transcript}
+                      sessionId={sessionId}
+                      sessionDuration={sessionStartTime > 0 ? Math.floor((Date.now() - sessionStartTime) / 1000) : 0}
+                    />
+                  </ErrorBoundary>
+                </div>
               </div>
-              <div className="lg:row-span-1 animate-fade-in-up animate-delay-200">
-                <ErrorBoundary>
-                  <SummaryPanel
-                    summary={summary}
-                    appState={appState}
-                    language={language}
-                    patientName={patientName}
-                    onNewSession={handleNewSession}
-                    transcript={transcript}
-                    sessionId={sessionId}
-                    sessionDuration={sessionStartTime > 0 ? Math.floor((Date.now() - sessionStartTime) / 1000) : 0}
-                  />
-                </ErrorBoundary>
+            )}
+
+            {/* Modo TEXTO - TextChatPanel con dictado */}
+            {interviewMode === 'TEXT' && (
+              <div className="grid grid-cols-1 lg:grid-cols-2 lg:grid-rows-2 gap-4 lg:gap-6">
+                <div className="lg:row-span-2 animate-fade-in-scale">
+                  <ErrorBoundary>
+                    <TextChatPanel
+                      language={language}
+                      transcript={transcript}
+                      onSendMessage={handleSendTextMessage}
+                      onEndSession={handleEndSession}
+                      onStartSession={handleStartTextSession}
+                      onBackToModeSelect={() => setInterviewMode(null)}
+                      appState={appState}
+                      currentModule={currentModule}
+                      completedModules={completedModules}
+                      isProcessing={waitingForNova}
+                      error={error}
+                      patientName={patientName}
+                      onRetry={handleRetryConnection}
+                    />
+                  </ErrorBoundary>
+                </div>
+                <div className="lg:row-span-1 animate-fade-in-up animate-delay-100">
+                  <ErrorBoundary>
+                    <TranscriptionPanel
+                      transcript={transcript}
+                      appState={appState}
+                      language={language}
+                    />
+                  </ErrorBoundary>
+                </div>
+                <div className="lg:row-span-1 animate-fade-in-up animate-delay-200">
+                  <ErrorBoundary>
+                    <SummaryPanel
+                      summary={summary}
+                      appState={appState}
+                      language={language}
+                      patientName={patientName}
+                      onNewSession={handleNewSession}
+                      transcript={transcript}
+                      sessionId={sessionId}
+                      sessionDuration={sessionStartTime > 0 ? Math.floor((Date.now() - sessionStartTime) / 1000) : 0}
+                    />
+                  </ErrorBoundary>
+                </div>
               </div>
-            </div>
+            )}
           </div>
         )}
       </main>

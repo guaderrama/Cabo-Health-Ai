@@ -110,3 +110,25 @@ export const CalendarIcon = (props: React.SVGProps<SVGSVGElement>) => (
         <line x1="3" y1="10" x2="21" y2="10"></line>
     </svg>
 );
+
+export const KeyboardIcon = (props: React.SVGProps<SVGSVGElement>) => (
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
+        <rect x="2" y="4" width="20" height="16" rx="2" ry="2"></rect>
+        <path d="M6 8h.001"></path>
+        <path d="M10 8h.001"></path>
+        <path d="M14 8h.001"></path>
+        <path d="M18 8h.001"></path>
+        <path d="M8 12h.001"></path>
+        <path d="M12 12h.001"></path>
+        <path d="M16 12h.001"></path>
+        <path d="M7 16h10"></path>
+    </svg>
+);
+
+export const SpeakerIcon = (props: React.SVGProps<SVGSVGElement>) => (
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
+        <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+        <path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+        <path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path>
+    </svg>
+);

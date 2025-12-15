@@ -2,6 +2,9 @@ export type AppState = 'IDLE' | 'CONNECTING' | 'LISTENING' | 'PROCESSING' | 'COM
 
 export type Language = 'es' | 'en';
 
+// Interview mode types - Voice or Text with dictation
+export type InterviewMode = 'VOICE' | 'TEXT';
+
 // Module system types for interview segmentation
 export type InterviewModule = 'MODULE_1' | 'MODULE_2' | 'MODULE_3';
 
