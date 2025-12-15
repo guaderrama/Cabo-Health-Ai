@@ -165,6 +165,7 @@ const MainApp: React.FC = () => {
   const maxReconnectAttempts = 3;
   const isReconnectingRef = useRef(false); // Prevenir race condition en reconexiones múltiples
   const bufferCleanupIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null); // Limpieza periódica de buffers
+  const textKeepAliveIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null); // Keep-alive para modo TEXT
 
   // Estado para detección de conexión
   const [isOnline, setIsOnline] = useState(navigator.onLine);
@@ -614,6 +615,34 @@ const MainApp: React.FC = () => {
                     turnComplete: true
                   });
                   logger.debug('✅ Mensaje de activacion TEXT enviado');
+
+                  // Configurar keep-alive para mantener la conexion WebSocket activa
+                  // El servidor Gemini cierra conexiones inactivas despues de ~10 segundos
+                  if (textKeepAliveIntervalRef.current) {
+                    clearInterval(textKeepAliveIntervalRef.current);
+                  }
+                  textKeepAliveIntervalRef.current = setInterval(() => {
+                    if (appStateRef.current === 'LISTENING') {
+                      try {
+                        // Enviar ping silencioso para mantener la conexion viva
+                        session.sendClientContent({
+                          turns: [{ role: 'user', parts: [{ text: '[keepalive]' }] }],
+                          turnComplete: false // No trigger response, solo mantener conexion
+                        });
+                        logger.debug('💓 Keep-alive TEXT enviado');
+                      } catch (e) {
+                        logger.warn('⚠️ Error enviando keep-alive TEXT:', e);
+                      }
+                    } else {
+                      // Limpiar interval si ya no estamos en LISTENING
+                      if (textKeepAliveIntervalRef.current) {
+                        clearInterval(textKeepAliveIntervalRef.current);
+                        textKeepAliveIntervalRef.current = null;
+                      }
+                    }
+                  }, 8000); // Cada 8 segundos (antes del timeout de ~10s)
+                  logger.debug('⏰ Keep-alive TEXT configurado cada 8 segundos');
+
                 } catch (e) {
                   logger.error('Error enviando mensaje de activacion TEXT:', e);
                 }
@@ -665,6 +694,19 @@ const MainApp: React.FC = () => {
             if ((message as any).setupComplete) {
               logger.debug('✅ Sesion TEXT establecida correctamente');
             }
+
+            // Manejar GoAway - advertencia de cierre inminente del servidor
+            if ((message as any).goAway) {
+              const timeLeft = (message as any).goAway.timeLeft;
+              logger.warn(`⚠️ GoAway TEXT recibido - Conexion terminara en: ${timeLeft}`);
+              // Guardar checkpoint preventivo antes de la desconexion
+              if (user?.id && sessionId && transcript.length > 0) {
+                saveSessionCheckpoint(
+                  user.id, sessionId, patientName, language, 'LISTENING',
+                  transcript, currentInputTranscription.current, currentOutputTranscription.current, sessionStartTime
+                ).catch(err => logger.error('Error guardando checkpoint preventivo TEXT:', err));
+              }
+            }
           },
           onerror: (e: ErrorEvent) => {
             logger.error('Error en sesion TEXT:', e);
@@ -674,6 +716,13 @@ const MainApp: React.FC = () => {
             setAppState('ERROR');
           },
           onclose: (e: CloseEvent) => {
+            // Limpiar keep-alive interval
+            if (textKeepAliveIntervalRef.current) {
+              clearInterval(textKeepAliveIntervalRef.current);
+              textKeepAliveIntervalRef.current = null;
+              logger.debug('🛑 Keep-alive TEXT limpiado');
+            }
+
             // Prevenir multiples reconexiones simultaneas (race condition)
             if (isReconnectingRef.current) {
               logger.debug('⏳ Reconexion TEXT ya en progreso, ignorando onclose duplicado');
@@ -711,6 +760,21 @@ const MainApp: React.FC = () => {
                 ? 'Conexion perdida. Tu progreso esta guardado.'
                 : 'Connection lost. Your progress is saved.');
               setAppState('ERROR');
+
+              // Guardar checkpoint de emergencia
+              if (user?.id && sessionId) {
+                saveSessionCheckpoint(
+                  user.id,
+                  sessionId,
+                  patientName,
+                  language,
+                  'LISTENING', // Mantener como LISTENING para recuperacion
+                  transcript,
+                  currentInputTranscription.current,
+                  currentOutputTranscription.current,
+                  sessionStartTime
+                ).catch(err => logger.error('Error guardando checkpoint emergencia TEXT:', err));
+              }
             }
           }
         }
