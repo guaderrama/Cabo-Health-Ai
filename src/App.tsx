@@ -165,6 +165,7 @@ const MainApp: React.FC = () => {
   const maxReconnectAttempts = 3;
   const isReconnectingRef = useRef(false); // Prevenir race condition en reconexiones múltiples
   const bufferCleanupIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null); // Limpieza periódica de buffers
+  const textHeartbeatRef = useRef<ReturnType<typeof setInterval> | null>(null); // Heartbeat para mantener conexión TEXT viva
 
   // Estado para detección de conexión
   const [isOnline, setIsOnline] = useState(navigator.onLine);
@@ -619,6 +620,24 @@ const MainApp: React.FC = () => {
                 }
               });
             }, 500);
+
+            // Heartbeat para mantener la conexion TEXT viva
+            // Sin esto, Gemini cierra la conexion por inactividad (~10 segundos)
+            textHeartbeatRef.current = setInterval(() => {
+              if (appStateRef.current === 'LISTENING') {
+                sessionPromiseRef.current?.then((session) => {
+                  try {
+                    session.sendClientContent({
+                      turns: [{ role: 'user', parts: [{ text: '' }] }],
+                      turnComplete: false // No interrumpir el flujo
+                    });
+                    logger.debug('💓 TEXT heartbeat enviado');
+                  } catch (e) {
+                    logger.debug('Heartbeat failed (normal si desconectando):', e);
+                  }
+                });
+              }
+            }, 8000); // Cada 8 segundos (la desconexion ocurre a ~10s)
           },
           onmessage: async (message: LiveServerMessage) => {
             // Manejar Session Resumption Update
@@ -627,6 +646,12 @@ const MainApp: React.FC = () => {
               if (update.resumable && update.newHandle) {
                 setSessionResumptionHandle(update.newHandle);
               }
+            }
+
+            // Manejar advertencia GoAway del servidor (desconexion inminente)
+            if ((message as any).goAway) {
+              const timeLeft = (message as any).goAway.timeLeft;
+              logger.warn(`⚠️ GoAway TEXT recibido - Conexion terminara en: ${timeLeft}`);
             }
 
             // Manejar respuesta de texto (modelTurn.parts contiene el texto con Modality.TEXT)
@@ -674,13 +699,23 @@ const MainApp: React.FC = () => {
             setAppState('ERROR');
           },
           onclose: (e: CloseEvent) => {
+            // Limpiar heartbeat inmediatamente
+            if (textHeartbeatRef.current) {
+              clearInterval(textHeartbeatRef.current);
+              textHeartbeatRef.current = null;
+            }
+
             // Prevenir multiples reconexiones simultaneas (race condition)
             if (isReconnectingRef.current) {
               logger.debug('⏳ Reconexion TEXT ya en progreso, ignorando onclose duplicado');
               return;
             }
 
-            logger.debug('Sesion TEXT cerrada:', e.code, e.reason, {
+            // Log detallado para debugging
+            logger.debug('Sesion TEXT cerrada:', {
+              code: e.code,        // 1000=normal, 1001=going away, 1006=abnormal
+              reason: e.reason,
+              wasClean: e.wasClean,
               appState: appStateRef.current,
               reconnectAttempts: reconnectAttemptsRef.current
             });
