@@ -317,7 +317,8 @@ const TextChatPanel: React.FC<TextChatPanelProps> = ({
           </div>
         ) : (
           <div className="space-y-3">
-            <div className="flex items-end gap-2">
+            {/* Input area with better layout */}
+            <div className="flex items-end gap-3">
               <div className="flex-1 relative">
                 <textarea
                   ref={inputRef}
@@ -326,33 +327,38 @@ const TextChatPanel: React.FC<TextChatPanelProps> = ({
                   onKeyDown={handleKeyDown}
                   placeholder={texts.chatPlaceholder}
                   disabled={isProcessing}
-                  className="w-full px-4 py-4 pr-16 border border-slate-200 rounded-xl resize-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition disabled:bg-slate-50 text-lg"
+                  className="w-full px-4 py-3 pr-14 border-2 border-slate-200 rounded-2xl resize-none focus:ring-2 focus:ring-sky-500 focus:border-sky-500 transition disabled:bg-slate-50 text-lg shadow-sm"
                   style={{ fontSize: '1.125rem', lineHeight: '1.6' }}
-                  rows={2}
+                  rows={3}
                 />
 
-                {/* Dictation button inside textarea - Larger for accessibility */}
+                {/* Dictation button - ocean blue theme */}
                 {speechSupported && (
                   <button
                     onClick={handleDictation}
                     disabled={isProcessing}
-                    className={`absolute right-2 bottom-2 p-3 rounded-xl transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center ${isDictating
-                      ? 'bg-red-500 text-white shadow-lg'
-                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-800'
+                    className={`absolute right-2 bottom-2 p-2.5 rounded-xl transition-all min-w-[44px] min-h-[44px] flex items-center justify-center ${isDictating
+                        ? 'bg-red-500 text-white shadow-lg scale-110'
+                        : 'bg-sky-50 text-sky-600 hover:bg-sky-100 hover:text-sky-700 border border-sky-200'
                       }`}
                     title={isDictating ? texts.stopDictation : texts.dictateButton}
                     aria-label={isDictating ? texts.stopDictation : texts.dictateButton}
                   >
-                    {isDictating ? <StopIcon className="w-6 h-6" /> : <MicrophoneIcon className="w-6 h-6" />}
+                    {isDictating ? <StopIcon className="w-5 h-5" /> : <MicrophoneIcon className="w-5 h-5" />}
                   </button>
                 )}
               </div>
 
-              {/* Larger send button for better accessibility */}
+              {/* Send button - Ocean blue to match header */}
               <button
                 onClick={handleSend}
                 disabled={!inputText.trim() || isProcessing}
-                className="p-4 bg-emerald-500 hover:bg-emerald-600 disabled:bg-slate-300 text-white rounded-xl transition-colors min-w-[52px] min-h-[52px] flex items-center justify-center shadow-md"
+                className="p-3.5 text-white rounded-xl transition-all min-w-[52px] min-h-[52px] flex items-center justify-center shadow-md hover:shadow-lg disabled:shadow-none"
+                style={{
+                  background: !inputText.trim() || isProcessing
+                    ? '#cbd5e1'
+                    : 'linear-gradient(135deg, #0369a1 0%, #0284c7 100%)'
+                }}
                 aria-label={language === 'es' ? 'Enviar mensaje' : 'Send message'}
               >
                 <SendIcon className="w-6 h-6" />
