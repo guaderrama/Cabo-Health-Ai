@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef, useCallback, Suspense, lazy } from 'react';
 import { GoogleGenAI, Modality, LiveServerMessage } from '@google/genai';
 import { type AppState, type Language, type TranscriptMessage, type RecoverableSession, type InterviewModule, type InterviewMode } from './types';
-import { UI_TEXTS, SUMMARY_PROMPT, getModuleInstructions, getNextModule, MODULE_CONFIGS } from './constants';
+import { UI_TEXTS, SUMMARY_PROMPT, getModuleInstructions, getNextModule, MODULE_CONFIGS, SYSTEM_INSTRUCTIONS } from './constants';
 import { encode, decode, decodeAudioData, concatenateUint8Arrays } from './utils/audioUtils';
 import { sanitizeHtml } from './utils/sanitizeHtml';
 import { uploadAudioFragmentWav } from './utils/audioStorage';
@@ -580,10 +580,13 @@ const MainApp: React.FC = () => {
       }
 
       const ai = new GoogleGenAI({ apiKey: apiKey as string });
-      const moduleInstructions = getModuleInstructions(currentModule, language);
+
+      // TEXT mode uses COMPLETE instructions (no modules)
+      // This is a single continuous session without transitions
+      const fullInstructions = SYSTEM_INSTRUCTIONS[language];
 
       logger.debug('🔧 Configurando sesion de TEXTO con Chat API:', {
-        mode: 'TEXT (Chat API)',
+        mode: 'TEXT (Chat API) - Sesión continua sin módulos',
         model: 'gemini-2.5-flash',
         api: 'chats.create (NO Live API)'
       });
@@ -593,15 +596,12 @@ const MainApp: React.FC = () => {
       chatSessionRef.current = ai.chats.create({
         model: 'gemini-2.5-flash',
         config: {
-          systemInstruction: moduleInstructions
+          systemInstruction: fullInstructions
         }
       });
 
-      // Enviar mensaje de activación y obtener saludo de Nova
-      const moduleConfig = MODULE_CONFIGS[currentModule];
-      const activationMessage = moduleConfig.hasGreeting
-        ? '[Sesión de TEXTO iniciada - Por favor saluda al paciente]'
-        : '[Continuación de entrevista TEXTO - Continúa directamente sin saludar]';
+      // Enviar mensaje de activación - siempre saluda (sesión única)
+      const activationMessage = '[Sesión de TEXTO iniciada - Por favor saluda al paciente y comienza la entrevista completa]';
 
       setWaitingForNova(true);
 

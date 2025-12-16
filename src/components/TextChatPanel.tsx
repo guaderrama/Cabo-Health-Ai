@@ -62,6 +62,18 @@ const TextChatPanel: React.FC<TextChatPanelProps> = ({
   const isListening = appState === 'LISTENING';
   const isConnecting = appState === 'CONNECTING';
 
+  // Detectar si Nova ha indicado que terminó la entrevista
+  const interviewComplete = transcript.some(msg =>
+    msg.sender === 'Nova' &&
+    (msg.text.toLowerCase().includes('terminado') ||
+      msg.text.toLowerCase().includes('gracias por compartir') ||
+      msg.text.toLowerCase().includes('he recopilado') ||
+      msg.text.toLowerCase().includes('hemos terminado') ||
+      msg.text.toLowerCase().includes('thank you for sharing') ||
+      msg.text.toLowerCase().includes('completed') ||
+      msg.text.toLowerCase().includes('i have gathered'))
+  );
+
   // Auto-scroll al nuevo mensaje
   useEffect(() => {
     if (chatContainerRef.current) {
@@ -216,32 +228,7 @@ const TextChatPanel: React.FC<TextChatPanelProps> = ({
           </div>
         )}
 
-        {/* Module Progress */}
-        {isListening && (
-          <div className="mt-3 bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-200 rounded-lg p-2">
-            <div className="flex items-center justify-between mb-1.5">
-              <span className="text-xs font-semibold text-emerald-700 uppercase tracking-wide">
-                {language === 'es' ? 'Modulo' : 'Module'} {currentModule.replace('MODULE_', '')} {language === 'es' ? 'de' : 'of'} 3
-              </span>
-              <span className="text-xs text-emerald-600">
-                {MODULE_CONFIGS[currentModule][language === 'es' ? 'nameEs' : 'name']}
-              </span>
-            </div>
-            <div className="flex gap-1">
-              {(['MODULE_1', 'MODULE_2', 'MODULE_3'] as InterviewModule[]).map((mod) => (
-                <div
-                  key={mod}
-                  className={`h-1.5 flex-1 rounded-full transition-all duration-300 ${completedModules.includes(mod)
-                    ? 'bg-emerald-500'
-                    : mod === currentModule
-                      ? 'bg-emerald-400'
-                      : 'bg-slate-200'
-                    }`}
-                />
-              ))}
-            </div>
-          </div>
-        )}
+        {/* Module Progress removed - TEXT mode uses single continuous session */}
       </div>
 
       {/* Chat Messages */}
@@ -380,13 +367,15 @@ const TextChatPanel: React.FC<TextChatPanelProps> = ({
               </div>
             )}
 
-            {/* End session button */}
-            <button
-              onClick={handleEndClick}
-              className="w-full py-2 text-sm text-slate-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-            >
-              {texts.endSession}
-            </button>
+            {/* End session button - only visible when Nova completes interview */}
+            {interviewComplete && (
+              <button
+                onClick={handleEndClick}
+                className="w-full py-3 text-sm font-semibold text-white bg-emerald-500 hover:bg-emerald-600 rounded-lg transition-colors shadow-md"
+              >
+                {language === 'es' ? '✓ Finalizar y Enviar al Doctor' : '✓ Finish and Send to Doctor'}
+              </button>
+            )}
           </div>
         )}
       </div>
