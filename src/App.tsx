@@ -628,8 +628,8 @@ const MainApp: React.FC = () => {
                 sessionPromiseRef.current?.then((session) => {
                   try {
                     session.sendClientContent({
-                      turns: [{ role: 'user', parts: [{ text: '' }] }],
-                      turnComplete: false // No interrumpir el flujo
+                      turns: [{ role: 'user', parts: [{ text: ' ' }] }], // Send space to ensure activity is registered
+                      turnComplete: false // Do not trigger a response, just append to current turn buffer
                     });
                     logger.debug('💓 TEXT heartbeat enviado');
                   } catch (e) {
@@ -637,7 +637,7 @@ const MainApp: React.FC = () => {
                   }
                 });
               }
-            }, 8000); // Cada 8 segundos (la desconexion ocurre a ~10s)
+            }, 3000); // 3 seconds interval to prevent aggressive 5-10s timeouts
           },
           onmessage: async (message: LiveServerMessage) => {
             // Manejar Session Resumption Update
@@ -1542,7 +1542,7 @@ const MainApp: React.FC = () => {
             // Solo intentar reconexión si estamos en sesión activa y no hemos excedido intentos
             // NOTA: Intentamos reconectar incluso sin handle (comenzará nueva sesión pero mantiene transcript)
             if (appStateRef.current === 'LISTENING' &&
-                reconnectAttemptsRef.current < maxReconnectAttempts) {
+              reconnectAttemptsRef.current < maxReconnectAttempts) {
 
               // Marcar que estamos reconectando para prevenir race conditions
               isReconnectingRef.current = true;
