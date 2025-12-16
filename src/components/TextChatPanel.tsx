@@ -3,6 +3,7 @@ import { type AppState, type Language, type TranscriptMessage, type InterviewMod
 import { UI_TEXTS, MODULE_CONFIGS } from '../constants';
 import { SendIcon, MicrophoneIcon, StopIcon, SpeakerIcon } from './icons';
 import ConfirmationModal from './ConfirmationModal';
+import TypingMessage from './TypingMessage';
 
 interface TextChatPanelProps {
   language: Language;
@@ -194,11 +195,10 @@ const TextChatPanel: React.FC<TextChatPanelProps> = ({
           {ttsSupported && isListening && (
             <button
               onClick={() => setTtsEnabled(!ttsEnabled)}
-              className={`p-2 rounded-lg transition-colors ${
-                ttsEnabled
-                  ? 'bg-emerald-100 text-emerald-600'
-                  : 'bg-slate-100 text-slate-400 hover:bg-slate-200'
-              }`}
+              className={`p-2 rounded-lg transition-colors ${ttsEnabled
+                ? 'bg-emerald-100 text-emerald-600'
+                : 'bg-slate-100 text-slate-400 hover:bg-slate-200'
+                }`}
               title={texts.listenResponse}
             >
               <SpeakerIcon className="w-5 h-5" />
@@ -231,13 +231,12 @@ const TextChatPanel: React.FC<TextChatPanelProps> = ({
               {(['MODULE_1', 'MODULE_2', 'MODULE_3'] as InterviewModule[]).map((mod) => (
                 <div
                   key={mod}
-                  className={`h-1.5 flex-1 rounded-full transition-all duration-300 ${
-                    completedModules.includes(mod)
-                      ? 'bg-emerald-500'
-                      : mod === currentModule
+                  className={`h-1.5 flex-1 rounded-full transition-all duration-300 ${completedModules.includes(mod)
+                    ? 'bg-emerald-500'
+                    : mod === currentModule
                       ? 'bg-emerald-400'
                       : 'bg-slate-200'
-                  }`}
+                    }`}
                 />
               ))}
             </div>
@@ -265,29 +264,16 @@ const TextChatPanel: React.FC<TextChatPanelProps> = ({
           </div>
         )}
 
-        {transcript.map((msg) => (
-          <div
+        {transcript.map((msg, index) => (
+          <TypingMessage
             key={msg.id}
-            className={`flex ${msg.sender === 'Nova' ? 'justify-start' : 'justify-end'}`}
-          >
-            <div
-              className={`max-w-[80%] rounded-2xl px-4 py-3 ${
-                msg.sender === 'Nova'
-                  ? 'bg-slate-100 text-slate-800 rounded-bl-md'
-                  : 'bg-emerald-500 text-white rounded-br-md'
-              }`}
-            >
-              <p className="text-sm whitespace-pre-wrap">{msg.text}</p>
-              {msg.timestamp && (
-                <p className={`text-xs mt-1 ${msg.sender === 'Nova' ? 'text-slate-400' : 'text-emerald-200'}`}>
-                  {new Date(msg.timestamp).toLocaleTimeString(language === 'es' ? 'es-ES' : 'en-US', {
-                    hour: '2-digit',
-                    minute: '2-digit'
-                  })}
-                </p>
-              )}
-            </div>
-          </div>
+            text={msg.text}
+            sender={msg.sender as 'Nova' | 'You'}
+            timestamp={msg.timestamp}
+            language={language}
+            isLatest={index === transcript.length - 1}
+            speed={50}
+          />
         ))}
 
         {/* Typing indicator */}
@@ -353,33 +339,36 @@ const TextChatPanel: React.FC<TextChatPanelProps> = ({
                   onKeyDown={handleKeyDown}
                   placeholder={texts.chatPlaceholder}
                   disabled={isProcessing}
-                  className="w-full px-4 py-3 pr-12 border border-slate-200 rounded-xl resize-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition disabled:bg-slate-50"
+                  className="w-full px-4 py-4 pr-16 border border-slate-200 rounded-xl resize-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition disabled:bg-slate-50 text-lg"
+                  style={{ fontSize: '1.125rem', lineHeight: '1.6' }}
                   rows={2}
                 />
 
-                {/* Dictation button inside textarea */}
+                {/* Dictation button inside textarea - Larger for accessibility */}
                 {speechSupported && (
                   <button
                     onClick={handleDictation}
                     disabled={isProcessing}
-                    className={`absolute right-2 bottom-2 p-2 rounded-lg transition-colors ${
-                      isDictating
-                        ? 'bg-red-500 text-white'
-                        : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
-                    }`}
+                    className={`absolute right-2 bottom-2 p-3 rounded-xl transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center ${isDictating
+                      ? 'bg-red-500 text-white shadow-lg'
+                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-800'
+                      }`}
                     title={isDictating ? texts.stopDictation : texts.dictateButton}
+                    aria-label={isDictating ? texts.stopDictation : texts.dictateButton}
                   >
-                    {isDictating ? <StopIcon className="w-4 h-4" /> : <MicrophoneIcon className="w-4 h-4" />}
+                    {isDictating ? <StopIcon className="w-6 h-6" /> : <MicrophoneIcon className="w-6 h-6" />}
                   </button>
                 )}
               </div>
 
+              {/* Larger send button for better accessibility */}
               <button
                 onClick={handleSend}
                 disabled={!inputText.trim() || isProcessing}
-                className="p-3 bg-emerald-500 hover:bg-emerald-600 disabled:bg-slate-300 text-white rounded-xl transition-colors"
+                className="p-4 bg-emerald-500 hover:bg-emerald-600 disabled:bg-slate-300 text-white rounded-xl transition-colors min-w-[52px] min-h-[52px] flex items-center justify-center shadow-md"
+                aria-label={language === 'es' ? 'Enviar mensaje' : 'Send message'}
               >
-                <SendIcon className="w-5 h-5" />
+                <SendIcon className="w-6 h-6" />
               </button>
             </div>
 
@@ -416,7 +405,7 @@ const TextChatPanel: React.FC<TextChatPanelProps> = ({
         language={language}
         isDangerous={false}
       />
-    </div>
+    </div >
   );
 };
 

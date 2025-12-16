@@ -12,7 +12,20 @@
     --sidebar-accent: 240 4.8% 95.9%;
     --sidebar-accent-foreground: 240 5.9% 10%;
     --sidebar-border: 220 13% 91%;
-    --sidebar-ring: 217.2 91.2% 59.8%
+    --sidebar-ring: 217.2 91.2% 59.8%;
+    
+    /* Accessibility: Larger fonts for elderly users */
+    --font-size-base: 18px;
+    --font-size-chat: 1.25rem; /* 20px for chat messages */
+    --font-size-description: 1rem; /* 16px for descriptions */
+    --font-size-heading: 1.75rem; /* 28px for headings */
+    --font-size-button: 1.125rem; /* 18px for buttons */
+    --line-height-relaxed: 1.7;
+  }
+
+  /* Apply larger base font to html */
+  html {
+    font-size: var(--font-size-base);
   }
 
   .dark {
