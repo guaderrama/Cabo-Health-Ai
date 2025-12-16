@@ -63,11 +63,16 @@ const ModeSelector: React.FC<ModeSelectorProps> = ({
 
       {/* Mode Selection Buttons */}
       <div className="flex flex-col sm:flex-row gap-4 w-full max-w-lg px-4">
-        {/* Voice Mode Button */}
+        {/* Voice Mode Button - Ocean Deep */}
         <button
           onClick={() => onSelectMode('VOICE')}
           disabled={isNameMissing}
-          className="flex-1 group relative bg-gradient-to-br from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 disabled:from-slate-300 disabled:to-slate-400 text-white rounded-2xl p-6 transition-all duration-300 shadow-lg hover:shadow-xl disabled:cursor-not-allowed active:scale-[0.98]"
+          className="flex-1 group relative text-white rounded-2xl p-6 transition-all duration-300 shadow-lg hover:shadow-xl disabled:cursor-not-allowed active:scale-[0.98] disabled:from-slate-300 disabled:to-slate-400"
+          style={{
+            background: isNameMissing
+              ? 'linear-gradient(to bottom right, #9ca3af, #6b7280)'
+              : 'linear-gradient(to bottom right, #0369a1, #0284c7)'
+          }}
           aria-label={texts.modeVoiceTitle}
         >
           <div className="flex flex-col items-center">
@@ -79,11 +84,16 @@ const ModeSelector: React.FC<ModeSelectorProps> = ({
           </div>
         </button>
 
-        {/* Text Mode Button */}
+        {/* Text Mode Button - Sage Green */}
         <button
           onClick={() => onSelectMode('TEXT')}
           disabled={isNameMissing}
-          className="flex-1 group relative bg-gradient-to-br from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 disabled:from-slate-300 disabled:to-slate-400 text-white rounded-2xl p-6 transition-all duration-300 shadow-lg hover:shadow-xl disabled:cursor-not-allowed active:scale-[0.98]"
+          className="flex-1 group relative text-white rounded-2xl p-6 transition-all duration-300 shadow-lg hover:shadow-xl disabled:cursor-not-allowed active:scale-[0.98]"
+          style={{
+            background: isNameMissing
+              ? 'linear-gradient(to bottom right, #9ca3af, #6b7280)'
+              : 'linear-gradient(to bottom right, #4d7c0f, #65a30d)'
+          }}
           aria-label={texts.modeTextTitle}
         >
           <div className="flex flex-col items-center">
