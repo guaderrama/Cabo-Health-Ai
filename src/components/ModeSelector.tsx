@@ -41,7 +41,7 @@ const ModeSelector: React.FC<ModeSelectorProps> = ({
       {/* Patient Name Input */}
       <div className="w-full max-w-sm mb-8 bg-blue-50 border-2 border-blue-200 rounded-xl p-4">
         <label htmlFor="patient-name-mode" className="block text-sm font-medium text-blue-700 mb-2 text-center">
-          {language === 'es' ? 'Nombre del Paciente' : 'Patient Name'}
+          {language === 'es' ? 'Tu Nombre' : 'Your Name'}
         </label>
         <input
           ref={nameInputRef}
@@ -100,8 +100,8 @@ const ModeSelector: React.FC<ModeSelectorProps> = ({
       {isNameMissing && (
         <p className="text-sm text-amber-600 mt-4 text-center">
           {language === 'es'
-            ? 'Ingresa el nombre del paciente para continuar'
-            : 'Enter patient name to continue'}
+            ? 'Ingresa tu nombre completo para continuar'
+            : 'Enter your full name to continue'}
         </p>
       )}
 
