@@ -628,8 +628,8 @@ const MainApp: React.FC = () => {
                 sessionPromiseRef.current?.then((session) => {
                   try {
                     session.sendClientContent({
-                      turns: [{ role: 'user', parts: [{ text: ' ' }] }], // Send space to ensure activity is registered
-                      turnComplete: false // Do not trigger a response, just append to current turn buffer
+                      turns: [{ role: 'user', parts: [{ text: '[PING]' }] }], // Send explicit PING
+                      turnComplete: true // Force turn completion to register valid activity
                     });
                     logger.debug('💓 TEXT heartbeat enviado');
                   } catch (e) {
