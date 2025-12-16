@@ -1,7 +1,7 @@
 import React, { useRef, useEffect } from 'react';
 import { type Language, type InterviewMode } from '../types';
 import { UI_TEXTS } from '../constants';
-import { MicrophoneIcon, KeyboardIcon, CaboHealthLogo } from './icons';
+import { MicrophoneIcon, KeyboardIcon } from './icons';
 
 interface ModeSelectorProps {
   language: Language;
@@ -36,39 +36,7 @@ const ModeSelector: React.FC<ModeSelectorProps> = ({
 
   return (
     <div className="bg-white rounded-xl shadow-lg p-6 flex flex-col items-center justify-center h-full min-h-[500px] md:min-h-[600px] lg:min-h-0">
-      {/* Logo Area - Cabo Health con anillo animado */}
-      <div className="relative flex items-center justify-center mb-6">
-        {/* Anillo animado exterior */}
-        <div
-          className="absolute w-52 h-52 rounded-full animate-pulse"
-          style={{
-            background: 'linear-gradient(135deg, rgba(43, 93, 58, 0.15) 0%, rgba(74, 144, 226, 0.15) 100%)',
-            boxShadow: '0 0 40px rgba(74, 144, 226, 0.2)'
-          }}
-        />
-        {/* Anillo interior */}
-        <div
-          className="absolute w-44 h-44 rounded-full"
-          style={{
-            background: 'linear-gradient(135deg, rgba(43, 93, 58, 0.1) 0%, rgba(74, 144, 226, 0.1) 100%)',
-            border: '3px solid rgba(74, 144, 226, 0.3)'
-          }}
-        />
-        {/* Logo Cabo Health */}
-        <div
-          className="relative z-10 w-36 h-auto"
-          style={{
-            filter: 'drop-shadow(0 0 10px rgba(43, 93, 58, 0.5))'
-          }}
-        >
-          <CaboHealthLogo
-            className="w-full h-auto"
-            style={{
-              color: '#1e3a5f'
-            }}
-          />
-        </div>
-      </div>
+      {/* Logo removed - already in header, was causing overlap */}
 
       {/* Patient Name Input */}
       <div className="w-full max-w-sm mb-8 bg-blue-50 border-2 border-blue-200 rounded-xl p-4">
@@ -141,9 +109,8 @@ const ModeSelector: React.FC<ModeSelectorProps> = ({
       <div className="mt-8 flex space-x-4" role="radiogroup" aria-label={language === 'es' ? 'Seleccion de idioma' : 'Language selection'}>
         <button
           onClick={() => onLanguageChange('es')}
-          className={`px-6 py-2 rounded-full font-semibold transition-colors ${
-            language === 'es' ? 'bg-blue-600 text-white' : 'bg-slate-200 text-slate-700 hover:bg-slate-300'
-          }`}
+          className={`px-6 py-2 rounded-full font-semibold transition-colors ${language === 'es' ? 'bg-blue-600 text-white' : 'bg-slate-200 text-slate-700 hover:bg-slate-300'
+            }`}
           role="radio"
           aria-checked={language === 'es'}
         >
@@ -151,9 +118,8 @@ const ModeSelector: React.FC<ModeSelectorProps> = ({
         </button>
         <button
           onClick={() => onLanguageChange('en')}
-          className={`px-6 py-2 rounded-full font-semibold transition-colors ${
-            language === 'en' ? 'bg-blue-600 text-white' : 'bg-slate-200 text-slate-700 hover:bg-slate-300'
-          }`}
+          className={`px-6 py-2 rounded-full font-semibold transition-colors ${language === 'en' ? 'bg-blue-600 text-white' : 'bg-slate-200 text-slate-700 hover:bg-slate-300'
+            }`}
           role="radio"
           aria-checked={language === 'en'}
         >
