@@ -165,7 +165,7 @@ const MainApp: React.FC = () => {
   const maxReconnectAttempts = 3;
   const isReconnectingRef = useRef(false); // Prevenir race condition en reconexiones múltiples
   const bufferCleanupIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null); // Limpieza periódica de buffers
-  const textHeartbeatRef = useRef<ReturnType<typeof setInterval> | null>(null); // Heartbeat para mantener conexión TEXT viva
+  const chatSessionRef = useRef<any>(null); // Sesión de chat para modo TEXT (API regular, no Live API)
 
   // Estado para detección de conexión
   const [isOnline, setIsOnline] = useState(navigator.onLine);
@@ -503,8 +503,9 @@ const MainApp: React.FC = () => {
   }, []);
 
   // Handler para enviar mensaje de texto en modo TEXT
+  // Handler para enviar mensajes en modo TEXTO (usando Chat API, no Live API)
   const handleSendTextMessage = useCallback(async (text: string) => {
-    if (!sessionPromiseRef.current || !text.trim()) return;
+    if (!chatSessionRef.current || !text.trim()) return;
 
     // Agregar mensaje del usuario al transcript
     const userMessage: TranscriptMessage = {
@@ -515,44 +516,59 @@ const MainApp: React.FC = () => {
       timestamp: new Date().toISOString(),
     };
     setTranscript(prev => [...prev, userMessage]);
+    setWaitingForNova(true);
 
-    // Enviar a Gemini usando sendClientContent
+    // Enviar a Gemini usando Chat API (HTTP request, no WebSocket)
     try {
-      const session = await sessionPromiseRef.current;
-      session.sendClientContent({
-        turns: [{ role: 'user', parts: [{ text: text.trim() }] }],
-        turnComplete: true
+      const response = await chatSessionRef.current.sendMessage({
+        message: text.trim()
       });
-      logger.debug('📤 Mensaje de texto enviado a Gemini:', text.substring(0, 50) + '...');
+
+      // Extraer texto de la respuesta
+      const responseText = response.text ||
+        response.candidates?.[0]?.content?.parts?.[0]?.text || '';
+
+      if (responseText.trim()) {
+        const novaMessage: TranscriptMessage = {
+          id: generateUniqueId(),
+          sender: 'Nova',
+          text: responseText.trim(),
+          lang: language,
+          timestamp: new Date().toISOString(),
+        };
+        setTranscript(prev => [...prev, novaMessage]);
+        logNovaResponse(0);
+      }
+
+      logger.debug('📤 Mensaje TEXT enviado y respuesta recibida');
     } catch (e) {
       logger.error('Error enviando mensaje de texto:', e);
       setError(language === 'es'
         ? 'Error al enviar mensaje. Intenta de nuevo.'
         : 'Error sending message. Try again.');
+    } finally {
+      setWaitingForNova(false);
     }
   }, [language]);
 
-  // Handler para iniciar sesión en modo TEXTO (sin captura de audio)
+  // Handler para iniciar sesión en modo TEXTO (usando Chat API, no Live API)
+  // Esto es MUCHO más simple y estable que usar Live API para texto
   const handleStartTextSession = useCallback(async () => {
-    const currentHandle = sessionResumptionHandleRef.current;
-
     setAppState('CONNECTING');
     setError(null);
     setWaitingForNova(false);
 
-    // Resetear para nueva sesión si no hay handle
-    if (!currentHandle) {
-      reconnectAttemptsRef.current = 0;
-      setTranscript([]);
-      setSummary('');
-      const newSessionId = `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-      setSessionId(newSessionId);
-      setSessionStartTime(Date.now());
-      resetMetrics();
-      setCurrentModule('MODULE_1');
-      setCompletedModules([]);
-      setModuleTranscripts(createEmptyModuleTranscripts());
-    }
+    // Resetear para nueva sesión
+    reconnectAttemptsRef.current = 0;
+    setTranscript([]);
+    setSummary('');
+    const newSessionId = `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    setSessionId(newSessionId);
+    setSessionStartTime(Date.now());
+    resetMetrics();
+    setCurrentModule('MODULE_1');
+    setCompletedModules([]);
+    setModuleTranscripts(createEmptyModuleTranscripts());
 
     setLastSavedMessageCount(0);
     setLastCheckpointTime(null);
@@ -566,214 +582,53 @@ const MainApp: React.FC = () => {
       const ai = new GoogleGenAI({ apiKey: apiKey as string });
       const moduleInstructions = getModuleInstructions(currentModule, language);
 
-      logger.debug('🔧 Configurando sesion de TEXTO con:', {
-        mode: 'TEXT',
-        model: 'gemini-2.5-flash', // Modelo standard para texto (no native-audio)
-        sessionResumption: currentHandle ? 'reconnecting' : 'new session'
+      logger.debug('🔧 Configurando sesion de TEXTO con Chat API:', {
+        mode: 'TEXT (Chat API)',
+        model: 'gemini-2.5-flash',
+        api: 'chats.create (NO Live API)'
       });
 
-      // Conexion WebSocket para modo texto (usa modelo standard, no native-audio)
-      // El modelo native-audio solo soporta Modality.AUDIO, no TEXT
-      sessionPromiseRef.current = ai.live.connect({
-        model: 'gemini-2.5-flash', // Usar modelo standard para respuestas de texto
+      // Crear sesión de chat usando Chat API (NO Live API)
+      // Esto es HTTP request/response, no WebSocket - mucho más estable
+      chatSessionRef.current = ai.chats.create({
+        model: 'gemini-2.5-flash',
         config: {
-          responseModalities: [Modality.TEXT], // Respuestas en texto (no audio)
-          systemInstruction: moduleInstructions,
-          contextWindowCompression: { slidingWindow: {} },
-          sessionResumption: currentHandle ? { handle: currentHandle } : {}
-          // No se necesita speechConfig ni outputAudioTranscription para modo texto
-        } as any,
-        callbacks: {
-          onopen: () => {
-            setAppState('LISTENING');
-            sessionStartTimeRef.current = Date.now();
-            logger.debug('🔌 Conexion WebSocket TEXT abierta, activando Nova...');
-
-            // Activar Nova con mensaje inicial
-            setTimeout(() => {
-              // Verificar que la sesion sigue activa antes de enviar
-              if (appStateRef.current !== 'LISTENING') {
-                logger.debug('⏭️ Sesion TEXT ya no esta activa, cancelando mensaje de activacion');
-                return;
-              }
-
-              sessionPromiseRef.current?.then((session) => {
-                // Doble verificacion por si el estado cambio durante la promesa
-                if (appStateRef.current !== 'LISTENING') {
-                  logger.debug('⏭️ Sesion TEXT cerrada antes de enviar activacion');
-                  return;
-                }
-
-                try {
-                  const moduleConfig = MODULE_CONFIGS[currentModule];
-                  const activationMessage = moduleConfig.hasGreeting
-                    ? '[Sesion de TEXTO iniciada - Por favor saluda al paciente]'
-                    : '[Continuacion de entrevista TEXTO - Continua directamente sin saludar]';
-
-                  session.sendClientContent({
-                    turns: [{ role: 'user', parts: [{ text: activationMessage }] }],
-                    turnComplete: true
-                  });
-                  logger.debug('✅ Mensaje de activacion TEXT enviado');
-                } catch (e) {
-                  logger.error('Error enviando mensaje de activacion TEXT:', e);
-                }
-              });
-            }, 500);
-
-            // Heartbeat para mantener la conexion TEXT viva
-            // Usamos sendRealtimeInput con audio vacio - esto NO provoca respuesta del modelo
-            // A diferencia de sendClientContent con turnComplete:true que si provoca respuesta
-            textHeartbeatRef.current = setInterval(() => {
-              if (appStateRef.current === 'LISTENING') {
-                sessionPromiseRef.current?.then((session) => {
-                  try {
-                    // Audio vacio como keepalive - el servidor lo acepta sin generar respuesta
-                    session.sendRealtimeInput({
-                      media: {
-                        data: '', // Base64 vacio
-                        mimeType: 'audio/pcm;rate=16000'
-                      }
-                    });
-                    logger.debug('💓 TEXT heartbeat (audio vacio)');
-                  } catch (e) {
-                    logger.debug('Heartbeat failed (normal si desconectando):', e);
-                  }
-                });
-              }
-            }, 5000); // 5 segundos - el audio vacio es mas confiable
-          },
-          onmessage: async (message: LiveServerMessage) => {
-            // Manejar Session Resumption Update
-            if ((message as any).sessionResumptionUpdate) {
-              const update = (message as any).sessionResumptionUpdate;
-              if (update.resumable && update.newHandle) {
-                setSessionResumptionHandle(update.newHandle);
-              }
-            }
-
-            // Manejar advertencia GoAway del servidor (desconexion inminente)
-            if ((message as any).goAway) {
-              const timeLeft = (message as any).goAway.timeLeft;
-              logger.warn(`⚠️ GoAway TEXT recibido - Conexion terminara en: ${timeLeft}`);
-            }
-
-            // Manejar respuesta de texto (modelTurn.parts contiene el texto con Modality.TEXT)
-            if (message.serverContent?.modelTurn?.parts) {
-              for (const part of message.serverContent.modelTurn.parts) {
-                if (part.text) {
-                  currentOutputTranscription.current += part.text;
-                }
-              }
-            }
-
-            // Fallback: Manejar transcripcion de salida (por si el modelo envia outputTranscription)
-            if (message.serverContent?.outputTranscription?.text) {
-              const novaText = message.serverContent.outputTranscription.text;
-              currentOutputTranscription.current += novaText;
-            }
-
-            // Manejar fin de turno - agregar respuesta de Nova al transcript
-            if (message.serverContent?.turnComplete) {
-              const responseText = currentOutputTranscription.current.trim();
-
-              // Filtrar respuestas muy cortas (posibles ACKs de heartbeat o ruido)
-              if (responseText.length < 5) {
-                if (responseText.length > 0) {
-                  logger.debug('⏭️ Respuesta TEXT muy corta ignorada:', responseText);
-                }
-                currentOutputTranscription.current = '';
-                setWaitingForNova(false);
-                return;
-              }
-
-              const novaMessage: TranscriptMessage = {
-                id: generateUniqueId(),
-                sender: 'Nova',
-                text: responseText,
-                lang: language,
-                timestamp: new Date().toISOString(),
-              };
-              setTranscript(prev => [...prev, novaMessage]);
-              logNovaResponse(0); // 0 para modo texto (no medimos tiempo de audio)
-              currentOutputTranscription.current = '';
-              setWaitingForNova(false);
-            }
-
-            // Setup complete
-            if ((message as any).setupComplete) {
-              logger.debug('✅ Sesion TEXT establecida correctamente');
-            }
-          },
-          onerror: (e: ErrorEvent) => {
-            // Limpiar heartbeat en error tambien
-            if (textHeartbeatRef.current) {
-              clearInterval(textHeartbeatRef.current);
-              textHeartbeatRef.current = null;
-            }
-
-            logger.error('Error en sesion TEXT:', e);
-            setError(language === 'es'
-              ? 'Error de conexion. Intenta de nuevo.'
-              : 'Connection error. Try again.');
-            setAppState('ERROR');
-          },
-          onclose: (e: CloseEvent) => {
-            // Limpiar heartbeat inmediatamente
-            if (textHeartbeatRef.current) {
-              clearInterval(textHeartbeatRef.current);
-              textHeartbeatRef.current = null;
-            }
-
-            // Prevenir multiples reconexiones simultaneas (race condition)
-            if (isReconnectingRef.current) {
-              logger.debug('⏳ Reconexion TEXT ya en progreso, ignorando onclose duplicado');
-              return;
-            }
-
-            // Log detallado para debugging
-            logger.debug('Sesion TEXT cerrada:', {
-              code: e.code,        // 1000=normal, 1001=going away, 1006=abnormal
-              reason: e.reason,
-              wasClean: e.wasClean,
-              appState: appStateRef.current,
-              reconnectAttempts: reconnectAttemptsRef.current
-            });
-
-            if (appStateRef.current === 'LISTENING' && reconnectAttemptsRef.current < 3) {
-              // Marcar que estamos reconectando para prevenir race conditions
-              isReconnectingRef.current = true;
-              reconnectAttemptsRef.current++;
-
-              // Cambiar estado INMEDIATAMENTE para cancelar cualquier setTimeout pendiente
-              setAppState('CONNECTING');
-
-              setError(language === 'es'
-                ? `Reconectando (${reconnectAttemptsRef.current}/3)...`
-                : `Reconnecting (${reconnectAttemptsRef.current}/3)...`);
-
-              // Backoff exponencial: 1s → 2s → 4s
-              const backoffMs = 1000 * Math.pow(2, reconnectAttemptsRef.current - 1);
-              logger.debug(`⏳ Reconectando TEXT en ${backoffMs}ms (intento ${reconnectAttemptsRef.current}/3)`);
-
-              setTimeout(() => {
-                if (appStateRef.current !== 'COMPLETED') {
-                  handleStartTextSession().finally(() => {
-                    isReconnectingRef.current = false; // Liberar flag de reconexion
-                  });
-                } else {
-                  isReconnectingRef.current = false;
-                }
-              }, backoffMs);
-            } else if (appStateRef.current === 'LISTENING') {
-              setError(language === 'es'
-                ? 'Conexion perdida. Tu progreso esta guardado.'
-                : 'Connection lost. Your progress is saved.');
-              setAppState('ERROR');
-            }
-          }
+          systemInstruction: moduleInstructions
         }
-      }) as Promise<LiveSession>;
+      });
+
+      // Enviar mensaje de activación y obtener saludo de Nova
+      const moduleConfig = MODULE_CONFIGS[currentModule];
+      const activationMessage = moduleConfig.hasGreeting
+        ? '[Sesión de TEXTO iniciada - Por favor saluda al paciente]'
+        : '[Continuación de entrevista TEXTO - Continúa directamente sin saludar]';
+
+      setWaitingForNova(true);
+
+      const response = await chatSessionRef.current.sendMessage({
+        message: activationMessage
+      });
+
+      // Extraer texto de la respuesta
+      const greetingText = response.text ||
+        response.candidates?.[0]?.content?.parts?.[0]?.text || '';
+
+      if (greetingText.trim()) {
+        const novaMessage: TranscriptMessage = {
+          id: generateUniqueId(),
+          sender: 'Nova',
+          text: greetingText.trim(),
+          lang: language,
+          timestamp: new Date().toISOString(),
+        };
+        setTranscript([novaMessage]);
+        logNovaResponse(0);
+      }
+
+      setAppState('LISTENING');
+      sessionStartTimeRef.current = Date.now();
+      setWaitingForNova(false);
+      logger.debug('✅ Sesión TEXT (Chat API) iniciada correctamente');
 
     } catch (e: any) {
       logger.error('Error iniciando sesion TEXT:', e);
@@ -781,6 +636,7 @@ const MainApp: React.FC = () => {
         ? 'No se pudo conectar. Verifica tu conexion.'
         : 'Could not connect. Check your connection.');
       setAppState('ERROR');
+      setWaitingForNova(false);
     }
   }, [currentModule, language]);
 
