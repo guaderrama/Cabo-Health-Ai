@@ -622,22 +622,26 @@ const MainApp: React.FC = () => {
             }, 500);
 
             // Heartbeat para mantener la conexion TEXT viva
-            // Sin esto, Gemini cierra la conexion por inactividad (~10 segundos)
+            // Usamos sendRealtimeInput con audio vacio - esto NO provoca respuesta del modelo
+            // A diferencia de sendClientContent con turnComplete:true que si provoca respuesta
             textHeartbeatRef.current = setInterval(() => {
               if (appStateRef.current === 'LISTENING') {
                 sessionPromiseRef.current?.then((session) => {
                   try {
-                    session.sendClientContent({
-                      turns: [{ role: 'user', parts: [{ text: '[PING]' }] }], // Send explicit PING
-                      turnComplete: true // Force turn completion to register valid activity
+                    // Audio vacio como keepalive - el servidor lo acepta sin generar respuesta
+                    session.sendRealtimeInput({
+                      media: {
+                        data: '', // Base64 vacio
+                        mimeType: 'audio/pcm;rate=16000'
+                      }
                     });
-                    logger.debug('💓 TEXT heartbeat enviado');
+                    logger.debug('💓 TEXT heartbeat (audio vacio)');
                   } catch (e) {
                     logger.debug('Heartbeat failed (normal si desconectando):', e);
                   }
                 });
               }
-            }, 3000); // 3 seconds interval to prevent aggressive 5-10s timeouts
+            }, 5000); // 5 segundos - el audio vacio es mas confiable
           },
           onmessage: async (message: LiveServerMessage) => {
             // Manejar Session Resumption Update
@@ -671,17 +675,27 @@ const MainApp: React.FC = () => {
 
             // Manejar fin de turno - agregar respuesta de Nova al transcript
             if (message.serverContent?.turnComplete) {
-              if (currentOutputTranscription.current.trim()) {
-                const novaMessage: TranscriptMessage = {
-                  id: generateUniqueId(),
-                  sender: 'Nova',
-                  text: currentOutputTranscription.current.trim(),
-                  lang: language,
-                  timestamp: new Date().toISOString(),
-                };
-                setTranscript(prev => [...prev, novaMessage]);
-                logNovaResponse(0); // 0 para modo texto (no medimos tiempo de audio)
+              const responseText = currentOutputTranscription.current.trim();
+
+              // Filtrar respuestas muy cortas (posibles ACKs de heartbeat o ruido)
+              if (responseText.length < 5) {
+                if (responseText.length > 0) {
+                  logger.debug('⏭️ Respuesta TEXT muy corta ignorada:', responseText);
+                }
+                currentOutputTranscription.current = '';
+                setWaitingForNova(false);
+                return;
               }
+
+              const novaMessage: TranscriptMessage = {
+                id: generateUniqueId(),
+                sender: 'Nova',
+                text: responseText,
+                lang: language,
+                timestamp: new Date().toISOString(),
+              };
+              setTranscript(prev => [...prev, novaMessage]);
+              logNovaResponse(0); // 0 para modo texto (no medimos tiempo de audio)
               currentOutputTranscription.current = '';
               setWaitingForNova(false);
             }
@@ -692,6 +706,12 @@ const MainApp: React.FC = () => {
             }
           },
           onerror: (e: ErrorEvent) => {
+            // Limpiar heartbeat en error tambien
+            if (textHeartbeatRef.current) {
+              clearInterval(textHeartbeatRef.current);
+              textHeartbeatRef.current = null;
+            }
+
             logger.error('Error en sesion TEXT:', e);
             setError(language === 'es'
               ? 'Error de conexion. Intenta de nuevo.'
@@ -732,6 +752,10 @@ const MainApp: React.FC = () => {
                 ? `Reconectando (${reconnectAttemptsRef.current}/3)...`
                 : `Reconnecting (${reconnectAttemptsRef.current}/3)...`);
 
+              // Backoff exponencial: 1s → 2s → 4s
+              const backoffMs = 1000 * Math.pow(2, reconnectAttemptsRef.current - 1);
+              logger.debug(`⏳ Reconectando TEXT en ${backoffMs}ms (intento ${reconnectAttemptsRef.current}/3)`);
+
               setTimeout(() => {
                 if (appStateRef.current !== 'COMPLETED') {
                   handleStartTextSession().finally(() => {
@@ -740,7 +764,7 @@ const MainApp: React.FC = () => {
                 } else {
                   isReconnectingRef.current = false;
                 }
-              }, 1000);
+              }, backoffMs);
             } else if (appStateRef.current === 'LISTENING') {
               setError(language === 'es'
                 ? 'Conexion perdida. Tu progreso esta guardado.'
