@@ -1,7 +1,7 @@
 import React, { useRef, useEffect } from 'react';
 import { type Language, type InterviewMode } from '../types';
 import { UI_TEXTS } from '../constants';
-import { MicrophoneIcon, KeyboardIcon } from './icons';
+import { MicrophoneIcon, KeyboardIcon, CaboHealthLogo } from './icons';
 
 interface ModeSelectorProps {
   language: Language;
@@ -36,15 +36,38 @@ const ModeSelector: React.FC<ModeSelectorProps> = ({
 
   return (
     <div className="bg-white rounded-xl shadow-lg p-6 flex flex-col items-center justify-center h-full min-h-[500px] md:min-h-[600px] lg:min-h-0">
-      {/* Logo/Title Area */}
-      <div className="text-center mb-6">
-        <div className="w-20 h-20 mx-auto mb-4 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full flex items-center justify-center shadow-lg">
-          <span className="text-3xl font-bold text-white">N</span>
+      {/* Logo Area - Cabo Health con anillo animado */}
+      <div className="relative flex items-center justify-center mb-6">
+        {/* Anillo animado exterior */}
+        <div
+          className="absolute w-52 h-52 rounded-full animate-pulse"
+          style={{
+            background: 'linear-gradient(135deg, rgba(43, 93, 58, 0.15) 0%, rgba(74, 144, 226, 0.15) 100%)',
+            boxShadow: '0 0 40px rgba(74, 144, 226, 0.2)'
+          }}
+        />
+        {/* Anillo interior */}
+        <div
+          className="absolute w-44 h-44 rounded-full"
+          style={{
+            background: 'linear-gradient(135deg, rgba(43, 93, 58, 0.1) 0%, rgba(74, 144, 226, 0.1) 100%)',
+            border: '3px solid rgba(74, 144, 226, 0.3)'
+          }}
+        />
+        {/* Logo Cabo Health */}
+        <div
+          className="relative z-10 w-36 h-auto"
+          style={{
+            filter: 'drop-shadow(0 0 10px rgba(43, 93, 58, 0.5))'
+          }}
+        >
+          <CaboHealthLogo
+            className="w-full h-auto"
+            style={{
+              color: '#1e3a5f'
+            }}
+          />
         </div>
-        <h1 className="text-2xl font-bold text-slate-800">Nova</h1>
-        <p className="text-sm text-slate-500 mt-1">
-          {language === 'es' ? 'Tu asistente de salud' : 'Your health assistant'}
-        </p>
       </div>
 
       {/* Patient Name Input */}
