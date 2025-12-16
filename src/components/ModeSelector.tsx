@@ -119,7 +119,7 @@ const ModeSelector: React.FC<ModeSelectorProps> = ({
       <div className="mt-8 flex space-x-4" role="radiogroup" aria-label={language === 'es' ? 'Seleccion de idioma' : 'Language selection'}>
         <button
           onClick={() => onLanguageChange('es')}
-          className={`px-6 py-2 rounded-full font-semibold transition-colors ${language === 'es' ? 'bg-blue-600 text-white' : 'bg-slate-200 text-slate-700 hover:bg-slate-300'
+          className={`px-6 py-3 rounded-full font-semibold transition-colors ${language === 'es' ? 'bg-blue-600 text-white' : 'bg-slate-200 text-slate-700 hover:bg-slate-300'
             }`}
           role="radio"
           aria-checked={language === 'es'}
@@ -128,7 +128,7 @@ const ModeSelector: React.FC<ModeSelectorProps> = ({
         </button>
         <button
           onClick={() => onLanguageChange('en')}
-          className={`px-6 py-2 rounded-full font-semibold transition-colors ${language === 'en' ? 'bg-blue-600 text-white' : 'bg-slate-200 text-slate-700 hover:bg-slate-300'
+          className={`px-6 py-3 rounded-full font-semibold transition-colors ${language === 'en' ? 'bg-blue-600 text-white' : 'bg-slate-200 text-slate-700 hover:bg-slate-300'
             }`}
           role="radio"
           aria-checked={language === 'en'}

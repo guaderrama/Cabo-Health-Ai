@@ -1756,8 +1756,6 @@ const MainApp: React.FC = () => {
                       onStartSession={handleStartTextSession}
                       onBackToModeSelect={() => setInterviewMode(null)}
                       appState={appState}
-                      currentModule={currentModule}
-                      completedModules={completedModules}
                       isProcessing={waitingForNova}
                       error={error}
                       patientName={patientName}

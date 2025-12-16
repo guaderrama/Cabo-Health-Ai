@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { type AppState, type Language, type TranscriptMessage, type InterviewModule } from '../types';
-import { UI_TEXTS, MODULE_CONFIGS } from '../constants';
+import { type AppState, type Language, type TranscriptMessage } from '../types';
+import { UI_TEXTS } from '../constants';
 import { SendIcon, MicrophoneIcon, StopIcon, SpeakerIcon } from './icons';
 import ConfirmationModal from './ConfirmationModal';
 import TypingMessage from './TypingMessage';
@@ -13,8 +13,6 @@ interface TextChatPanelProps {
   onStartSession: () => void;
   onBackToModeSelect: () => void;
   appState: AppState;
-  currentModule: InterviewModule;
-  completedModules: InterviewModule[];
   isProcessing: boolean;
   error: string | null;
   patientName: string;
@@ -39,8 +37,6 @@ const TextChatPanel: React.FC<TextChatPanelProps> = ({
   onStartSession,
   onBackToModeSelect,
   appState,
-  currentModule,
-  completedModules,
   isProcessing,
   error,
   patientName,
@@ -54,6 +50,8 @@ const TextChatPanel: React.FC<TextChatPanelProps> = ({
   const chatContainerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const recognitionRef = useRef<any>(null);
+  const sessionStartRef = useRef<number | null>(null);
+  const [sessionDuration, setSessionDuration] = useState(0);
 
   const speechSupported = getSpeechRecognitionSupport();
   const ttsSupported = typeof window !== 'undefined' && 'speechSynthesis' in window;
@@ -62,17 +60,58 @@ const TextChatPanel: React.FC<TextChatPanelProps> = ({
   const isListening = appState === 'LISTENING';
   const isConnecting = appState === 'CONNECTING';
 
+  // Duración mínima requerida: 20 minutos (en ms)
+  const MIN_SESSION_DURATION = 20 * 60 * 1000;
+
+  // Iniciar tracking de duración cuando empieza la sesión
+  useEffect(() => {
+    if (isListening && !sessionStartRef.current) {
+      sessionStartRef.current = Date.now();
+    }
+    if (isIdle) {
+      sessionStartRef.current = null;
+      setSessionDuration(0);
+    }
+  }, [isListening, isIdle]);
+
+  // Actualizar duración cada 30 segundos
+  useEffect(() => {
+    if (!isListening) return;
+    const interval = setInterval(() => {
+      if (sessionStartRef.current) {
+        setSessionDuration(Date.now() - sessionStartRef.current);
+      }
+    }, 30000);
+    return () => clearInterval(interval);
+  }, [isListening]);
+
   // Detectar si Nova ha indicado que terminó la entrevista
-  const interviewComplete = transcript.some(msg =>
-    msg.sender === 'Nova' &&
-    (msg.text.toLowerCase().includes('terminado') ||
-      msg.text.toLowerCase().includes('gracias por compartir') ||
-      msg.text.toLowerCase().includes('he recopilado') ||
-      msg.text.toLowerCase().includes('hemos terminado') ||
-      msg.text.toLowerCase().includes('thank you for sharing') ||
-      msg.text.toLowerCase().includes('completed') ||
-      msg.text.toLowerCase().includes('i have gathered'))
-  );
+  // Usamos frases específicas de cierre para evitar falsos positivos
+  const interviewCompletePatterns = {
+    es: [
+      'hemos terminado la entrevista',
+      'hemos completado la entrevista',
+      'gracias por compartir todo esto conmigo',
+      'he recopilado toda la información',
+      'ya tengo toda la información que necesito',
+      'la entrevista ha concluido',
+    ],
+    en: [
+      'we have completed the interview',
+      'the interview is now complete',
+      'thank you for sharing all of this with me',
+      'i have gathered all the information',
+      'i now have all the information i need',
+      'the interview has concluded',
+    ],
+  };
+
+  const interviewComplete = transcript.some(msg => {
+    if (msg.sender !== 'Nova') return false;
+    const text = msg.text.toLowerCase();
+    const patterns = [...interviewCompletePatterns.es, ...interviewCompletePatterns.en];
+    return patterns.some(pattern => text.includes(pattern));
+  });
 
   // Auto-scroll al nuevo mensaje
   useEffect(() => {
@@ -208,7 +247,7 @@ const TextChatPanel: React.FC<TextChatPanelProps> = ({
             <button
               onClick={() => setTtsEnabled(!ttsEnabled)}
               className={`p-2 rounded-lg transition-colors ${ttsEnabled
-                ? 'bg-emerald-100 text-emerald-600'
+                ? 'bg-sky-100 text-sky-600'
                 : 'bg-slate-100 text-slate-400 hover:bg-slate-200'
                 }`}
               title={texts.listenResponse}
@@ -238,8 +277,8 @@ const TextChatPanel: React.FC<TextChatPanelProps> = ({
       >
         {transcript.length === 0 && isIdle && (
           <div className="text-center py-8">
-            <div className="w-16 h-16 mx-auto mb-4 bg-emerald-100 rounded-full flex items-center justify-center">
-              <svg className="w-8 h-8 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <div className="w-16 h-16 mx-auto mb-4 bg-sky-100 rounded-full flex items-center justify-center">
+              <svg className="w-8 h-8 text-sky-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
               </svg>
             </div>
@@ -299,7 +338,8 @@ const TextChatPanel: React.FC<TextChatPanelProps> = ({
             <button
               onClick={onStartSession}
               disabled={!patientName.trim()}
-              className="w-full py-3 bg-emerald-500 hover:bg-emerald-600 disabled:bg-slate-300 text-white font-semibold rounded-xl transition-colors"
+              className="w-full py-3 text-white font-semibold rounded-xl transition-colors disabled:bg-slate-300"
+              style={{ background: patientName.trim() ? 'linear-gradient(135deg, #0369a1 0%, #0284c7 100%)' : undefined }}
             >
               {language === 'es' ? 'Iniciar Chat' : 'Start Chat'}
             </button>
@@ -312,7 +352,7 @@ const TextChatPanel: React.FC<TextChatPanelProps> = ({
           </div>
         ) : isConnecting ? (
           <div className="flex items-center justify-center py-4">
-            <div className="w-6 h-6 border-2 border-emerald-300 border-t-emerald-600 rounded-full animate-spin mr-2" />
+            <div className="w-6 h-6 border-2 border-sky-300 border-t-sky-600 rounded-full animate-spin mr-2" />
             <span className="text-slate-600">{texts.connecting}</span>
           </div>
         ) : (
@@ -373,14 +413,24 @@ const TextChatPanel: React.FC<TextChatPanelProps> = ({
               </div>
             )}
 
-            {/* End session button - only visible when Nova completes interview */}
-            {interviewComplete && (
+            {/* End session button - only visible when Nova completes interview AND minimum duration met */}
+            {interviewComplete && sessionDuration >= MIN_SESSION_DURATION && (
               <button
                 onClick={handleEndClick}
-                className="w-full py-3 text-sm font-semibold text-white bg-emerald-500 hover:bg-emerald-600 rounded-lg transition-colors shadow-md"
+                className="w-full py-3 text-sm font-semibold text-white rounded-lg transition-colors shadow-md"
+                style={{ background: 'linear-gradient(135deg, #4d7c0f 0%, #65a30d 100%)' }}
               >
                 {language === 'es' ? '✓ Finalizar y Enviar al Doctor' : '✓ Finish and Send to Doctor'}
               </button>
+            )}
+
+            {/* Message when interview complete but duration not met */}
+            {interviewComplete && sessionDuration < MIN_SESSION_DURATION && (
+              <p className="text-xs text-amber-600 text-center">
+                {language === 'es'
+                  ? 'La sesión requiere al menos 20 minutos para garantizar una evaluación completa.'
+                  : 'The session requires at least 20 minutes to ensure a complete evaluation.'}
+              </p>
             )}
           </div>
         )}

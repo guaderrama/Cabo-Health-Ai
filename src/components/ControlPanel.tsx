@@ -320,7 +320,7 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
       {isIdle && (
         <div className="w-full max-w-sm my-6 bg-blue-50 border-2 border-blue-200 rounded-xl p-4">
            <label htmlFor="patient-name" className="block text-sm font-medium text-blue-700 mb-2 text-center">
-             {language === 'es' ? '👤 Nombre del Paciente' : '👤 Patient Name'}
+             {language === 'es' ? '👤 Tu Nombre' : '👤 Your Name'}
            </label>
            <input
              ref={nameInputRef}
