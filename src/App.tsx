@@ -758,6 +758,9 @@ const MainApp: React.FC = () => {
     }
     cleanupAudio();
 
+    // Limpiar sesión de Chat API (TEXT mode)
+    chatSessionRef.current = null;
+
     // Agregar transcripciones pendientes al transcript actual
     const currentModuleTranscript = [...transcript];
     if (currentInputTranscription.current.trim()) {
