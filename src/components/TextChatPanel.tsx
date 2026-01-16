@@ -1,9 +1,10 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { type AppState, type Language, type TranscriptMessage } from '../types';
+import { type AppState, type Language, type TranscriptMessage, type TopicTracking, TOPIC_NAMES } from '../types';
 import { UI_TEXTS } from '../constants';
 import { SendIcon, MicrophoneIcon, StopIcon, SpeakerIcon } from './icons';
 import ConfirmationModal from './ConfirmationModal';
 import TypingMessage from './TypingMessage';
+import { MIN_TOPICS_REQUIRED, ESSENTIAL_TOPICS } from '../hooks/useTopicTracking';
 
 interface TextChatPanelProps {
   language: Language;
@@ -17,6 +18,9 @@ interface TextChatPanelProps {
   error: string | null;
   patientName: string;
   onRetry?: () => void;
+  // Topic tracking props
+  topicTracking?: TopicTracking;
+  topicsComplete?: boolean;
 }
 
 // Detectar soporte de Web Speech API
@@ -41,6 +45,8 @@ const TextChatPanel: React.FC<TextChatPanelProps> = ({
   error,
   patientName,
   onRetry,
+  topicTracking,
+  topicsComplete,
 }) => {
   const texts = UI_TEXTS[language];
   const [inputText, setInputText] = useState('');
@@ -255,6 +261,35 @@ const TextChatPanel: React.FC<TextChatPanelProps> = ({
               <SpeakerIcon className="w-5 h-5" />
             </button>
           )}
+
+          {/* Topic Progress Indicator */}
+          {isListening && topicTracking && (
+            <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1">
+                {Array.from({ length: MIN_TOPICS_REQUIRED }, (_, i) => {
+                  const topicNum = i + 1;
+                  const isCovered = topicTracking.coveredTopics.has(topicNum);
+                  const isEssential = ESSENTIAL_TOPICS.includes(topicNum);
+                  return (
+                    <div
+                      key={topicNum}
+                      className={`w-2 h-2 rounded-full transition-colors ${
+                        isCovered
+                          ? 'bg-emerald-500'
+                          : isEssential
+                            ? 'bg-amber-300'
+                            : 'bg-slate-200'
+                      }`}
+                      title={TOPIC_NAMES[language][topicNum] || `Tema ${topicNum}`}
+                    />
+                  );
+                })}
+              </div>
+              <span className="text-xs text-slate-500 font-medium">
+                {topicTracking.coveredTopics.size}/{MIN_TOPICS_REQUIRED}
+              </span>
+            </div>
+          )}
         </div>
 
         {/* Patient info */}
@@ -413,8 +448,8 @@ const TextChatPanel: React.FC<TextChatPanelProps> = ({
               </div>
             )}
 
-            {/* End session button - only visible when Nova completes interview AND minimum duration met */}
-            {interviewComplete && sessionDuration >= MIN_SESSION_DURATION && (
+            {/* End session button - visible when topics complete OR Nova signals completion, AND minimum duration met */}
+            {(topicsComplete || interviewComplete) && sessionDuration >= MIN_SESSION_DURATION && (
               <button
                 onClick={handleEndClick}
                 className="w-full py-3 text-sm font-semibold text-white rounded-lg transition-colors shadow-md"
@@ -424,12 +459,21 @@ const TextChatPanel: React.FC<TextChatPanelProps> = ({
               </button>
             )}
 
-            {/* Message when interview complete but duration not met */}
-            {interviewComplete && sessionDuration < MIN_SESSION_DURATION && (
+            {/* Message when topics/interview complete but duration not met */}
+            {(topicsComplete || interviewComplete) && sessionDuration < MIN_SESSION_DURATION && (
               <p className="text-xs text-amber-600 text-center">
                 {language === 'es'
                   ? 'La sesión requiere al menos 20 minutos para garantizar una evaluación completa.'
                   : 'The session requires at least 20 minutes to ensure a complete evaluation.'}
+              </p>
+            )}
+
+            {/* Progress message when not enough topics covered */}
+            {!topicsComplete && !interviewComplete && topicTracking && topicTracking.coveredTopics.size > 0 && (
+              <p className="text-xs text-slate-500 text-center">
+                {language === 'es'
+                  ? `Progreso: ${topicTracking.coveredTopics.size}/${MIN_TOPICS_REQUIRED} temas cubiertos`
+                  : `Progress: ${topicTracking.coveredTopics.size}/${MIN_TOPICS_REQUIRED} topics covered`}
               </p>
             )}
           </div>

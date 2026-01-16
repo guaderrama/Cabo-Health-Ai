@@ -62,3 +62,65 @@ export interface RecoverableSession {
   formattedTime: string;
   isRecent: boolean; // Menos de 24 horas
 }
+
+// Topic tracking types for TEXT mode
+export type TopicNumber = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17 | 18 | 19 | 20;
+
+export interface TopicMarker {
+  c: number[];      // Temas cubiertos (covered)
+  p: number | null; // Tema que se va a preguntar (pending)
+}
+
+export interface TopicTracking {
+  coveredTopics: Set<number>;
+  currentTopic: number | null;
+  lastUpdated: string;
+}
+
+// Topic names for display
+export const TOPIC_NAMES: Record<Language, Record<number, string>> = {
+  es: {
+    1: 'Motivo de consulta',
+    2: 'Línea de tiempo',
+    3: 'Síntomas digestivos',
+    4: 'Sueño',
+    5: 'Energía',
+    6: 'Estrés',
+    7: 'Medicamentos',
+    8: 'Antecedentes',
+    9: 'Hábitos intestinales',
+    10: 'Sensibilidades',
+    11: 'Alimentación',
+    12: 'Actividad física',
+    13: 'Exposición ambiental',
+    14: 'Consumo',
+    15: 'Señales hormonales',
+    16: 'Inmunidad',
+    17: 'Ultraprocesados',
+    18: 'Fibra/fermentados',
+    19: 'Bienestar emocional',
+    20: 'Info adicional',
+  },
+  en: {
+    1: 'Main concern',
+    2: 'Timeline',
+    3: 'Digestive symptoms',
+    4: 'Sleep',
+    5: 'Energy',
+    6: 'Stress',
+    7: 'Medications',
+    8: 'Medical history',
+    9: 'Bowel habits',
+    10: 'Sensitivities',
+    11: 'Diet',
+    12: 'Physical activity',
+    13: 'Environmental',
+    14: 'Consumption',
+    15: 'Hormonal signs',
+    16: 'Immunity',
+    17: 'Ultra-processed',
+    18: 'Fiber/fermented',
+    19: 'Emotional wellbeing',
+    20: 'Additional info',
+  },
+};

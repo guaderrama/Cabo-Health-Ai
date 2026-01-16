@@ -19,6 +19,7 @@ import ProgressIndicator from './components/ProgressIndicator';
 import ErrorBoundary from './components/ErrorBoundary';
 import { playWelcomeSound } from './services/audioService';
 import { logger } from './lib/logger';
+import { useTopicTracking } from './hooks/useTopicTracking';
 import { resetMetrics, logNovaResponse, logTimeout, logError, logReconnect } from './lib/sessionTelemetry';
 
 // Lazy loading de componentes no críticos para mejorar performance inicial
@@ -166,6 +167,15 @@ const MainApp: React.FC = () => {
   const isReconnectingRef = useRef(false); // Prevenir race condition en reconexiones múltiples
   const bufferCleanupIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null); // Limpieza periódica de buffers
   const chatSessionRef = useRef<any>(null); // Sesión de chat para modo TEXT (API regular, no Live API)
+
+  // Hook para tracking de temas en modo TEXT
+  const {
+    tracking: topicTracking,
+    processNovaMessage: processTopicMarker,
+    resetTracking: resetTopicTracking,
+    loadTracking: loadTopicTracking,
+    isComplete: topicsComplete,
+  } = useTopicTracking();
 
   // Estado para detección de conexión
   const [isOnline, setIsOnline] = useState(navigator.onLine);
@@ -529,10 +539,13 @@ const MainApp: React.FC = () => {
         response.candidates?.[0]?.content?.parts?.[0]?.text || '';
 
       if (responseText.trim()) {
+        // Procesar marcadores de temas y obtener texto limpio
+        const cleanedText = processTopicMarker(responseText.trim());
+
         const novaMessage: TranscriptMessage = {
           id: generateUniqueId(),
           sender: 'Nova',
-          text: responseText.trim(),
+          text: cleanedText, // Texto sin marcador [[TEMAS:...]]
           lang: language,
           timestamp: new Date().toISOString(),
         };
@@ -569,6 +582,7 @@ const MainApp: React.FC = () => {
     setCurrentModule('MODULE_1');
     setCompletedModules([]);
     setModuleTranscripts(createEmptyModuleTranscripts());
+    resetTopicTracking(); // Resetear tracking de temas para nueva sesión
 
     setLastSavedMessageCount(0);
     setLastCheckpointTime(null);
@@ -614,10 +628,13 @@ const MainApp: React.FC = () => {
         response.candidates?.[0]?.content?.parts?.[0]?.text || '';
 
       if (greetingText.trim()) {
+        // Procesar marcadores de temas del saludo inicial
+        const cleanedGreeting = processTopicMarker(greetingText.trim());
+
         const novaMessage: TranscriptMessage = {
           id: generateUniqueId(),
           sender: 'Nova',
-          text: greetingText.trim(),
+          text: cleanedGreeting, // Texto sin marcador [[TEMAS:...]]
           lang: language,
           timestamp: new Date().toISOString(),
         };
@@ -1763,6 +1780,8 @@ const MainApp: React.FC = () => {
                       error={error}
                       patientName={patientName}
                       onRetry={handleRetryConnection}
+                      topicTracking={topicTracking}
+                      topicsComplete={topicsComplete}
                     />
                   </ErrorBoundary>
                 </div>
