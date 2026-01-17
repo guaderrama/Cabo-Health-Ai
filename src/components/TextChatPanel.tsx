@@ -80,14 +80,14 @@ const TextChatPanel: React.FC<TextChatPanelProps> = ({
     }
   }, [isListening, isIdle]);
 
-  // Actualizar duración cada 30 segundos
+  // Actualizar duración cada 5 segundos (más responsivo para el botón Finalizar)
   useEffect(() => {
     if (!isListening) return;
     const interval = setInterval(() => {
       if (sessionStartRef.current) {
         setSessionDuration(Date.now() - sessionStartRef.current);
       }
-    }, 30000);
+    }, 5000);
     return () => clearInterval(interval);
   }, [isListening]);
 
