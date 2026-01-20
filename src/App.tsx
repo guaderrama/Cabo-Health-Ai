@@ -132,6 +132,7 @@ const MainApp: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [avgFrequency, setAvgFrequency] = useState(0);
   const [apiKeyError, setApiKeyError] = useState<string | null>(null);
+  const [summaryGenerationFailed, setSummaryGenerationFailed] = useState(false); // Para mostrar botón "Regenerar Resumen"
   const [sessionId, setSessionId] = useState<string>('');
   const [sessionStartTime, setSessionStartTime] = useState<number>(0);
 
@@ -331,8 +332,13 @@ const MainApp: React.FC = () => {
     saveCheckpoint();
   }, [transcript.length, appState, user?.id, sessionId, patientName, language, sessionStartTime, lastSavedMessageCount]);
 
-  // Detector de silencio prolongado
+  // Detector de silencio prolongado - SOLO para modo VOZ, no TEXTO
   useEffect(() => {
+    // No ejecutar en modo TEXTO - el micrófono no se usa
+    if (interviewMode === 'TEXT') {
+      return;
+    }
+
     if (appState !== 'LISTENING') {
       setSilenceWarningShown(false);
       return;
@@ -372,7 +378,7 @@ const MainApp: React.FC = () => {
     }, 5000); // Verificar cada 5 segundos
 
     return () => clearInterval(interval);
-  }, [appState, avgFrequency, language, silenceWarningShown, transcript]);
+  }, [appState, avgFrequency, language, silenceWarningShown, transcript, interviewMode]);
 
   // Detector de silencio de NOVA (cuando Nova no responde después de que el usuario habla)
   useEffect(() => {
@@ -819,48 +825,150 @@ const MainApp: React.FC = () => {
     const fullTranscriptText = finalTranscript.map(t => `${t.sender === 'Nova' ? 'Nova' : (language === 'es' ? 'Tú' : 'You')}: ${t.text}`).join('\n');
 
     if (fullTranscriptText.trim().length < 50) {
-      setSummary(UI_TEXTS[language]?.summaryError ?? 'Summary error');
-      setAppState('COMPLETED');
+      // Transcripción muy corta - establecer ERROR, no COMPLETED
+      // Esto previene que el usuario intente enviar un resumen vacío/de error al doctor
+      setError(language === 'es'
+        ? 'La conversación fue demasiado breve para generar un resumen clínico.'
+        : 'The conversation was too brief to generate a clinical summary.');
+      setSummary('');
+      setAppState('ERROR');
       endSessionLockRef.current = false; // Liberar lock antes de return temprano
       return;
     }
 
+    // ============================================================
+    // GENERACIÓN DE RESUMEN CON TIMEOUT, REINTENTOS Y BACKUP
+    // ============================================================
+
+    // Paso 5: Guardar backup en localStorage ANTES de intentar generar
+    // Esto permite recuperar el transcript si algo falla catastróficamente
+    const backupKey = 'cabo_health_pending_transcript';
     try {
-      // Vite solo expone variables con prefijo VITE_
-      const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
-      if (!apiKey || apiKey.trim() === '') {
-        throw new Error('VITE_GEMINI_API_KEY no está configurada en las variables de entorno');
-      }
-      const ai = new GoogleGenAI({ apiKey: apiKey as string });
-      const response = await ai.models.generateContent({
-        model: 'gemini-2.5-pro',
-        contents: SUMMARY_PROMPT[language](fullTranscriptText),
-      });
-      const sanitizedSummary = sanitizeHtml(response.text ?? '');
-      setSummary(sanitizedSummary);
-      setAppState('COMPLETED');
-
-      // Limpiar checkpoint y datos de módulos al completar sesión exitosamente
-      if (user?.id && sessionId) {
-        await clearCheckpoint(sessionId, user.id);
-        clearModuleData(sessionId);
-      }
-    } catch (err) {
-      logger.error('Summary generation failed:', err);
-      const errorMessage = err instanceof Error ? err.message : String(err);
-
-      // Mensaje más específico si es error de API key
-      if (errorMessage.includes('VITE_GEMINI_API_KEY') || errorMessage.includes('API') || errorMessage.includes('401') || errorMessage.includes('403')) {
-        setError(`Error de configuración: ${errorMessage}. Por favor, verifica tu archivo .env`);
-        setApiKeyError(UI_TEXTS[language]?.errorApiKey ?? 'API key error');
-      } else {
-        setError(UI_TEXTS[language]?.errorSummary ?? 'Summary error');
-      }
-      setAppState('ERROR');
-    } finally {
-      // Liberar el lock al finalizar (éxito o error)
-      endSessionLockRef.current = false;
+      localStorage.setItem(backupKey, JSON.stringify({
+        transcript: finalTranscript,
+        sessionId,
+        patientName,
+        language,
+        timestamp: Date.now()
+      }));
+      logger.debug('💾 Transcript respaldado en localStorage antes de generar resumen');
+    } catch (backupErr) {
+      logger.warn('No se pudo respaldar transcript en localStorage:', backupErr);
     }
+
+    // Configuración de reintentos
+    const MAX_SUMMARY_RETRIES = 3;
+    const RETRY_DELAYS = [2000, 5000, 10000]; // 2s, 5s, 10s
+    const SUMMARY_TIMEOUT = 90000; // 90 segundos
+
+    let lastError: Error | null = null;
+    let summaryGenerated = false;
+
+    for (let attempt = 0; attempt < MAX_SUMMARY_RETRIES; attempt++) {
+      try {
+        if (attempt > 0) {
+          logger.debug(`🔄 Reintento ${attempt + 1}/${MAX_SUMMARY_RETRIES} de generación de resumen...`);
+        }
+
+        // Verificar API key
+        const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+        if (!apiKey || apiKey.trim() === '') {
+          throw new Error('VITE_GEMINI_API_KEY no está configurada en las variables de entorno');
+        }
+
+        const ai = new GoogleGenAI({ apiKey: apiKey as string });
+
+        // Paso 1: Agregar timeout de 90 segundos a la llamada
+        const response = await withTimeout(
+          ai.models.generateContent({
+            model: 'gemini-2.5-pro',
+            contents: SUMMARY_PROMPT[language](fullTranscriptText),
+          }),
+          SUMMARY_TIMEOUT
+        );
+
+        const sanitizedSummary = sanitizeHtml(response.text ?? '');
+
+        if (!sanitizedSummary || sanitizedSummary.trim().length < 50) {
+          throw new Error('El resumen generado está vacío o es muy corto');
+        }
+
+        setSummary(sanitizedSummary);
+        setAppState('COMPLETED');
+        setSummaryGenerationFailed(false); // Éxito - limpiar flag
+        summaryGenerated = true;
+
+        // Limpiar backup de localStorage ya que fue exitoso
+        try {
+          localStorage.removeItem(backupKey);
+          logger.debug('🗑️ Backup de localStorage eliminado (generación exitosa)');
+        } catch (e) {
+          // Ignorar error al limpiar
+        }
+
+        // Limpiar checkpoint y datos de módulos al completar sesión exitosamente
+        if (user?.id && sessionId) {
+          await clearCheckpoint(sessionId, user.id);
+          clearModuleData(sessionId);
+        }
+
+        logger.debug(`✅ Resumen generado exitosamente${attempt > 0 ? ` (intento ${attempt + 1})` : ''}`);
+        break; // Éxito - salir del loop
+
+      } catch (err) {
+        lastError = err instanceof Error ? err : new Error(String(err));
+        logger.error(`❌ Error en intento ${attempt + 1}/${MAX_SUMMARY_RETRIES}:`, lastError.message);
+
+        // Si no es el último intento, esperar y reintentar
+        if (attempt < MAX_SUMMARY_RETRIES - 1) {
+          const delay = RETRY_DELAYS[attempt] ?? 5000; // fallback a 5s
+          logger.debug(`⏳ Esperando ${delay / 1000}s antes de reintentar...`);
+          await new Promise(resolve => setTimeout(resolve, delay));
+          continue;
+        }
+        // Si es el último intento, el error se manejará abajo
+      }
+    }
+
+    // Si después de todos los reintentos no se generó el resumen
+    if (!summaryGenerated && lastError) {
+      logger.error('Summary generation failed after all retries:', lastError);
+      const errorMessage = lastError.message;
+
+      // Paso 4: Manejo de errores específicos
+      if (errorMessage.includes('VITE_GEMINI_API_KEY') || errorMessage.includes('401') || errorMessage.includes('403')) {
+        setError(language === 'es'
+          ? `Error de configuración: ${errorMessage}. Verifica tu archivo .env`
+          : `Configuration error: ${errorMessage}. Check your .env file`);
+        setApiKeyError(UI_TEXTS[language]?.errorApiKey ?? 'API key error');
+      } else if (errorMessage.includes('Timeout') || errorMessage.includes('timeout')) {
+        setError(language === 'es'
+          ? 'La generación del resumen tardó demasiado (más de 90 segundos). Por favor, intenta de nuevo.'
+          : 'Summary generation took too long (over 90 seconds). Please try again.');
+      } else if (errorMessage.includes('429') || errorMessage.includes('rate') || errorMessage.includes('quota')) {
+        setError(language === 'es'
+          ? 'Demasiadas solicitudes a la API. Espera 1 minuto e intenta de nuevo.'
+          : 'Too many API requests. Wait 1 minute and try again.');
+      } else if (errorMessage.includes('network') || errorMessage.includes('fetch') || errorMessage.includes('Failed to fetch')) {
+        setError(language === 'es'
+          ? 'Error de conexión a internet. Verifica tu conexión e intenta de nuevo.'
+          : 'Internet connection error. Check your connection and try again.');
+      } else if (errorMessage.includes('vacío') || errorMessage.includes('empty') || errorMessage.includes('corto')) {
+        setError(language === 'es'
+          ? 'El resumen generado fue inválido. Por favor, intenta de nuevo.'
+          : 'Generated summary was invalid. Please try again.');
+      } else {
+        // Error genérico pero con más detalle
+        setError(language === 'es'
+          ? `Error generando resumen: ${errorMessage.substring(0, 150)}. Tus datos están guardados, puedes intentar de nuevo.`
+          : `Error generating summary: ${errorMessage.substring(0, 150)}. Your data is saved, you can try again.`);
+      }
+      setSummaryGenerationFailed(true); // Marcar que falló para mostrar botón "Regenerar"
+      setAppState('ERROR');
+    }
+
+    // Liberar el lock al finalizar (éxito o error)
+    endSessionLockRef.current = false;
   }, [transcript, language, cleanupAudio, user?.id, sessionId, completedModules, moduleTranscripts, currentModule]);
 
   /**
@@ -1596,6 +1704,125 @@ const MainApp: React.FC = () => {
     // NO limpiar transcript, patientName, sessionId, ni sessionResumptionHandle para mantener progreso
   }, [cleanupAudio]);
 
+  // Función para reintentar la generación del resumen sin perder el transcript
+  const handleRetryGenerateSummary = useCallback(async () => {
+    // Verificar que hay transcript para procesar
+    if (transcript.length === 0) {
+      setError(language === 'es'
+        ? 'No hay conversación para generar resumen.'
+        : 'No conversation to generate summary.');
+      return;
+    }
+
+    logger.debug('🔄 Reintentando generación de resumen con transcript existente...');
+    setAppState('PROCESSING');
+    setError(null);
+    setSummaryGenerationFailed(false);
+
+    const fullTranscriptText = transcript.map(t =>
+      `${t.sender === 'Nova' ? 'Nova' : (language === 'es' ? 'Tú' : 'You')}: ${t.text}`
+    ).join('\n');
+
+    if (fullTranscriptText.trim().length < 50) {
+      setError(language === 'es'
+        ? 'La conversación es demasiado breve para generar un resumen clínico.'
+        : 'The conversation is too brief to generate a clinical summary.');
+      setSummaryGenerationFailed(true);
+      setAppState('ERROR');
+      return;
+    }
+
+    // Configuración de reintentos
+    const MAX_SUMMARY_RETRIES = 3;
+    const RETRY_DELAYS = [2000, 5000, 10000];
+    const SUMMARY_TIMEOUT = 90000;
+
+    let lastError: Error | null = null;
+    let summaryGenerated = false;
+
+    for (let attempt = 0; attempt < MAX_SUMMARY_RETRIES; attempt++) {
+      try {
+        if (attempt > 0) {
+          logger.debug(`🔄 Reintento ${attempt + 1}/${MAX_SUMMARY_RETRIES}...`);
+        }
+
+        const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+        if (!apiKey || apiKey.trim() === '') {
+          throw new Error('VITE_GEMINI_API_KEY no está configurada');
+        }
+
+        const ai = new GoogleGenAI({ apiKey: apiKey as string });
+
+        const response = await withTimeout(
+          ai.models.generateContent({
+            model: 'gemini-2.5-pro',
+            contents: SUMMARY_PROMPT[language](fullTranscriptText),
+          }),
+          SUMMARY_TIMEOUT
+        );
+
+        const sanitizedSummary = sanitizeHtml(response.text ?? '');
+
+        if (!sanitizedSummary || sanitizedSummary.trim().length < 50) {
+          throw new Error('El resumen generado está vacío o es muy corto');
+        }
+
+        setSummary(sanitizedSummary);
+        setAppState('COMPLETED');
+        setSummaryGenerationFailed(false);
+        summaryGenerated = true;
+
+        // Limpiar backup
+        try {
+          localStorage.removeItem('cabo_health_pending_transcript');
+        } catch (e) { /* ignorar */ }
+
+        // Limpiar checkpoint
+        if (user?.id && sessionId) {
+          await clearCheckpoint(sessionId, user.id);
+          clearModuleData(sessionId);
+        }
+
+        logger.debug(`✅ Resumen regenerado exitosamente${attempt > 0 ? ` (intento ${attempt + 1})` : ''}`);
+        break;
+
+      } catch (err) {
+        lastError = err instanceof Error ? err : new Error(String(err));
+        logger.error(`❌ Error en intento ${attempt + 1}:`, lastError.message);
+
+        if (attempt < MAX_SUMMARY_RETRIES - 1) {
+          const delay = RETRY_DELAYS[attempt] ?? 5000;
+          await new Promise(resolve => setTimeout(resolve, delay));
+          continue;
+        }
+      }
+    }
+
+    if (!summaryGenerated && lastError) {
+      const errorMessage = lastError.message;
+
+      if (errorMessage.includes('Timeout') || errorMessage.includes('timeout')) {
+        setError(language === 'es'
+          ? 'La generación tardó demasiado. Por favor, intenta de nuevo.'
+          : 'Generation took too long. Please try again.');
+      } else if (errorMessage.includes('429') || errorMessage.includes('rate') || errorMessage.includes('quota')) {
+        setError(language === 'es'
+          ? 'Demasiadas solicitudes. Espera 1 minuto e intenta de nuevo.'
+          : 'Too many requests. Wait 1 minute and try again.');
+      } else if (errorMessage.includes('network') || errorMessage.includes('fetch')) {
+        setError(language === 'es'
+          ? 'Error de conexión. Verifica tu internet e intenta de nuevo.'
+          : 'Connection error. Check your internet and try again.');
+      } else {
+        setError(language === 'es'
+          ? `Error: ${errorMessage.substring(0, 100)}. Intenta de nuevo.`
+          : `Error: ${errorMessage.substring(0, 100)}. Try again.`);
+      }
+      setSummaryGenerationFailed(true);
+      setAppState('ERROR');
+    }
+  }, [transcript, language, user?.id, sessionId]);
+
   useEffect(() => {
     const handleKeyPress = (e: KeyboardEvent) => {
       // Ctrl/Cmd + Enter to start session when idle and name is present
@@ -1728,6 +1955,8 @@ const MainApp: React.FC = () => {
                       onPatientNameChange={setPatientName}
                       onOpenDiagnostic={handleOpenMicrophoneDiagnostic}
                       onRetry={handleRetryConnection}
+                      onRetryGenerateSummary={handleRetryGenerateSummary}
+                      summaryGenerationFailed={summaryGenerationFailed}
                       waitingForNova={waitingForNova}
                       // Module system props
                       currentModule={currentModule}
@@ -1782,6 +2011,8 @@ const MainApp: React.FC = () => {
                       onRetry={handleRetryConnection}
                       topicTracking={topicTracking}
                       topicsComplete={topicsComplete}
+                      onRetryGenerateSummary={handleRetryGenerateSummary}
+                      summaryGenerationFailed={summaryGenerationFailed}
                     />
                   </ErrorBoundary>
                 </div>

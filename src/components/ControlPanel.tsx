@@ -23,6 +23,9 @@ interface ControlPanelProps {
   completedModules?: InterviewModule[];
   onModuleTransition?: () => void;
   isTransitioningModule?: boolean;
+  // Summary regeneration props
+  onRetryGenerateSummary?: () => void;
+  summaryGenerationFailed?: boolean;
 }
 
 const ControlPanel: React.FC<ControlPanelProps> = ({
@@ -43,6 +46,9 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
   completedModules = [],
   onModuleTransition,
   isTransitioningModule = false,
+  // Summary regeneration props
+  onRetryGenerateSummary,
+  summaryGenerationFailed = false,
 }) => {
   const texts = UI_TEXTS[language];
   const isIdle = appState === 'IDLE';
@@ -300,7 +306,7 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
                     {language === 'es' ? '🔧 Diagnóstico' : '🔧 Diagnostic'}
                   </button>
                 )}
-                {appState === 'ERROR' && onRetry && (
+                {appState === 'ERROR' && onRetry && !summaryGenerationFailed && (
                   <button
                     onClick={onRetry}
                     className="px-3 py-1.5 text-xs font-medium text-white bg-red-600 hover:bg-red-700 rounded-lg transition-colors active:scale-95"
@@ -309,6 +315,17 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
                       : 'Attempt to reconnect to the server'}
                   >
                     {language === 'es' ? '🔄 Reintentar' : '🔄 Retry'}
+                  </button>
+                )}
+                {appState === 'ERROR' && summaryGenerationFailed && onRetryGenerateSummary && (
+                  <button
+                    onClick={onRetryGenerateSummary}
+                    className="px-4 py-2 text-sm font-semibold text-white bg-green-600 hover:bg-green-700 rounded-lg transition-colors active:scale-95 shadow-md"
+                    title={language === 'es'
+                      ? 'Volver a intentar generar el resumen clínico con la conversación existente'
+                      : 'Retry generating the clinical summary with the existing conversation'}
+                  >
+                    {language === 'es' ? '🔄 Regenerar Resumen' : '🔄 Regenerate Summary'}
                   </button>
                 )}
               </div>

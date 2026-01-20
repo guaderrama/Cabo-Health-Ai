@@ -21,6 +21,9 @@ interface TextChatPanelProps {
   // Topic tracking props
   topicTracking?: TopicTracking;
   topicsComplete?: boolean;
+  // Summary regeneration props
+  onRetryGenerateSummary?: () => void;
+  summaryGenerationFailed?: boolean;
 }
 
 // Detectar soporte de Web Speech API
@@ -47,6 +50,9 @@ const TextChatPanel: React.FC<TextChatPanelProps> = ({
   onRetry,
   topicTracking,
   topicsComplete,
+  // Summary regeneration props
+  onRetryGenerateSummary,
+  summaryGenerationFailed = false,
 }) => {
   const texts = UI_TEXTS[language];
   const [inputText, setInputText] = useState('');
@@ -151,16 +157,14 @@ const TextChatPanel: React.FC<TextChatPanelProps> = ({
     recognition.interimResults = true;
 
     recognition.onresult = (event: any) => {
-      let interim = '';
       let final = '';
 
       for (let i = event.resultIndex; i < event.results.length; i++) {
         const transcriptText = event.results[i][0].transcript;
         if (event.results[i].isFinal) {
           final += transcriptText + ' ';
-        } else {
-          interim += transcriptText;
         }
+        // Los resultados intermedios (interim) se ignoran - solo usamos los finales
       }
 
       if (final) {
@@ -242,7 +246,7 @@ const TextChatPanel: React.FC<TextChatPanelProps> = ({
               <h2 className="font-semibold text-slate-800">Nova</h2>
               <p className="text-xs text-slate-500">
                 {isListening
-                  ? (language === 'es' ? 'En conversacion' : 'In conversation')
+                  ? (language === 'es' ? 'En conversación' : 'In conversation')
                   : (language === 'es' ? 'Lista para chatear' : 'Ready to chat')}
               </p>
             </div>
@@ -319,7 +323,7 @@ const TextChatPanel: React.FC<TextChatPanelProps> = ({
             </div>
             <p className="text-slate-600 mb-2">
               {language === 'es'
-                ? 'Presiona "Iniciar Chat" para comenzar tu conversacion con Nova'
+                ? 'Presiona "Iniciar Chat" para comenzar tu conversación con Nova'
                 : 'Press "Start Chat" to begin your conversation with Nova'}
             </p>
           </div>
@@ -355,14 +359,27 @@ const TextChatPanel: React.FC<TextChatPanelProps> = ({
       {error && (
         <div className="mx-4 mb-2 p-3 bg-red-50 border border-red-200 rounded-lg">
           <p className="text-sm text-red-700">{error}</p>
-          {onRetry && (
-            <button
-              onClick={onRetry}
-              className="mt-2 text-xs text-red-600 hover:text-red-800 underline"
-            >
-              {language === 'es' ? 'Reintentar' : 'Retry'}
-            </button>
-          )}
+          <div className="flex flex-wrap gap-2 mt-2">
+            {onRetry && !summaryGenerationFailed && (
+              <button
+                onClick={onRetry}
+                className="text-xs text-red-600 hover:text-red-800 underline"
+              >
+                {language === 'es' ? 'Reintentar' : 'Retry'}
+              </button>
+            )}
+            {summaryGenerationFailed && onRetryGenerateSummary && (
+              <button
+                onClick={onRetryGenerateSummary}
+                className="px-4 py-2 text-sm font-semibold text-white bg-green-600 hover:bg-green-700 rounded-lg transition-colors active:scale-95 shadow-md"
+                title={language === 'es'
+                  ? 'Volver a intentar generar el resumen clínico con la conversación existente'
+                  : 'Retry generating the clinical summary with the existing conversation'}
+              >
+                {language === 'es' ? '🔄 Regenerar Resumen' : '🔄 Regenerate Summary'}
+              </button>
+            )}
+          </div>
         </div>
       )}
 
@@ -485,7 +502,7 @@ const TextChatPanel: React.FC<TextChatPanelProps> = ({
         isOpen={showEndConfirmation}
         title={language === 'es' ? 'Finalizar Chat?' : 'End Chat?'}
         message={language === 'es'
-          ? 'Al finalizar, Nova generara el resumen clinico basado en la conversacion.'
+          ? 'Al finalizar, Nova generará el resumen clínico basado en la conversación.'
           : 'When you end, Nova will generate a clinical summary based on the conversation.'}
         confirmText={texts.endSession || (language === 'es' ? 'Finalizar' : 'End')}
         cancelText={language === 'es' ? 'Continuar' : 'Continue'}

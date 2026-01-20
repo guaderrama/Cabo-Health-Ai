@@ -1421,7 +1421,7 @@ export const MODULE_CONFIGS: Record<InterviewModule, ModuleConfig> = {
   MODULE_1: {
     id: 'MODULE_1',
     name: 'Initial Assessment',
-    nameEs: 'Evaluacion Inicial',
+    nameEs: 'Evaluación Inicial',
     areas: [1, 2, 7, 8], // Motivo, Timeline, Medicamentos, Antecedentes
     estimatedMinutes: { min: 7, max: 10 },
     hasGreeting: true,
@@ -1430,7 +1430,7 @@ export const MODULE_CONFIGS: Record<InterviewModule, ModuleConfig> = {
   MODULE_2: {
     id: 'MODULE_2',
     name: 'Systemic Exploration',
-    nameEs: 'Exploracion Sistemica',
+    nameEs: 'Exploración Sistémica',
     areas: [3, 4, 5, 6, 9, 10, 12, 15, 16], // Digestivo, Sueno, Energia, Estres, Intestinal, Sensibilidades, Ejercicio, Hormonas, Inmunidad
     estimatedMinutes: { min: 12, max: 15 },
     hasGreeting: false,
