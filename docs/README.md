@@ -14,7 +14,15 @@
 
 ## 📖 Descripción
 
-Cabo Health Nova es una aplicación médica de vanguardia que utiliza IA conversacional para realizar entrevistas clínicas detalladas. Integra tecnología de voz nativa con Gemini 2.5 Flash para crear una experiencia natural de consulta médica, generando automáticamente resúmenes clínicos en formato SOAP.
+Cabo Health Nova es una aplicacion medica de vanguardia que utiliza IA conversacional para realizar entrevistas clinicas detalladas. Integra tecnologia de voz nativa con Gemini 3 Flash para crear una experiencia natural de consulta medica, generando automaticamente resumenes clinicos en formato SOAP.
+
+### Sistema de Cola de Resumenes
+
+El sistema garantiza que **ninguna entrevista se pierda** mediante una arquitectura de cola asincrona:
+
+1. **Guardado Prioritario**: Al finalizar la sesion, el transcript se guarda PRIMERO en `pending_summaries`
+2. **Procesamiento con Fallback**: Gemini 3 Flash (primario) con fallback a Gemini 2.5 Flash
+3. **Recuperacion Automatica**: Si el procesamiento falla, el transcript permanece seguro para reintentos
 
 ### ✨ Características Principales
 
@@ -115,7 +123,7 @@ RESEND_API_KEY=tu_api_key_de_resend
 | **Build Tool** | Vite | 6.2 |
 | **Backend** | Supabase | Latest |
 | **Base de Datos** | PostgreSQL | 15+ |
-| **IA** | Gemini 2.5 Flash | Latest |
+| **IA** | Gemini 3 Flash (primario) / Gemini 2.5 Flash (fallback) | Latest |
 | **UI** | TailwindCSS + Radix UI | Latest |
 | **Audio** | WebRTC + Web Audio API | Native |
 
@@ -128,7 +136,7 @@ cabo-health-nova/
 │   ├── contexts/        # Context API (Auth)
 │   ├── lib/            # Utilidades (Supabase client)
 │   ├── utils/          # Helpers (audio, sanitize)
-│   ├── services/       # Servicios (audio)
+│   ├── services/       # Servicios (audio, summaryQueue)
 │   └── App.tsx         # Componente principal
 ├── supabase/
 │   └── functions/      # Edge Functions (4)
@@ -157,6 +165,7 @@ cabo-health-nova/
 | `summaries` | Resúmenes clínicos SOAP | Auto-generated |
 | `sessions` | Sesiones de consultas | Session-based |
 | `session_checkpoints` | Checkpoints de persistencia | Auto-saved |
+| `pending_summaries` | Cola de generacion de resumenes | Queue-based |
 
 ### Edge Functions
 

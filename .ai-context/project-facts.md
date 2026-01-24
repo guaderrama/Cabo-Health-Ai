@@ -32,10 +32,11 @@
 - **RLS**: Row Level Security habilitado
 
 ### IA y APIs
-- **IA Conversacional**: Gemini 2.5 Flash (Google AI)
-- **Transcripción**: WebRTC nativa
+- **IA Conversacional**: Gemini 2.5 Flash Native Audio (Google AI) - para entrevistas en tiempo real
+- **IA Resumenes**: Gemini 3 Flash (primario) / Gemini 2.5 Flash (fallback) - para generacion SOAP
+- **Transcripcion**: WebRTC nativa
 - **Email**: Resend API (opcional)
-- **Procesamiento**: Edge Functions para lógica compleja
+- **Procesamiento**: Edge Functions para logica compleja
 
 ## Estructura del Proyecto
 ```
@@ -44,7 +45,7 @@ cabo-health-nova/
 │   ├── components/     # 25+ componentes React
 │   ├── contexts/       # Context API (Auth)
 │   ├── lib/           # Supabase client, utilidades
-│   ├── services/      # Servicios de audio
+│   ├── services/      # Servicios (audio, summaryQueue)
 │   ├── utils/         # Helpers (audio, sanitize)
 │   └── types.ts       # TypeScript definitions
 ├── supabase/
@@ -76,12 +77,13 @@ npm run type-check    # Verificar tipos TypeScript
 ## Base de Datos (Supabase)
 
 ### Tablas Principales
-1. **patients** - Información de pacientes
-2. **consultations** - Consultas médicas realizadas
+1. **patients** - Informacion de pacientes
+2. **consultations** - Consultas medicas realizadas
 3. **transcriptions** - Transcripciones de conversaciones
-4. **summaries** - Resúmenes clínicos SOAP
+4. **summaries** - Resumenes clinicos SOAP
 5. **sessions** - Sesiones de consultas
 6. **session_checkpoints** - Checkpoints de persistencia
+7. **pending_summaries** - Cola de generacion asincrona de resumenes (datos seguros primero)
 
 ### Edge Functions
 1. **save-consultation** - Guarda consulta completa
@@ -105,15 +107,16 @@ RESEND_API_KEY=re_...
 ```
 
 ## Funcionalidades Principales
-✅ **Conversación Voz a Voz** - IA conversacional con Gemini
-✅ **Transcripción en Tiempo Real** - Visualización de conversación
-✅ **Resúmenes SOAP Automatizados** - Generación clínica profesional
-✅ **Sistema de Persistencia** - Checkpoints automáticos cada 2 mensajes
-✅ **Backend Completo** - Supabase con RLS y autenticación
-✅ **Envío de Emails** - Resúmenes al médico
-✅ **Bilingüe** - Español e Inglés
-✅ **Recuperación de Sesión** - Modal de recuperación automática
-✅ **Responsive Design** - Mobile-first
+- **Conversacion Voz a Voz** - IA conversacional con Gemini Native Audio
+- **Transcripcion en Tiempo Real** - Visualizacion de conversacion
+- **Resumenes SOAP Automatizados** - Generacion clinica con Gemini 3 Flash
+- **Sistema de Persistencia** - Checkpoints automaticos cada 2 mensajes
+- **Cola de Resumenes** - Transcripts guardados ANTES de procesar (nunca se pierden)
+- **Backend Completo** - Supabase con RLS y autenticacion
+- **Envio de Emails** - Resumenes al medico
+- **Bilingue** - Espanol e Ingles
+- **Recuperacion de Sesion** - Modal de recuperacion automatica
+- **Responsive Design** - Mobile-first
 
 ## Estado Actual
 - ✅ Aplicación desplegada y funcional
@@ -149,5 +152,5 @@ RESEND_API_KEY=re_...
 - **Loading**: Progresivo con lazy loading
 
 ---
-*Actualizado: 2025-11-03*
-*Versión del Proyecto: 1.0.0*
+*Actualizado: 2026-01-23*
+*Version del Proyecto: 1.1.0*

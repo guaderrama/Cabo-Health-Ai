@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useRef, useCallback, Suspense, lazy } from 'react';
-import { GoogleGenAI, Modality, LiveServerMessage } from '@google/genai';
+import { GoogleGenAI, Modality, LiveServerMessage, ThinkingLevel } from '@google/genai';
 import { type AppState, type Language, type TranscriptMessage, type RecoverableSession, type InterviewModule, type InterviewMode } from './types';
 import { UI_TEXTS, SUMMARY_PROMPT, getModuleInstructions, getNextModule, MODULE_CONFIGS, SYSTEM_INSTRUCTIONS } from './constants';
 import { encode, decode, decodeAudioData, concatenateUint8Arrays } from './utils/audioUtils';
@@ -36,6 +36,13 @@ import {
   createEmptyModuleTranscripts,
   clearModuleData,
 } from './services/sessionPersistence';
+import {
+  savePendingSummaryWithRetry,
+  updateSummaryStatus,
+  completeSummary,
+  failSummary,
+  incrementAttempts,
+} from './services/summaryQueue';
 
 // FIX: A local 'LiveSession' type is defined here based on its usage to resolve the import error.
 type LiveSession = {
@@ -837,11 +844,33 @@ const MainApp: React.FC = () => {
     }
 
     // ============================================================
-    // GENERACIÓN DE RESUMEN CON TIMEOUT, REINTENTOS Y BACKUP
+    // GENERACIÓN DE RESUMEN: GUARDAR PRIMERO, PROCESAR DESPUÉS
     // ============================================================
 
-    // Paso 5: Guardar backup en localStorage ANTES de intentar generar
-    // Esto permite recuperar el transcript si algo falla catastróficamente
+    // PASO 1: Guardar en pending_summaries INMEDIATAMENTE
+    // La entrevista NUNCA se pierde a partir de aquí
+    const sessionDuration = sessionStartTimeRef.current
+      ? Math.floor((Date.now() - sessionStartTimeRef.current) / 1000)
+      : 0;
+
+    if (user?.id) {
+      const saveResult = await savePendingSummaryWithRetry(
+        user.id,
+        sessionId,
+        finalTranscript,
+        language,
+        patientName,
+        sessionDuration
+      );
+
+      if (saveResult.success) {
+        logger.debug('✅ Entrevista guardada en pending_summaries - datos seguros');
+      } else {
+        logger.warn('⚠️ No se pudo guardar en pending_summaries, continuando con localStorage backup');
+      }
+    }
+
+    // Backup adicional en localStorage
     const backupKey = 'cabo_health_pending_transcript';
     try {
       localStorage.setItem(backupKey, JSON.stringify({
@@ -851,41 +880,80 @@ const MainApp: React.FC = () => {
         language,
         timestamp: Date.now()
       }));
-      logger.debug('💾 Transcript respaldado en localStorage antes de generar resumen');
+      logger.debug('💾 Transcript respaldado en localStorage');
     } catch (backupErr) {
       logger.warn('No se pudo respaldar transcript en localStorage:', backupErr);
     }
 
-    // Configuración de reintentos
+    // PASO 2: Configuración de reintentos con Gemini 3 Flash
     const MAX_SUMMARY_RETRIES = 3;
     const RETRY_DELAYS = [2000, 5000, 10000]; // 2s, 5s, 10s
-    const SUMMARY_TIMEOUT = 90000; // 90 segundos
+    const SUMMARY_TIMEOUT = 120000; // 120 segundos (Gemini 3 Flash es más rápido)
 
     let lastError: Error | null = null;
     let summaryGenerated = false;
+
+    // Verificar API key una sola vez
+    const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+    if (!apiKey || apiKey.trim() === '') {
+      setError(language === 'es'
+        ? 'VITE_GEMINI_API_KEY no está configurada en las variables de entorno'
+        : 'VITE_GEMINI_API_KEY is not configured in environment variables');
+      setSummaryGenerationFailed(true);
+      setAppState('ERROR');
+      endSessionLockRef.current = false;
+      return;
+    }
+
+    const ai = new GoogleGenAI({ apiKey: apiKey as string });
 
     for (let attempt = 0; attempt < MAX_SUMMARY_RETRIES; attempt++) {
       try {
         if (attempt > 0) {
           logger.debug(`🔄 Reintento ${attempt + 1}/${MAX_SUMMARY_RETRIES} de generación de resumen...`);
+          await incrementAttempts(sessionId);
         }
 
-        // Verificar API key
-        const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
-        if (!apiKey || apiKey.trim() === '') {
-          throw new Error('VITE_GEMINI_API_KEY no está configurada en las variables de entorno');
+        // Marcar como processing en la cola
+        if (user?.id) {
+          await updateSummaryStatus(sessionId, 'processing');
         }
 
-        const ai = new GoogleGenAI({ apiKey: apiKey as string });
-
-        // Paso 1: Agregar timeout de 90 segundos a la llamada
-        const response = await withTimeout(
-          ai.models.generateContent({
-            model: 'gemini-2.5-pro',
-            contents: SUMMARY_PROMPT[language](fullTranscriptText),
-          }),
-          SUMMARY_TIMEOUT
-        );
+        // PASO 3: Usar Gemini 3 Flash con thinkingLevel: HIGH
+        // 3x más rápido que 2.5 Pro, mejor calidad en benchmarks
+        let response;
+        try {
+          response = await withTimeout(
+            ai.models.generateContent({
+              model: 'gemini-3-flash-preview',
+              contents: SUMMARY_PROMPT[language](fullTranscriptText),
+              config: {
+                thinkingConfig: {
+                  thinkingLevel: ThinkingLevel.HIGH, // Máxima calidad de razonamiento
+                  includeThoughts: false // No necesitamos ver el thinking
+                },
+                maxOutputTokens: 8192
+              }
+            }),
+            SUMMARY_TIMEOUT
+          );
+        } catch (gemini3Error) {
+          // FALLBACK: Si Gemini 3 Flash falla, intentar con Gemini 2.5 Flash
+          logger.warn('Gemini 3 Flash falló, intentando con Gemini 2.5 Flash como fallback');
+          response = await withTimeout(
+            ai.models.generateContent({
+              model: 'gemini-2.5-flash',
+              contents: SUMMARY_PROMPT[language](fullTranscriptText),
+              config: {
+                thinkingConfig: {
+                  thinkingBudget: 0 // Sin thinking = máxima velocidad
+                },
+                maxOutputTokens: 8192
+              }
+            }),
+            SUMMARY_TIMEOUT
+          );
+        }
 
         const sanitizedSummary = sanitizeHtml(response.text ?? '');
 
@@ -895,10 +963,15 @@ const MainApp: React.FC = () => {
 
         setSummary(sanitizedSummary);
         setAppState('COMPLETED');
-        setSummaryGenerationFailed(false); // Éxito - limpiar flag
+        setSummaryGenerationFailed(false);
         summaryGenerated = true;
 
-        // Limpiar backup de localStorage ya que fue exitoso
+        // Marcar como completado en la cola
+        if (user?.id) {
+          await completeSummary(sessionId, sanitizedSummary);
+        }
+
+        // Limpiar backup de localStorage
         try {
           localStorage.removeItem(backupKey);
           logger.debug('🗑️ Backup de localStorage eliminado (generación exitosa)');
@@ -906,27 +979,25 @@ const MainApp: React.FC = () => {
           // Ignorar error al limpiar
         }
 
-        // Limpiar checkpoint y datos de módulos al completar sesión exitosamente
+        // Limpiar checkpoint y datos de módulos
         if (user?.id && sessionId) {
           await clearCheckpoint(sessionId, user.id);
           clearModuleData(sessionId);
         }
 
-        logger.debug(`✅ Resumen generado exitosamente${attempt > 0 ? ` (intento ${attempt + 1})` : ''}`);
-        break; // Éxito - salir del loop
+        logger.debug(`✅ Resumen generado exitosamente con Gemini 3 Flash${attempt > 0 ? ` (intento ${attempt + 1})` : ''}`);
+        break;
 
       } catch (err) {
         lastError = err instanceof Error ? err : new Error(String(err));
         logger.error(`❌ Error en intento ${attempt + 1}/${MAX_SUMMARY_RETRIES}:`, lastError.message);
 
-        // Si no es el último intento, esperar y reintentar
         if (attempt < MAX_SUMMARY_RETRIES - 1) {
-          const delay = RETRY_DELAYS[attempt] ?? 5000; // fallback a 5s
+          const delay = RETRY_DELAYS[attempt] ?? 5000;
           logger.debug(`⏳ Esperando ${delay / 1000}s antes de reintentar...`);
           await new Promise(resolve => setTimeout(resolve, delay));
           continue;
         }
-        // Si es el último intento, el error se manejará abajo
       }
     }
 
@@ -935,7 +1006,12 @@ const MainApp: React.FC = () => {
       logger.error('Summary generation failed after all retries:', lastError);
       const errorMessage = lastError.message;
 
-      // Paso 4: Manejo de errores específicos
+      // Marcar como fallido en la cola (pero los datos están seguros!)
+      if (user?.id) {
+        await failSummary(sessionId, errorMessage);
+      }
+
+      // Manejo de errores específicos
       if (errorMessage.includes('VITE_GEMINI_API_KEY') || errorMessage.includes('401') || errorMessage.includes('403')) {
         setError(language === 'es'
           ? `Error de configuración: ${errorMessage}. Verifica tu archivo .env`
@@ -943,27 +1019,26 @@ const MainApp: React.FC = () => {
         setApiKeyError(UI_TEXTS[language]?.errorApiKey ?? 'API key error');
       } else if (errorMessage.includes('Timeout') || errorMessage.includes('timeout')) {
         setError(language === 'es'
-          ? 'La generación del resumen tardó demasiado (más de 90 segundos). Por favor, intenta de nuevo.'
-          : 'Summary generation took too long (over 90 seconds). Please try again.');
+          ? 'La generación del resumen tardó demasiado. Tu entrevista está guardada, puedes intentar de nuevo.'
+          : 'Summary generation took too long. Your interview is saved, you can try again.');
       } else if (errorMessage.includes('429') || errorMessage.includes('rate') || errorMessage.includes('quota')) {
         setError(language === 'es'
           ? 'Demasiadas solicitudes a la API. Espera 1 minuto e intenta de nuevo.'
           : 'Too many API requests. Wait 1 minute and try again.');
       } else if (errorMessage.includes('network') || errorMessage.includes('fetch') || errorMessage.includes('Failed to fetch')) {
         setError(language === 'es'
-          ? 'Error de conexión a internet. Verifica tu conexión e intenta de nuevo.'
-          : 'Internet connection error. Check your connection and try again.');
+          ? 'Error de conexión a internet. Tu entrevista está guardada, verifica tu conexión e intenta de nuevo.'
+          : 'Internet connection error. Your interview is saved, check your connection and try again.');
       } else if (errorMessage.includes('vacío') || errorMessage.includes('empty') || errorMessage.includes('corto')) {
         setError(language === 'es'
           ? 'El resumen generado fue inválido. Por favor, intenta de nuevo.'
           : 'Generated summary was invalid. Please try again.');
       } else {
-        // Error genérico pero con más detalle
         setError(language === 'es'
-          ? `Error generando resumen: ${errorMessage.substring(0, 150)}. Tus datos están guardados, puedes intentar de nuevo.`
-          : `Error generating summary: ${errorMessage.substring(0, 150)}. Your data is saved, you can try again.`);
+          ? `Error generando resumen: ${errorMessage.substring(0, 150)}. Tu entrevista está guardada, puedes intentar de nuevo.`
+          : `Error generating summary: ${errorMessage.substring(0, 150)}. Your interview is saved, you can try again.`);
       }
-      setSummaryGenerationFailed(true); // Marcar que falló para mostrar botón "Regenerar"
+      setSummaryGenerationFailed(true);
       setAppState('ERROR');
     }
 

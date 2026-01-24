@@ -1,8 +1,12 @@
 # Sistema de Persistencia y Recuperación de Sesiones
 
-## Descripción General
+## Descripcion General
 
-El sistema de persistencia garantiza que **NUNCA** se pierda el progreso de una entrevista médica, incluso si ocurren interrupciones de red, errores de API, cierre del navegador, o cualquier otra falla.
+El sistema de persistencia garantiza que **NUNCA** se pierda el progreso de una entrevista medica, incluso si ocurren interrupciones de red, errores de API, cierre del navegador, o cualquier otra falla.
+
+El sistema opera en dos niveles:
+1. **Checkpoints de Sesion**: Guardado automatico durante la entrevista (cada 2 mensajes)
+2. **Cola de Resumenes**: Guardado del transcript completo ANTES de procesar con IA
 
 ## Características Principales
 
@@ -275,10 +279,156 @@ Para debugging, revisar:
 - Notificaciones push para sesiones pendientes
 - Modo offline completo con queue de sincronización
 
+## Cola de Generacion de Resumenes (pending_summaries)
+
+### Proposito
+
+Cuando el usuario finaliza una sesion, el sistema debe generar un resumen SOAP usando IA. Este proceso puede fallar por:
+- Timeout de la API de Gemini
+- Errores de red
+- Limites de rate limiting
+- El usuario cierra el navegador durante el procesamiento
+
+La tabla `pending_summaries` garantiza que el transcript se guarde PRIMERO, antes de cualquier procesamiento de IA.
+
+### Flujo de Finalizacion de Sesion
+
+```
+Usuario hace clic en "Finalizar Sesion"
+           │
+           ▼
+┌─────────────────────────────────┐
+│  1. GUARDAR en pending_summaries │  ◄── PRIMERO: datos seguros
+│     status: 'pending'            │
+│     transcript: [...mensajes]    │
+└─────────────────────────────────┘
+           │
+           ▼
+┌─────────────────────────────────┐
+│  2. INTENTAR generar resumen     │
+│     Gemini 3 Flash (primario)    │
+│     Timeout: 120 segundos        │
+└─────────────────────────────────┘
+           │
+    ┌──────┴──────┐
+    │             │
+    ▼             ▼
+ Exito         Fallo
+    │             │
+    ▼             ▼
+┌─────────┐  ┌─────────────────────┐
+│ status: │  │ INTENTAR fallback   │
+│'completed'│  │ Gemini 2.5 Flash   │
+│ summary: │  └─────────────────────┘
+│ "..."    │           │
+└─────────┘     ┌──────┴──────┐
+                │             │
+                ▼             ▼
+             Exito         Fallo
+                │             │
+                ▼             ▼
+          ┌─────────┐  ┌─────────┐
+          │'completed'│  │ 'failed' │
+          │ summary  │  │ error_msg│
+          └─────────┘  └─────────┘
+```
+
+### Esquema de la Tabla
+
+```sql
+CREATE TABLE pending_summaries (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  session_id TEXT NOT NULL UNIQUE,
+  user_id UUID REFERENCES auth.users(id),
+  transcript JSONB NOT NULL,           -- Array de mensajes
+  patient_name TEXT,
+  language TEXT NOT NULL DEFAULT 'es',
+  session_duration INTEGER,            -- Duracion en segundos
+  status TEXT DEFAULT 'pending',       -- pending/processing/completed/failed
+  summary TEXT,                        -- Resumen generado (si exitoso)
+  error_message TEXT,                  -- Mensaje de error (si fallo)
+  attempts INTEGER DEFAULT 0,          -- Numero de intentos
+  created_at TIMESTAMPTZ DEFAULT now(),
+  updated_at TIMESTAMPTZ DEFAULT now(),
+  processed_at TIMESTAMPTZ             -- Cuando se completo/fallo
+);
+```
+
+### Servicio summaryQueue.ts
+
+El servicio `src/services/summaryQueue.ts` proporciona las siguientes funciones:
+
+| Funcion | Proposito |
+|---------|-----------|
+| `savePendingSummary()` | Guarda transcript en la cola |
+| `savePendingSummaryWithRetry()` | Guarda con reintentos (backoff exponencial) |
+| `updateSummaryStatus()` | Actualiza estado de un registro |
+| `completeSummary()` | Marca como completado con resumen |
+| `failSummary()` | Marca como fallido con mensaje de error |
+| `incrementAttempts()` | Incrementa contador de intentos |
+| `getPendingSummary()` | Obtiene registro por session_id |
+| `getUserPendingSummaries()` | Lista resumenes pendientes de un usuario |
+| `deletePendingSummary()` | Elimina registro (despues de enviar al medico) |
+
+### Tipos TypeScript
+
+```typescript
+type PendingSummaryStatus = 'pending' | 'processing' | 'completed' | 'failed';
+
+interface PendingSummary {
+  id?: string;
+  session_id: string;
+  user_id: string;
+  transcript: TranscriptMessage[];
+  patient_name?: string;
+  language: Language;
+  session_duration?: number;
+  status: PendingSummaryStatus;
+  summary?: string;
+  error_message?: string;
+  attempts: number;
+  created_at?: string;
+  updated_at?: string;
+  processed_at?: string;
+}
+```
+
+### UX durante Procesamiento
+
+El componente `SummaryPanel.tsx` muestra feedback visual durante el procesamiento:
+
+1. **Badge Verde**: "Entrevista guardada" - confirma que los datos estan seguros
+2. **Animacion de Carga**: Icono de cerebro/IA con anillo pulsante
+3. **Barra de Progreso**: Animacion shimmer infinita
+4. **Tiempo Estimado**: "Generando con Gemini 3 Flash (30-60 segundos)"
+5. **Mensaje de Tranquilidad**: "Tus datos estan seguros. Puedes cerrar esta pagina y volver mas tarde."
+
+### Modelo de IA para Resumenes
+
+El sistema usa una estrategia de modelo primario con fallback:
+
+| Modelo | Rol | Timeout | Caracteristicas |
+|--------|-----|---------|-----------------|
+| Gemini 3 Flash (`gemini-3-flash-preview`) | Primario | 120s | thinkingLevel: HIGH, 3x mas rapido |
+| Gemini 2.5 Flash | Fallback | 120s | Sin thinking mode |
+
+**Razon del cambio**: Gemini 2.5 Pro tenia thinking mode obligatorio que causaba timeouts de mas de 180 segundos.
+
+### Migracion SQL
+
+Archivo: `supabase/migrations/20260123000000_create_pending_summaries.sql`
+
+Incluye:
+- Creacion de tabla con todas las columnas
+- RLS habilitado con politicas para usuarios
+- Indices para busquedas eficientes (status, user_id)
+- Trigger para auto-actualizar `updated_at`
+
 ## Soporte
 
 Para problemas o preguntas:
 1. Revisar logs en consola del navegador
 2. Verificar tabla session_checkpoints en Supabase
-3. Validar permisos RLS están configurados
-4. Verificar que usuario está autenticado correctamente
+3. Verificar tabla pending_summaries para resumenes fallidos
+4. Validar permisos RLS estan configurados
+5. Verificar que usuario esta autenticado correctamente

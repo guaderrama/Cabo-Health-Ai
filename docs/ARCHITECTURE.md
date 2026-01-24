@@ -50,7 +50,8 @@ src/
 ├── lib/
 │   └── supabase.ts          # Cliente de Supabase
 ├── services/
-│   └── audioService.ts      # Servicio de audio WebRTC
+│   ├── audioService.ts      # Servicio de audio WebRTC
+│   └── summaryQueue.ts      # Cola de generacion de resumenes
 └── utils/
     ├── audioUtils.ts        # Utilidades de audio
     └── sanitizeHtml.ts      # Sanitización HTML
@@ -99,6 +100,7 @@ consultations (1) ──► (N) transcriptions
 consultations (1) ──► (N) summaries
 consultations (1) ──► (1) sessions
 consultations (1) ──► (N) session_checkpoints
+sessions (1) ──► (1) pending_summaries
 ```
 
 #### Tablas Principales
@@ -167,6 +169,28 @@ CREATE TABLE session_checkpoints (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 ```
+
+**6. pending_summaries** (Cola de Resumenes Asincrona)
+```sql
+CREATE TABLE pending_summaries (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  session_id TEXT NOT NULL UNIQUE,
+  user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
+  transcript JSONB NOT NULL,
+  patient_name TEXT,
+  language TEXT NOT NULL DEFAULT 'es',
+  session_duration INTEGER,
+  status TEXT DEFAULT 'pending' CHECK (status IN ('pending', 'processing', 'completed', 'failed')),
+  summary TEXT,
+  error_message TEXT,
+  attempts INTEGER DEFAULT 0,
+  created_at TIMESTAMPTZ DEFAULT now(),
+  updated_at TIMESTAMPTZ DEFAULT now(),
+  processed_at TIMESTAMPTZ
+);
+```
+
+**Proposito de pending_summaries**: Esta tabla actua como cola de procesamiento para garantizar que los transcripts de entrevistas NUNCA se pierdan. Al finalizar una sesion, el transcript se guarda PRIMERO en esta tabla antes de iniciar la generacion del resumen con IA. Si la generacion falla, el transcript permanece seguro para reintentos posteriores.
 
 ### Row Level Security (RLS)
 
@@ -283,7 +307,7 @@ Microphone → MediaRecorder → AudioBuffer → Gemini API
 ### Gemini Native Audio
 
 ```typescript
-// Configuración de Gemini para audio
+// Configuracion de Gemini para audio (conversacion)
 const geminiConfig = {
   model: 'gemini-2.0-flash-exp',
   generationConfig: {
@@ -295,13 +319,34 @@ const geminiConfig = {
   systemInstruction: {
     parts: [
       {
-        text: `Eres Nova, una asistente médica especializada en entrevistas clínicas.
+        text: `Eres Nova, una asistente medica especializada en entrevistas clinicas.
                Usa un tono profesional pero amigable.`
       }
     ]
   }
 };
 ```
+
+### Generacion de Resumenes SOAP
+
+El sistema utiliza una estrategia de modelo primario con fallback para generar resumenes clinicos:
+
+```typescript
+// Modelo primario: Gemini 3 Flash con thinking
+const primaryConfig = {
+  model: 'gemini-3-flash-preview',
+  thinkingLevel: 'HIGH',  // ThinkingLevel del SDK @google/genai
+  timeout: 120000,        // 120 segundos
+};
+
+// Fallback: Gemini 2.5 Flash
+const fallbackConfig = {
+  model: 'gemini-2.5-flash',
+  timeout: 120000,
+};
+```
+
+**Razon del cambio**: Gemini 2.5 Pro tenia thinking mode obligatorio que causaba timeouts de mas de 180 segundos. Gemini 3 Flash es 3x mas rapido y tiene mejor calidad en benchmarks.
 
 ## 🔐 Seguridad Architecture
 
@@ -515,5 +560,5 @@ class WebRTCAudioService implements AudioService {
 
 ---
 
-*📚 Documentación técnica completa disponible*  
-*🔄 Última actualización: 2025-11-03*
+*Documentacion tecnica completa disponible*
+*Ultima actualizacion: 2026-01-23*

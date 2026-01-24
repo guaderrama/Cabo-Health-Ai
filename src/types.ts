@@ -63,6 +63,26 @@ export interface RecoverableSession {
   isRecent: boolean; // Menos de 24 horas
 }
 
+// Pending Summary types for async summary generation queue
+export type PendingSummaryStatus = 'pending' | 'processing' | 'completed' | 'failed';
+
+export interface PendingSummary {
+  id?: string;
+  session_id: string;
+  user_id: string;
+  transcript: TranscriptMessage[];
+  patient_name?: string;
+  language: Language;
+  session_duration?: number;
+  status: PendingSummaryStatus;
+  summary?: string;
+  error_message?: string;
+  attempts: number;
+  created_at?: string;
+  updated_at?: string;
+  processed_at?: string;
+}
+
 // Topic tracking types for TEXT mode
 export type TopicNumber = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17 | 18 | 19 | 20;
 

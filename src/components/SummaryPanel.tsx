@@ -49,6 +49,16 @@ const SummaryPanel: React.FC<SummaryPanelProps> = ({
       case 'PROCESSING':
         return (
           <div className="flex flex-col items-center justify-center h-full text-center text-slate-600 px-4">
+            {/* Success badge - Interview saved */}
+            <div className="bg-green-100 border border-green-300 rounded-lg px-4 py-2 mb-4 flex items-center gap-2">
+              <svg className="w-5 h-5 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+              </svg>
+              <span className="text-sm font-medium text-green-700">
+                {language === 'es' ? 'Entrevista guardada' : 'Interview saved'}
+              </span>
+            </div>
+
             {/* Animated brain/AI icon */}
             <div className="relative mb-6">
               <div className="w-20 h-20 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full flex items-center justify-center shadow-lg">
@@ -74,15 +84,15 @@ const SummaryPanel: React.FC<SummaryPanelProps> = ({
             {/* Time estimate message */}
             <p className="text-xs text-slate-500 bg-slate-100 px-4 py-2 rounded-lg">
               {language === 'es'
-                ? '⏱️ Esto puede tardar hasta 90 segundos...'
-                : '⏱️ This may take up to 90 seconds...'}
+                ? '⏱️ Generando con Gemini 3 Flash (30-60 segundos)...'
+                : '⏱️ Generating with Gemini 3 Flash (30-60 seconds)...'}
             </p>
 
             {/* Reassurance message */}
             <p className="text-xs text-slate-400 mt-3 max-w-xs">
               {language === 'es'
-                ? 'La IA está analizando la conversación para generar un resumen clínico completo.'
-                : 'AI is analyzing the conversation to generate a complete clinical summary.'}
+                ? 'Tus datos están seguros. Puedes cerrar esta página y volver más tarde.'
+                : 'Your data is safe. You can close this page and come back later.'}
             </p>
           </div>
         );
