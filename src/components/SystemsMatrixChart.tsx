@@ -30,66 +30,54 @@ const SystemsMatrixChart: React.FC<SystemsMatrixChartProps> = ({ summaryHTML }) 
       const parser = new DOMParser();
       const doc = parser.parseFromString(summaryHTML, 'text/html');
 
-      // Buscar sección de Matriz de Sistemas
-      const systemsSection = doc.querySelector('.systems-matrix, .matriz-sistemas');
-      if (!systemsSection) {
-        // Intentar buscar por texto plano y también en el HTML original
-        const allText = doc.body.textContent || '';
-        const rawHTML = summaryHTML || '';
+      // Función para extraer score de un texto
+      const extractSystemScore = (text: string, systemName: string): number | null => {
+        const patterns = [
+          new RegExp(`${systemName}[:\\s]+(?:\\[)?(\\d+)\\/10`, 'i'),
+          new RegExp(`${systemName}.{0,150}?(\\d+)\\s*\\/\\s*10`, 'i'),
+          new RegExp(`${systemName}[^\\d]{0,200}\\[(\\d+)\\/10\\]`, 'i'),
+          new RegExp(`${systemName}[^0-9]{0,100}(\\d+)\\s*\\/\\s*10`, 'i'),
+          new RegExp(`(\\d+)\\s*\\/\\s*10[^\\d]{0,50}${systemName}`, 'i'),
+        ];
 
-        // Extraer puntuaciones usando regex mejorado
-        // El prompt genera formato como: "DIGESTIÓN: 7/10" o "DIGESTIÓN</td><td>7/10"
-        // También puede ser: ">DIGESTIÓN</strong>...7/10" en tablas HTML
-
-        const extractSystemScore = (text: string, systemName: string): number | null => {
-          // Patrones mejorados para manejar múltiples formatos de HTML
-          const patterns = [
-            // Patrón 1: "SISTEMA: X/10" o "SISTEMA X/10" (formato directo)
-            new RegExp(`${systemName}[:\\s]+(?:\\[)?(\\d+)\\/10`, 'i'),
-            // Patrón 2: HTML con hasta 150 caracteres entre sistema y score (para spans, divs, etc)
-            new RegExp(`${systemName}.{0,150}?(\\d+)\\s*\\/\\s*10`, 'i'),
-            // Patrón 3: Score en corchetes "[X/10]" con más distancia
-            new RegExp(`${systemName}[^\\d]{0,200}\\[(\\d+)\\/10\\]`, 'i'),
-            // Patrón 4: Cualquier formato con score X/10 cerca del nombre
-            new RegExp(`${systemName}[^0-9]{0,100}(\\d+)\\s*\\/\\s*10`, 'i'),
-            // Patrón 5: Score antes del nombre (por si acaso)
-            new RegExp(`(\\d+)\\s*\\/\\s*10[^\\d]{0,50}${systemName}`, 'i'),
-          ];
-
-          for (const pattern of patterns) {
-            const match = text.match(pattern);
-            if (match?.[1]) {
-              const score = parseInt(match[1]);
-              // Validar que el score sea razonable (0-10)
-              if (score >= 0 && score <= 10) {
-                return score;
-              }
+        for (const pattern of patterns) {
+          const match = text.match(pattern);
+          if (match?.[1]) {
+            const score = parseInt(match[1]);
+            if (score >= 0 && score <= 10) {
+              return score;
             }
           }
-
-          return null;
-        };
-
-        // Buscar primero en texto plano, luego en HTML crudo como fallback
-        const digestScore = extractSystemScore(allText, 'DIGESTIÓN') ?? extractSystemScore(allText, 'DIGESTION') ?? extractSystemScore(rawHTML, 'DIGESTIÓN') ?? extractSystemScore(rawHTML, 'DIGESTION');
-        const energyScore = extractSystemScore(allText, 'ENERGÍA') ?? extractSystemScore(allText, 'ENERGIA') ?? extractSystemScore(rawHTML, 'ENERGÍA') ?? extractSystemScore(rawHTML, 'ENERGIA');
-        const mindScore = extractSystemScore(allText, 'MENTE') ?? extractSystemScore(rawHTML, 'MENTE');
-        const hormonalScore = extractSystemScore(allText, 'HORMONAL') ?? extractSystemScore(rawHTML, 'HORMONAL');
-        const immuneScore = extractSystemScore(allText, 'INMUNE') ?? extractSystemScore(rawHTML, 'INMUNE');
-        const structureScore = extractSystemScore(allText, 'ESTRUCTURA') ?? extractSystemScore(rawHTML, 'ESTRUCTURA');
-
-        // Solo retornar si encontramos al menos un sistema válido
-        if (digestScore !== null || energyScore !== null || mindScore !== null ||
-            hormonalScore !== null || immuneScore !== null || structureScore !== null) {
-          return [
-            { system: 'DIGESTIÓN', score: digestScore ?? 5, fullMark: 10 },
-            { system: 'ENERGÍA', score: energyScore ?? 5, fullMark: 10 },
-            { system: 'MENTE', score: mindScore ?? 5, fullMark: 10 },
-            { system: 'HORMONAL', score: hormonalScore ?? 5, fullMark: 10 },
-            { system: 'INMUNE', score: immuneScore ?? 5, fullMark: 10 },
-            { system: 'ESTRUCTURA', score: structureScore ?? 5, fullMark: 10 },
-          ];
         }
+        return null;
+      };
+
+      // Buscar sección de Matriz de Sistemas
+      const systemsSection = doc.querySelector('.systems-matrix, .matriz-sistemas');
+
+      // Usar el texto de la sección si existe, o el documento completo
+      const textSource = systemsSection ? systemsSection.textContent || '' : doc.body.textContent || '';
+      const rawHTML = summaryHTML || '';
+
+      // Extraer scores del texto
+      const digestScore = extractSystemScore(textSource, 'DIGESTIÓN') ?? extractSystemScore(textSource, 'DIGESTION') ?? extractSystemScore(rawHTML, 'DIGESTIÓN') ?? extractSystemScore(rawHTML, 'DIGESTION');
+      const energyScore = extractSystemScore(textSource, 'ENERGÍA') ?? extractSystemScore(textSource, 'ENERGIA') ?? extractSystemScore(rawHTML, 'ENERGÍA') ?? extractSystemScore(rawHTML, 'ENERGIA');
+      const mindScore = extractSystemScore(textSource, 'MENTE') ?? extractSystemScore(rawHTML, 'MENTE');
+      const hormonalScore = extractSystemScore(textSource, 'HORMONAL') ?? extractSystemScore(rawHTML, 'HORMONAL');
+      const immuneScore = extractSystemScore(textSource, 'INMUNE') ?? extractSystemScore(rawHTML, 'INMUNE');
+      const structureScore = extractSystemScore(textSource, 'ESTRUCTURA') ?? extractSystemScore(rawHTML, 'ESTRUCTURA');
+
+      // Retornar si encontramos al menos un sistema válido
+      if (digestScore !== null || energyScore !== null || mindScore !== null ||
+          hormonalScore !== null || immuneScore !== null || structureScore !== null) {
+        return [
+          { system: 'DIGESTIÓN', score: digestScore ?? 5, fullMark: 10 },
+          { system: 'ENERGÍA', score: energyScore ?? 5, fullMark: 10 },
+          { system: 'MENTE', score: mindScore ?? 5, fullMark: 10 },
+          { system: 'HORMONAL', score: hormonalScore ?? 5, fullMark: 10 },
+          { system: 'INMUNE', score: immuneScore ?? 5, fullMark: 10 },
+          { system: 'ESTRUCTURA', score: structureScore ?? 5, fullMark: 10 },
+        ];
       }
     } catch (error) {
       console.error('Error parsing systems data:', error);
