@@ -23,10 +23,10 @@ const AuthForm: React.FC = () => {
         await signIn(email, password);
       } else {
         await signUp(email, password, role);
-        setSuccess('¡Registro exitoso! Por favor, revisa tu email para confirmar tu cuenta.');
+        setSuccess('Registration successful! Please check your email to confirm your account.');
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Error en autenticación');
+      setError(err instanceof Error ? err.message : 'Authentication error');
     } finally {
       setLoading(false);
     }
@@ -41,7 +41,7 @@ const AuthForm: React.FC = () => {
           </div>
           <h1 className="text-3xl font-bold text-slate-800 mb-2">Cabo Health Nova</h1>
           <p className="text-slate-600">
-            {isLogin ? 'Inicia sesión para continuar' : 'Crea tu cuenta'}
+            {isLogin ? 'Sign in to continue' : 'Create your account'}
           </p>
         </div>
 
@@ -50,7 +50,7 @@ const AuthForm: React.FC = () => {
           {!isLogin && (
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-3">
-                Tipo de Cuenta
+                Account Type
               </label>
               <div className="grid grid-cols-2 gap-3">
                 <button
@@ -63,9 +63,9 @@ const AuthForm: React.FC = () => {
                   }`}
                 >
                   <div className="text-3xl mb-2">👤</div>
-                  <div className="font-semibold text-slate-800">Paciente</div>
+                  <div className="font-semibold text-slate-800">Patient</div>
                   <div className="text-xs text-slate-500 mt-1">
-                    Para consultas médicas
+                    For medical consultations
                   </div>
                 </button>
                 <button
@@ -78,9 +78,9 @@ const AuthForm: React.FC = () => {
                   }`}
                 >
                   <div className="text-3xl mb-2">👨‍⚕️</div>
-                  <div className="font-semibold text-slate-800">Médico</div>
+                  <div className="font-semibold text-slate-800">Doctor</div>
                   <div className="text-xs text-slate-500 mt-1">
-                    Ver consultas recibidas
+                    View received consultations
                   </div>
                 </button>
               </div>
@@ -89,7 +89,7 @@ const AuthForm: React.FC = () => {
 
           <div>
             <label htmlFor="email" className="block text-sm font-medium text-slate-700 mb-1">
-              Correo Electrónico
+              Email
             </label>
             <input
               type="email"
@@ -98,13 +98,13 @@ const AuthForm: React.FC = () => {
               onChange={(e) => setEmail(e.target.value)}
               required
               className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
-              placeholder="tu@email.com"
+              placeholder="you@email.com"
             />
           </div>
 
           <div>
             <label htmlFor="password" className="block text-sm font-medium text-slate-700 mb-1">
-              Contraseña
+              Password
             </label>
             <input
               type="password"
@@ -135,7 +135,7 @@ const AuthForm: React.FC = () => {
             disabled={loading}
             className="w-full py-3 px-4 bg-gradient-to-r from-blue-600 to-purple-600 text-white font-semibold rounded-lg hover:from-blue-700 hover:to-purple-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {loading ? 'Procesando...' : (isLogin ? 'Iniciar Sesión' : 'Registrarse')}
+            {loading ? 'Processing...' : (isLogin ? 'Sign In' : 'Sign Up')}
           </button>
         </form>
 
@@ -149,12 +149,12 @@ const AuthForm: React.FC = () => {
             }}
             className="text-blue-600 hover:text-blue-700 font-medium transition"
           >
-            {isLogin ? '¿No tienes cuenta? Regístrate' : '¿Ya tienes cuenta? Inicia sesión'}
+            {isLogin ? "Don't have an account? Sign Up" : 'Already have an account? Sign In'}
           </button>
         </div>
 
         <div className="mt-6 pt-6 border-t border-slate-200 text-center text-sm text-slate-500">
-          <p>Asistente médico con IA conversacional</p>
+          <p>Conversational AI Medical Assistant</p>
           <p className="mt-1">Next-Gen Clinical AI by Ivan Guaderrama</p>
         </div>
       </div>
