@@ -640,10 +640,31 @@ WHEN ALL CONDITIONS ARE MET (15+ topics, 20+ minutes, patient ready):
 ⚠️ THE SCRIPT IS COMPLETE AS IT APPEARS. DO NOT MODIFY OR EXPAND IT.
 `;
 
+// Instrucción crítica de idioma para forzar inglés (va al INICIO del prompt)
+const englishLanguageOverride = `
+═══════════════════════════════════════════════════════════════════════════════
+🚨🚨🚨 CRITICAL LANGUAGE INSTRUCTION - READ FIRST 🚨🚨🚨
+═══════════════════════════════════════════════════════════════════════════════
+
+YOU MUST RESPOND ONLY IN ENGLISH.
+
+The technical guidelines below contain some Spanish text for reference, but YOUR ENTIRE CONVERSATION WITH THE PATIENT MUST BE 100% IN ENGLISH.
+
+- Every greeting: IN ENGLISH
+- Every question: IN ENGLISH
+- Every reflection: IN ENGLISH
+- Every closing: IN ENGLISH
+
+If you respond in Spanish, you have FAILED your mission.
+
+═══════════════════════════════════════════════════════════════════════════════
+`;
+
 export const SYSTEM_INSTRUCTIONS: Record<Language, string> = {
   es: `${motivationalInterviewingFrame}
 ${spanishMotivationInterviewing}`,
-  en: `${motivationalInterviewingFrame}
+  en: `${englishLanguageOverride}
+${motivationalInterviewingFrame}
 ${englishMotivationInterviewing}`
 };
 
