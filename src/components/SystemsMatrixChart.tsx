@@ -78,17 +78,6 @@ const SystemsMatrixChart: React.FC<SystemsMatrixChartProps> = ({ summaryHTML }) 
         const immuneScore = extractSystemScore(allText, 'INMUNE') ?? extractSystemScore(rawHTML, 'INMUNE');
         const structureScore = extractSystemScore(allText, 'ESTRUCTURA') ?? extractSystemScore(rawHTML, 'ESTRUCTURA');
 
-        // Debug logging para verificar extracción
-        console.log('[SystemsMatrix] Extracted scores:', {
-          digestScore,
-          energyScore,
-          mindScore,
-          hormonalScore,
-          immuneScore,
-          structureScore,
-          textSample: allText.substring(0, 500)
-        });
-
         // Solo retornar si encontramos al menos un sistema válido
         if (digestScore !== null || energyScore !== null || mindScore !== null ||
             hormonalScore !== null || immuneScore !== null || structureScore !== null) {
