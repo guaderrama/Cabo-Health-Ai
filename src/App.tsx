@@ -77,7 +77,7 @@ const FREQUENCY_UPDATE_INTERVAL = 100; // 100ms = 10 updates/segundo en lugar de
 
 const App: React.FC = () => {
   const { user, userRole, loading } = useAuth();
-  const [language, setLanguage] = useState<Language>('es');
+  const [language, setLanguage] = useState<Language>('en');
   const [isOnline, setIsOnline] = useState(navigator.onLine);
 
   // Detectar cambios en el estado de conexión
@@ -131,7 +131,7 @@ const App: React.FC = () => {
 const MainApp: React.FC = () => {
   const { user } = useAuth();
   const [appState, setAppState] = useState<AppState>('IDLE');
-  const [language, setLanguage] = useState<Language>('es');
+  const [language, setLanguage] = useState<Language>('en');
   const [patientName, setPatientName] = useState('');
   const [interviewMode, setInterviewMode] = useState<InterviewMode | null>(null);
   const [transcript, setTranscript] = useState<TranscriptMessage[]>([]);
