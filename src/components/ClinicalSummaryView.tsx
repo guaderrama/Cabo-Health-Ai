@@ -42,6 +42,9 @@ const parseSummaryHTML = (html: string): ParsedSummary => {
   const parser = new DOMParser();
   const doc = parser.parseFromString(html, 'text/html');
 
+  // Obtener texto plano del HTML para búsquedas más flexibles
+  const plainText = doc.body.textContent || '';
+
   // Extraer alertas críticas
   const alerts: Alert[] = [];
   // Buscar sección de alertas usando traversal manual (no querySelector con :contains)
@@ -61,12 +64,12 @@ const parseSummaryHTML = (html: string): ParsedSummary => {
     }
   }
 
-  // Extraer scores de motivación - regex actualizado para coincidir con formato del prompt
-  // El prompt usa: "Importancia del cambio: [X/10]", "Confianza en cambiar: [X/10]", "Readiness general: [X/10]"
+  // Extraer scores de motivación - múltiples patrones para diferentes formatos de HTML
+  // El AI puede generar: <span>Importancia</span><span>10/10</span> o "Importancia: 10/10"
   const motivation: MotivationData = {
-    importance: extractScore(html, /Importancia(?:\s+del\s+cambio)?[:\s]+\[?(\d+)\/10/i, 'Importancia'),
-    confidence: extractScore(html, /Confianza(?:\s+en\s+cambiar)?[:\s]+\[?(\d+)\/10/i, 'Confianza'),
-    readiness: extractScore(html, /Readiness(?:\s+general)?[:\s]+\[?(\d+)\/10/i, 'Readiness')
+    importance: extractScoreFlexible(plainText, html, ['Importancia'], 'Importancia'),
+    confidence: extractScoreFlexible(plainText, html, ['Confianza'], 'Confianza'),
+    readiness: extractScoreFlexible(plainText, html, ['Readiness', 'Motivación'], 'Readiness')
   };
 
   // Extraer sistemas
@@ -84,13 +87,37 @@ const parseSummaryHTML = (html: string): ParsedSummary => {
     }
   });
 
-  // Extraer completitud
-  const completenessMatch = html.match(/Áreas Completamente Cubiertas:\s*(\d+)\/20/i);
-  const completeness = completenessMatch && completenessMatch[1] ? parseInt(completenessMatch[1]) : 0;
+  // Extraer completitud - buscar en texto plano y HTML
+  // Formato esperado: "Áreas Completamente Cubiertas: 18/20" o "<div>📋 Completitud</div><div>18/20</div>"
+  let completeness = 0;
+  const completenessPatterns = [
+    /Áreas Completamente Cubiertas[:\s]*(\d+)\/20/i,
+    /Completitud[^0-9]{0,30}(\d+)\/20/i,
+    /(\d+)\/20[^0-9]{0,20}Áreas/i,
+  ];
+  for (const pattern of completenessPatterns) {
+    const match = plainText.match(pattern) || html.match(pattern);
+    if (match?.[1]) {
+      completeness = parseInt(match[1]);
+      break;
+    }
+  }
 
-  // Extraer duración
-  const durationMatch = html.match(/⏱️ Duración[:\s]+~?(\d+ min)/i) || html.match(/Duración[:\s]+(.+?)(?=<|$)/i);
-  const duration = durationMatch && durationMatch[1] ? durationMatch[1].trim() : 'N/A';
+  // Extraer duración - buscar en texto plano
+  // Formato esperado: "~15 min" o "⏱️ Duración Entrevista ~15 min"
+  let duration = 'N/A';
+  const durationPatterns = [
+    /Duración[^0-9]*~?(\d+)\s*min/i,
+    /~(\d+)\s*min/i,
+    /(\d+)\s*minutos?/i,
+  ];
+  for (const pattern of durationPatterns) {
+    const match = plainText.match(pattern);
+    if (match?.[1]) {
+      duration = `~${match[1]} min`;
+      break;
+    }
+  }
 
   // Extraer motivo principal
   const chiefComplaintMatch = html.match(/Motivo principal de consulta:[:\s]+(.+?)(?=Objetivos|<|$)/i);
@@ -140,6 +167,40 @@ const extractScore = (html: string, regex: RegExp, fieldName: string): number =>
     return 0;
   }
   return parseInt(match[1]);
+};
+
+// Función flexible para extraer scores que maneja múltiples formatos de HTML
+// Busca el label y luego el patrón X/10 cercano en texto plano
+const extractScoreFlexible = (plainText: string, html: string, labels: string[], fieldName: string): number => {
+  // Múltiples patrones para diferentes formatos
+  for (const label of labels) {
+    // Patrón 1: En texto plano, label seguido de X/10 (con cualquier cosa en medio hasta 50 chars)
+    const plainPattern = new RegExp(`${label}[^0-9]{0,50}(\\d+)\\s*\\/\\s*10`, 'i');
+    const plainMatch = plainText.match(plainPattern);
+    if (plainMatch?.[1]) {
+      const score = parseInt(plainMatch[1]);
+      if (score >= 0 && score <= 10) return score;
+    }
+
+    // Patrón 2: En HTML con tags entre label y score
+    const htmlPattern = new RegExp(`${label}[\\s\\S]{0,100}?>(\\d+)\\/10<`, 'i');
+    const htmlMatch = html.match(htmlPattern);
+    if (htmlMatch?.[1]) {
+      const score = parseInt(htmlMatch[1]);
+      if (score >= 0 && score <= 10) return score;
+    }
+
+    // Patrón 3: Formato directo "Label: X/10" o "Label [X/10]"
+    const directPattern = new RegExp(`${label}[:\\s]+\\[?(\\d+)\\/10\\]?`, 'i');
+    const directMatch = html.match(directPattern);
+    if (directMatch?.[1]) {
+      const score = parseInt(directMatch[1]);
+      if (score >= 0 && score <= 10) return score;
+    }
+  }
+
+  logger.warn(`Parsing fallido para ${fieldName}`, { labels: labels.join(', ') });
+  return 0;
 };
 
 const ClinicalSummaryView: React.FC<ClinicalSummaryViewProps> = ({ summaryHTML, language }) => {
