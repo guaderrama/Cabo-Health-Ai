@@ -628,7 +628,9 @@ const MainApp: React.FC = () => {
       });
 
       // Enviar mensaje de activación - siempre saluda (sesión única)
-      const activationMessage = '[Sesión de TEXTO iniciada - Por favor saluda al paciente y comienza la entrevista completa]';
+      const activationMessage = language === 'es'
+        ? '[Sesión de TEXTO iniciada - Por favor saluda al paciente y comienza la entrevista completa]'
+        : '[TEXT session started - Please greet the patient and begin the complete interview]';
 
       setWaitingForNova(true);
 
@@ -1337,10 +1339,14 @@ const MainApp: React.FC = () => {
 
                   if (moduleConfig.hasGreeting) {
                     // Módulo 1: Saludo inicial
-                    activationMessage = '[Sesión iniciada - Por favor saluda al paciente]';
+                    activationMessage = language === 'es'
+                      ? '[Sesión iniciada - Por favor saluda al paciente]'
+                      : '[Session started - Please greet the patient]';
                   } else {
                     // Módulos 2 y 3: Continuar sin saludo
-                    activationMessage = '[Continuación de entrevista - Continúa directamente con las preguntas de este módulo SIN saludar]';
+                    activationMessage = language === 'es'
+                      ? '[Continuación de entrevista - Continúa directamente con las preguntas de este módulo SIN saludar]'
+                      : '[Interview continuation - Continue directly with this module questions WITHOUT greeting]';
                   }
 
                   session.sendClientContent({
