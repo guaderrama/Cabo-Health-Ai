@@ -358,8 +358,12 @@ Pregunta sugerida: "Del 1-10, ¿cómo está tu nivel de energía en general? ¿T
 **11. Estrés y afrontamiento**
 Pregunta sugerida: "Del 1-10, ¿cómo calificarías tu nivel de estrés en las últimas 2-4 semanas? ¿Cuáles son tus principales fuentes de estrés (trabajo, familia, finanzas, salud)? ¿Qué estrategias usas para manejarlo (meditación, ejercicio, terapia)?"
 
-**19. Bienestar emocional y apoyo social**
+**19. Bienestar emocional, apoyo social y BARRERAS AL CAMBIO**
 Pregunta sugerida: "Del 1-10, ¿cómo describirías tu satisfacción vital general? ¿Cómo ha estado tu estado de ánimo el último mes (estable, ansioso, bajo, irritable)? ¿Cuentas con una red de apoyo (familia, amigos)?"
+🎯 CRÍTICO para filtro de adherencia - SIEMPRE preguntar:
+- "¿Has intentado hacer cambios similares en tu salud antes? ¿Qué pasó?"
+- "¿Qué obstáculos anticipas para implementar un plan de salud?"
+- "¿Hay algo en tu vida (trabajo, familia, horarios) que dificulte hacer cambios?"
 
 ---
 
@@ -395,8 +399,9 @@ Pregunta sugerida: "Descríbeme un día típico de alimentación: ¿Qué comes e
 **12. Actividad física y recuperación**
 Pregunta sugerida: "¿Qué tipo de ejercicio o movimiento haces? ¿Cuántos días a la semana y por cuánto tiempo? ¿Cómo te sientes después: energizado, agotado, con dolor muscular?"
 
-**15. Medicación y suplementos actuales**
-Pregunta sugerida: "¿Qué medicamentos o suplementos estás tomando actualmente? Incluye nombre, dosis y desde cuándo. ¿Usas antiinflamatorios, antiácidos o corticosteroides?"
+**15. Medicación, suplementos y ALERGIAS**
+Pregunta sugerida: "¿Qué medicamentos o suplementos estás tomando actualmente? Incluye nombre, dosis y desde cuándo. ¿Usas antiinflamatorios, antiácidos o corticosteroides? Y muy importante: ¿Tienes alguna alergia conocida a medicamentos, alimentos o sustancias ambientales?"
+⚠️ CRÍTICO: Siempre preguntar por alergias - es información de seguridad del paciente.
 
 **16. Antecedentes médicos personales y familiares**
 Pregunta sugerida: "¿Tienes diagnósticos médicos previos? ¿Hay enfermedades importantes en tu familia directa (padres, hermanos): diabetes, hipertensión, autoinmunes, tiroides, cardiovasculares, cáncer, trastornos digestivos?"
@@ -873,6 +878,9 @@ export const SUMMARY_PROMPT: Record<Language, (transcript: string) => string> = 
         <h2 style="color: #059669; margin-bottom: 1rem;">🩺 Análisis Clínico (SOAP)</h2>
 
         <h3 style="color: #047857; margin-top: 1.5rem;">S - SUBJETIVO (Lo que el paciente reporta)</h3>
+        <div style="background: #fef2f2; border: 2px solid #ef4444; border-radius: 8px; padding: 0.75rem; margin-bottom: 1rem;">
+          <strong style="color: #dc2626;">⚠️ ALERGIAS:</strong> [Medicamentos/Alimentos/Ambientales reportados o "NKDA - Sin alergias conocidas"]
+        </div>
         <ul style="line-height: 1.8;">
           <li><strong>Síntomas principales:</strong> [Lista detallada con intensidad 0-10 si mencionado]</li>
           <li><strong>Factores desencadenantes:</strong> [Qué empeora los síntomas]</li>
@@ -978,6 +986,57 @@ export const SUMMARY_PROMPT: Record<Language, (transcript: string) => string> = 
           <li><strong>[Área #2]</strong> - Motivación: X/10 - [Razón de prioridad]</li>
           <li><strong>[Área #3]</strong> - Motivación: X/10 - [Razón de prioridad]</li>
         </ol>
+
+        <!-- ANÁLISIS DE ADHERENCIA POTENCIAL - CRÍTICO PARA FILTRAR PACIENTES -->
+        <h3 style="margin-top: 2rem; color: #dc2626;">🚨 ANÁLISIS DE ADHERENCIA POTENCIAL</h3>
+        <table style="width: 100%; border-collapse: collapse; margin-top: 0.5rem; background: white; border-radius: 8px;">
+          <tr style="border-bottom: 1px solid #e5e7eb;">
+            <td style="padding: 0.75rem; font-weight: 600; width: 40%;">Intentos previos de cambio:</td>
+            <td style="padding: 0.75rem;">[Descripción de intentos previos o "No reportado"]</td>
+          </tr>
+          <tr style="border-bottom: 1px solid #e5e7eb;">
+            <td style="padding: 0.75rem; font-weight: 600;">Barreras identificadas:</td>
+            <td style="padding: 0.75rem;">[Lista de obstáculos: tiempo, familia, trabajo, dinero, etc.]</td>
+          </tr>
+          <tr>
+            <td style="padding: 0.75rem; font-weight: 600;">Red Flags de NO-adherencia:</td>
+            <td style="padding: 0.75rem;">[Lista o "Ninguno detectado"]</td>
+          </tr>
+        </table>
+
+        <div style="margin-top: 1rem; padding: 0.5rem; background: #fef2f2; border-radius: 4px; font-size: 0.85rem;">
+          <strong>Red Flags a detectar:</strong>
+          ❌ Múltiples intentos fallidos sin reflexión |
+          ❌ Culpa externa ("no tengo tiempo", "es por el trabajo") |
+          ❌ Expectativas mágicas ("quiero algo rápido") |
+          ❌ Baja autoeficacia ("no soy capaz") |
+          ❌ Ambiente no favorable (familia sabotea) |
+          ❌ Adicciones no controladas
+        </div>
+
+        <!-- CLASIFICACIÓN AUTOMÁTICA DEL PACIENTE -->
+        <div id="pronostico-adherencia" style="margin-top: 1.5rem; padding: 1.25rem; border-radius: 12px; text-align: center;">
+          <!-- El color del fondo depende del pronóstico:
+               🟢 CANDIDATO IDEAL: background: #dcfce7; border: 3px solid #22c55e;
+               🟡 CON RESERVAS: background: #fef9c3; border: 3px solid #eab308;
+               🔴 NO CANDIDATO: background: #fee2e2; border: 3px solid #ef4444;
+          -->
+          <p style="font-size: 0.9rem; color: #6b7280; margin-bottom: 0.5rem;">PRONÓSTICO DE ADHERENCIA</p>
+          <p style="font-size: 1.75rem; font-weight: 800; margin: 0.5rem 0;">
+            [🟢 CANDIDATO IDEAL / 🟡 CON RESERVAS / 🔴 NO CANDIDATO ACTUAL]
+          </p>
+          <p style="margin-top: 0.75rem;"><strong>Razón:</strong> [Justificación basada en Readiness + Red Flags]</p>
+          <p style="margin-top: 0.5rem; font-style: italic; color: #6b7280;">
+            <strong>Recomendación:</strong> [Qué hacer con este paciente: invertir en plan completo / empezar pequeño / derivar a coaching primero]
+          </p>
+        </div>
+
+        <div style="margin-top: 1rem; padding: 0.75rem; background: #f8fafc; border-radius: 8px; font-size: 0.85rem;">
+          <strong>Criterios de clasificación:</strong><br>
+          🟢 <strong>CANDIDATO IDEAL</strong>: Readiness ≥7 Y sin red flags → Alta probabilidad de adherencia<br>
+          🟡 <strong>CON RESERVAS</strong>: Readiness 4-6 O 1-2 red flags → Empezar con cambios pequeños<br>
+          🔴 <strong>NO CANDIDATO</strong>: Readiness &lt;4 O 3+ red flags → Derivar a coaching/psicología primero
+        </div>
       </div>
 
       <!-- SECCIÓN 5: CHECKLIST DE ÁREAS CORE -->
@@ -1264,6 +1323,9 @@ export const SUMMARY_PROMPT: Record<Language, (transcript: string) => string> = 
         <h2 style="color: #059669; margin-bottom: 1rem;">🩺 Clinical Analysis (SOAP)</h2>
 
         <h3 style="color: #047857; margin-top: 1.5rem;">S - SUBJECTIVE (What the patient reports)</h3>
+        <div style="background: #fef2f2; border: 2px solid #ef4444; border-radius: 8px; padding: 0.75rem; margin-bottom: 1rem;">
+          <strong style="color: #dc2626;">⚠️ ALLERGIES:</strong> [Medications/Foods/Environmental reported or "NKDA - No Known Drug Allergies"]
+        </div>
         <ul style="line-height: 1.8;">
           <li><strong>Primary symptoms:</strong> [Detailed list with intensity 0-10 if mentioned]</li>
           <li><strong>Triggering factors:</strong> [What worsens symptoms]</li>
@@ -1369,6 +1431,54 @@ export const SUMMARY_PROMPT: Record<Language, (transcript: string) => string> = 
           <li><strong>[Area #2]</strong> - Motivation: X/10 - [Priority reason]</li>
           <li><strong>[Area #3]</strong> - Motivation: X/10 - [Priority reason]</li>
         </ol>
+
+        <!-- POTENTIAL ADHERENCE ANALYSIS - CRITICAL FOR PATIENT FILTERING -->
+        <h3 style="margin-top: 2rem; color: #dc2626;">🚨 Potential Adherence Analysis</h3>
+        <table style="width: 100%; border-collapse: collapse; margin-top: 0.5rem; background: white; border-radius: 8px;">
+          <tr style="border-bottom: 1px solid #e5e7eb;">
+            <td style="padding: 0.75rem; font-weight: 600; width: 40%;">Previous change attempts:</td>
+            <td style="padding: 0.75rem;">[Description of previous attempts or "Not reported"]</td>
+          </tr>
+          <tr style="border-bottom: 1px solid #e5e7eb;">
+            <td style="padding: 0.75rem; font-weight: 600;">Identified barriers:</td>
+            <td style="padding: 0.75rem;">[List of obstacles: time, family, work, money, etc.]</td>
+          </tr>
+          <tr>
+            <td style="padding: 0.75rem; font-weight: 600;">NON-adherence Red Flags:</td>
+            <td style="padding: 0.75rem;">[List or "None detected"]</td>
+          </tr>
+        </table>
+
+        <div style="margin-top: 1rem; padding: 0.75rem; background: #fef2f2; border-radius: 8px; font-size: 0.85rem;">
+          <strong>Red Flags to detect (mark if applicable):</strong><br>
+          ❌ Multiple failed attempts without reflecting on causes<br>
+          ❌ External blame for health problems ("it's because of work", "I don't have time")<br>
+          ❌ Magical expectations ("I want a pill/quick fix")<br>
+          ❌ Cannot identify personal benefits of change<br>
+          ❌ Low self-efficacy ("I'm not capable", "I always fail")<br>
+          ❌ Unfavorable environment (partner/family who sabotages)<br>
+          ❌ Uncontrolled addictions (alcohol, tobacco, sugar)<br>
+          ❌ Resistance to previous recommendations
+        </div>
+
+        <!-- AUTOMATIC PATIENT CLASSIFICATION -->
+        <div id="adherence-prognosis" style="margin-top: 1.5rem; padding: 1.25rem; border-radius: 12px; text-align: center; background: linear-gradient(135deg, #fef3c7, #fde68a);">
+          <p style="font-size: 0.9rem; color: #6b7280; margin-bottom: 0.5rem;">ADHERENCE PROGNOSIS</p>
+          <p style="font-size: 1.75rem; font-weight: 800; margin: 0.5rem 0;">
+            [🟢 IDEAL CANDIDATE / 🟡 WITH RESERVATIONS / 🔴 NOT A CANDIDATE NOW]
+          </p>
+          <p style="margin-top: 0.75rem;"><strong>Reason:</strong> [Justification based on Readiness + Red Flags]</p>
+          <p style="margin-top: 0.5rem; font-style: italic; color: #6b7280;">
+            <strong>Recommendation:</strong> [What to do with this patient: invest in complete plan / start small / refer to coaching first]
+          </p>
+        </div>
+
+        <div style="margin-top: 1rem; padding: 0.75rem; background: #f8fafc; border-radius: 8px; font-size: 0.85rem;">
+          <strong>Classification criteria:</strong><br>
+          🟢 <strong>IDEAL CANDIDATE</strong>: Readiness ≥7 AND no red flags → High adherence probability<br>
+          🟡 <strong>WITH RESERVATIONS</strong>: Readiness 4-6 OR 1-2 red flags → Start with small changes<br>
+          🔴 <strong>NOT A CANDIDATE</strong>: Readiness &lt;4 OR 3+ red flags → Refer to coaching/psychology first
+        </div>
       </div>
 
       <!-- SECTION 5: CORE AREAS CHECKLIST -->
@@ -1524,8 +1634,8 @@ TECNICAS MITI 4.2.1:
 EJEMPLO DE FLUJO:
 1. Saludo -> "Cual es el motivo de tu consulta?"
 2. Explorar motivo -> "Desde cuando empezaste a notar esto?"
-3. Timeline -> "Que medicamentos o suplementos tomas actualmente?"
-4. Medicamentos -> "Hay algo en tu historia medica o la de tu familia que sea relevante?"
+3. Timeline -> "Que medicamentos o suplementos tomas actualmente? Y muy importante: ¿Tienes alguna alergia conocida a medicamentos, alimentos o sustancias?"
+4. Medicamentos/Alergias -> "Hay algo en tu historia medica o la de tu familia que sea relevante?"
 5. Antecedentes -> Transicion al modulo 2
 `;
 
@@ -1565,8 +1675,8 @@ MITI 4.2.1 TECHNIQUES:
 EXAMPLE FLOW:
 1. Greeting -> "What is the reason for your visit?"
 2. Explore complaint -> "When did you first notice this?"
-3. Timeline -> "What medications or supplements are you currently taking?"
-4. Medications -> "Is there anything in your medical history or family history that's relevant?"
+3. Timeline -> "What medications or supplements are you currently taking? And importantly: Do you have any known allergies to medications, foods, or environmental substances?"
+4. Medications/Allergies -> "Is there anything in your medical history or family history that's relevant?"
 5. History -> Transition to module 2
 `;
 

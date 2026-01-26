@@ -10,6 +10,14 @@ interface ClinicalSummaryViewProps {
 
 type TabType = 'overview' | 'soap' | 'systems' | 'motivation' | 'plan';
 
+interface AdherencePrognosis {
+  level: 'ideal' | 'reservations' | 'not-candidate' | 'unknown';
+  reason: string;
+  recommendation: string;
+  barriers: string[];
+  redFlags: string[];
+}
+
 interface ParsedSummary {
   alerts: Alert[];
   motivation: MotivationData;
@@ -18,6 +26,7 @@ interface ParsedSummary {
   duration: string;
   chiefComplaint: string;
   keyFindings: string[];
+  adherencePrognosis: AdherencePrognosis;
 }
 
 interface Alert {
@@ -157,7 +166,61 @@ const parseSummaryHTML = (html: string): ParsedSummary => {
     }
   }
 
-  return { alerts, motivation, systems, completeness, duration, chiefComplaint, keyFindings };
+  // Extraer pronóstico de adherencia
+  const adherencePrognosis: AdherencePrognosis = {
+    level: 'unknown',
+    reason: '',
+    recommendation: '',
+    barriers: [],
+    redFlags: []
+  };
+
+  // Detectar nivel de pronóstico (busca emojis y keywords)
+  if (plainText.includes('CANDIDATO IDEAL') || plainText.includes('IDEAL CANDIDATE')) {
+    adherencePrognosis.level = 'ideal';
+  } else if (plainText.includes('CON RESERVAS') || plainText.includes('WITH RESERVATIONS')) {
+    adherencePrognosis.level = 'reservations';
+  } else if (plainText.includes('NO CANDIDATO') || plainText.includes('NOT A CANDIDATE')) {
+    adherencePrognosis.level = 'not-candidate';
+  }
+
+  // Extraer razón
+  const reasonMatch = plainText.match(/Raz[oó]n:\s*([^.]+\.)/i) || plainText.match(/Reason:\s*([^.]+\.)/i);
+  if (reasonMatch?.[1]) {
+    adherencePrognosis.reason = reasonMatch[1].trim();
+  }
+
+  // Extraer recomendación
+  const recoMatch = plainText.match(/Recomendaci[oó]n:\s*([^.]+\.)/i) || plainText.match(/Recommendation:\s*([^.]+\.)/i);
+  if (recoMatch?.[1]) {
+    adherencePrognosis.recommendation = recoMatch[1].trim();
+  }
+
+  // Extraer barreras identificadas
+  const barriersMatch = plainText.match(/Barreras identificadas:\s*([^\n]+)/i) || plainText.match(/Identified barriers:\s*([^\n]+)/i);
+  if (barriersMatch?.[1]) {
+    const barrierText = barriersMatch[1];
+    if (!barrierText.includes('No reportado') && !barrierText.includes('Not reported')) {
+      adherencePrognosis.barriers = barrierText.split(/[,;]/).map(b => b.trim()).filter(b => b.length > 2);
+    }
+  }
+
+  // Extraer red flags detectados
+  const redFlagsMatch = plainText.match(/Red Flags[^:]*:\s*([^\n]+)/i);
+  if (redFlagsMatch?.[1]) {
+    const flagText = redFlagsMatch[1];
+    if (!flagText.includes('Ninguno') && !flagText.includes('None')) {
+      // Buscar items con ❌ o bullets
+      const flagMatches = flagText.matchAll(/(?:❌|•|-)\s*([^❌•\-\n]+)/g);
+      for (const match of flagMatches) {
+        if (match[1] && match[1].trim().length > 3) {
+          adherencePrognosis.redFlags.push(match[1].trim());
+        }
+      }
+    }
+  }
+
+  return { alerts, motivation, systems, completeness, duration, chiefComplaint, keyFindings, adherencePrognosis };
 };
 
 const extractScore = (html: string, regex: RegExp, fieldName: string): number => {
@@ -334,6 +397,95 @@ const ClinicalSummaryView: React.FC<ClinicalSummaryViewProps> = ({ summaryHTML, 
                       <p className="text-red-900 flex-1">{alert.text}</p>
                     </div>
                   ))}
+                </div>
+              </div>
+            )}
+
+            {/* Pronóstico de Adherencia - CRÍTICO para filtrar pacientes */}
+            {parsed.adherencePrognosis.level !== 'unknown' && (
+              <div className={`rounded-xl p-6 border-2 ${
+                parsed.adherencePrognosis.level === 'ideal'
+                  ? 'bg-gradient-to-r from-green-50 to-emerald-50 border-green-400'
+                  : parsed.adherencePrognosis.level === 'reservations'
+                  ? 'bg-gradient-to-r from-yellow-50 to-amber-50 border-yellow-400'
+                  : 'bg-gradient-to-r from-red-50 to-rose-50 border-red-400'
+              }`}>
+                <div className="flex items-center gap-4 mb-4">
+                  <div className={`w-16 h-16 rounded-full flex items-center justify-center text-3xl ${
+                    parsed.adherencePrognosis.level === 'ideal'
+                      ? 'bg-green-500'
+                      : parsed.adherencePrognosis.level === 'reservations'
+                      ? 'bg-yellow-500'
+                      : 'bg-red-500'
+                  }`}>
+                    {parsed.adherencePrognosis.level === 'ideal' ? '🟢' :
+                     parsed.adherencePrognosis.level === 'reservations' ? '🟡' : '🔴'}
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-semibold text-slate-600 uppercase tracking-wide">
+                      {language === 'es' ? 'Pronóstico de Adherencia' : 'Adherence Prognosis'}
+                    </h3>
+                    <p className={`text-2xl font-bold ${
+                      parsed.adherencePrognosis.level === 'ideal'
+                        ? 'text-green-700'
+                        : parsed.adherencePrognosis.level === 'reservations'
+                        ? 'text-yellow-700'
+                        : 'text-red-700'
+                    }`}>
+                      {parsed.adherencePrognosis.level === 'ideal'
+                        ? (language === 'es' ? 'CANDIDATO IDEAL' : 'IDEAL CANDIDATE')
+                        : parsed.adherencePrognosis.level === 'reservations'
+                        ? (language === 'es' ? 'CON RESERVAS' : 'WITH RESERVATIONS')
+                        : (language === 'es' ? 'NO CANDIDATO ACTUAL' : 'NOT A CANDIDATE NOW')}
+                    </p>
+                  </div>
+                </div>
+
+                {parsed.adherencePrognosis.reason && (
+                  <p className="text-slate-700 mb-3">
+                    <strong>{language === 'es' ? 'Razón:' : 'Reason:'}</strong> {parsed.adherencePrognosis.reason}
+                  </p>
+                )}
+
+                {parsed.adherencePrognosis.recommendation && (
+                  <p className="text-slate-600 italic mb-3">
+                    <strong>{language === 'es' ? 'Recomendación:' : 'Recommendation:'}</strong> {parsed.adherencePrognosis.recommendation}
+                  </p>
+                )}
+
+                {/* Barreras y Red Flags */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                  {parsed.adherencePrognosis.barriers.length > 0 && (
+                    <div className="bg-white/60 rounded-lg p-3">
+                      <h4 className="text-sm font-semibold text-slate-700 mb-2">
+                        🚧 {language === 'es' ? 'Barreras Identificadas' : 'Identified Barriers'}
+                      </h4>
+                      <ul className="text-sm text-slate-600 space-y-1">
+                        {parsed.adherencePrognosis.barriers.map((barrier, idx) => (
+                          <li key={idx} className="flex items-start gap-2">
+                            <span className="text-slate-400">•</span>
+                            <span>{barrier}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  {parsed.adherencePrognosis.redFlags.length > 0 && (
+                    <div className="bg-white/60 rounded-lg p-3">
+                      <h4 className="text-sm font-semibold text-red-700 mb-2">
+                        ⚠️ {language === 'es' ? 'Red Flags Detectados' : 'Red Flags Detected'}
+                      </h4>
+                      <ul className="text-sm text-red-600 space-y-1">
+                        {parsed.adherencePrognosis.redFlags.map((flag, idx) => (
+                          <li key={idx} className="flex items-start gap-2">
+                            <span>❌</span>
+                            <span>{flag}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
                 </div>
               </div>
             )}
