@@ -33,39 +33,61 @@ const SystemsMatrixChart: React.FC<SystemsMatrixChartProps> = ({ summaryHTML }) 
       // Buscar sección de Matriz de Sistemas
       const systemsSection = doc.querySelector('.systems-matrix, .matriz-sistemas');
       if (!systemsSection) {
-        // Intentar buscar por texto
+        // Intentar buscar por texto plano y también en el HTML original
         const allText = doc.body.textContent || '';
+        const rawHTML = summaryHTML || '';
 
         // Extraer puntuaciones usando regex mejorado
         // El prompt genera formato como: "DIGESTIÓN: 7/10" o "DIGESTIÓN</td><td>7/10"
         // También puede ser: ">DIGESTIÓN</strong>...7/10" en tablas HTML
 
         const extractSystemScore = (text: string, systemName: string): number | null => {
-          // Patrón 1: "SISTEMA: X/10" o "SISTEMA X/10"
-          const pattern1 = new RegExp(`${systemName}[:\\s]+(?:\\[)?(\\d+)\\/10`, 'i');
-          // Patrón 2: En tabla HTML "SISTEMA</td><td>X/10" o similar
-          const pattern2 = new RegExp(`${systemName}[^\\d]*?(\\d+)\\/10`, 'i');
-          // Patrón 3: Con emojis o estilos "🔵 SISTEMA...X/10"
-          const pattern3 = new RegExp(`${systemName}[^0-9]*?(\\d+)\\s*\\/\\s*10`, 'i');
+          // Patrones mejorados para manejar múltiples formatos de HTML
+          const patterns = [
+            // Patrón 1: "SISTEMA: X/10" o "SISTEMA X/10" (formato directo)
+            new RegExp(`${systemName}[:\\s]+(?:\\[)?(\\d+)\\/10`, 'i'),
+            // Patrón 2: HTML con hasta 150 caracteres entre sistema y score (para spans, divs, etc)
+            new RegExp(`${systemName}.{0,150}?(\\d+)\\s*\\/\\s*10`, 'i'),
+            // Patrón 3: Score en corchetes "[X/10]" con más distancia
+            new RegExp(`${systemName}[^\\d]{0,200}\\[(\\d+)\\/10\\]`, 'i'),
+            // Patrón 4: Cualquier formato con score X/10 cerca del nombre
+            new RegExp(`${systemName}[^0-9]{0,100}(\\d+)\\s*\\/\\s*10`, 'i'),
+            // Patrón 5: Score antes del nombre (por si acaso)
+            new RegExp(`(\\d+)\\s*\\/\\s*10[^\\d]{0,50}${systemName}`, 'i'),
+          ];
 
-          const match1 = text.match(pattern1);
-          if (match1?.[1]) return parseInt(match1[1]);
-
-          const match2 = text.match(pattern2);
-          if (match2?.[1]) return parseInt(match2[1]);
-
-          const match3 = text.match(pattern3);
-          if (match3?.[1]) return parseInt(match3[1]);
+          for (const pattern of patterns) {
+            const match = text.match(pattern);
+            if (match?.[1]) {
+              const score = parseInt(match[1]);
+              // Validar que el score sea razonable (0-10)
+              if (score >= 0 && score <= 10) {
+                return score;
+              }
+            }
+          }
 
           return null;
         };
 
-        const digestScore = extractSystemScore(allText, 'DIGESTIÓN') ?? extractSystemScore(allText, 'DIGESTION');
-        const energyScore = extractSystemScore(allText, 'ENERGÍA') ?? extractSystemScore(allText, 'ENERGIA');
-        const mindScore = extractSystemScore(allText, 'MENTE');
-        const hormonalScore = extractSystemScore(allText, 'HORMONAL');
-        const immuneScore = extractSystemScore(allText, 'INMUNE');
-        const structureScore = extractSystemScore(allText, 'ESTRUCTURA');
+        // Buscar primero en texto plano, luego en HTML crudo como fallback
+        const digestScore = extractSystemScore(allText, 'DIGESTIÓN') ?? extractSystemScore(allText, 'DIGESTION') ?? extractSystemScore(rawHTML, 'DIGESTIÓN') ?? extractSystemScore(rawHTML, 'DIGESTION');
+        const energyScore = extractSystemScore(allText, 'ENERGÍA') ?? extractSystemScore(allText, 'ENERGIA') ?? extractSystemScore(rawHTML, 'ENERGÍA') ?? extractSystemScore(rawHTML, 'ENERGIA');
+        const mindScore = extractSystemScore(allText, 'MENTE') ?? extractSystemScore(rawHTML, 'MENTE');
+        const hormonalScore = extractSystemScore(allText, 'HORMONAL') ?? extractSystemScore(rawHTML, 'HORMONAL');
+        const immuneScore = extractSystemScore(allText, 'INMUNE') ?? extractSystemScore(rawHTML, 'INMUNE');
+        const structureScore = extractSystemScore(allText, 'ESTRUCTURA') ?? extractSystemScore(rawHTML, 'ESTRUCTURA');
+
+        // Debug logging para verificar extracción
+        console.log('[SystemsMatrix] Extracted scores:', {
+          digestScore,
+          energyScore,
+          mindScore,
+          hormonalScore,
+          immuneScore,
+          structureScore,
+          textSample: allText.substring(0, 500)
+        });
 
         // Solo retornar si encontramos al menos un sistema válido
         if (digestScore !== null || energyScore !== null || mindScore !== null ||

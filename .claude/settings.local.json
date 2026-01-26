@@ -55,7 +55,8 @@
       "Bash(tree:*)",
       "Bash(timeout /t 5 /nobreak)",
       "Bash(timeout:*)",
-      "Bash(cat:*)"
+      "Bash(cat:*)",
+      "Bash(gh api:*)"
     ],
     "deny": [],
     "ask": []
