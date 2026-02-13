@@ -148,6 +148,25 @@ Specialized skills for building features:
 - **[skills/nextjs-16-complete-guide/SKILL.md](./skills/nextjs-16-complete-guide/SKILL.md)** - Next.js 16 complete guide
 - **[skills/skill-creator/SKILL.md](./skills/skill-creator/SKILL.md)** - Create custom skills
 
+### UI/UX & Design
+- **[skills/ui-ux-pro-max-skill/](./skills/ui-ux-pro-max-skill/)** - Professional UI/UX design system (25,300+ stars)
+  - 67 UI component styles, 10 dashboard templates, 96 color palettes
+- **[prompts/ui-design-starter.md](./prompts/ui-design-starter.md)** - UI/UX starter prompts
+
+### Planning & Design
+- **[skills/brainstorming/SKILL.md](./skills/brainstorming/SKILL.md)** - Structured brainstorming before any creative work
+- **[skills/frontend-design/SKILL.md](./skills/frontend-design/SKILL.md)** - Distinctive, production-grade frontend interfaces (Anthropic oficial)
+
+### Quality & Testing
+- **[skills/test-driven-development/SKILL.md](./skills/test-driven-development/SKILL.md)** - TDD obligatorio: RED → GREEN → REFACTOR
+- **[skills/systematic-debugging/SKILL.md](./skills/systematic-debugging/SKILL.md)** - Debugging estructurado: 4 fases de root cause analysis
+- **[skills/verification-before-completion/SKILL.md](./skills/verification-before-completion/SKILL.md)** - Evidence before claims, always
+- **[skills/webapp-testing/SKILL.md](./skills/webapp-testing/SKILL.md)** - Testing visual de web apps con Playwright (Anthropic oficial)
+
+### Performance & Best Practices
+- **[skills/react-best-practices/SKILL.md](./skills/react-best-practices/SKILL.md)** - 57 reglas React/Next.js de Vercel Engineering
+- **[skills/supabase-postgres-best-practices/SKILL.md](./skills/supabase-postgres-best-practices/SKILL.md)** - Best practices Postgres de Supabase oficial
+
 ---
 
 ## 📚 Core Project Files
