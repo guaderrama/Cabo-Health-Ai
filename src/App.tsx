@@ -214,6 +214,81 @@ const MainApp: React.FC = () => {
     }
   }, [welcomeSoundEnabled]);
 
+  // ============================================================
+  // PROTECCIÓN: beforeunload - Advertir al cerrar pestaña durante entrevista
+  // ============================================================
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (appState === 'LISTENING' || appState === 'PROCESSING') {
+        e.preventDefault();
+        e.returnValue = '';
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [appState]);
+
+  // ============================================================
+  // AUTO-GUARDADO: Guardar transcript periódicamente en pending_summaries
+  // Cada 60 segundos o cada 5 mensajes nuevos, salvar silenciosamente
+  // ============================================================
+  const lastAutoSaveCountRef = useRef(0);
+  useEffect(() => {
+    if (appState !== 'LISTENING' || !user?.id || !sessionId) return;
+
+    const AUTO_SAVE_INTERVAL = 60000; // 60 segundos
+
+    const autoSaveInterval = setInterval(async () => {
+      const currentCount = transcript.length;
+      // Solo guardar si hay al menos 2 mensajes y han cambiado desde el último auto-save
+      if (currentCount >= 2 && currentCount !== lastAutoSaveCountRef.current) {
+        try {
+          await savePendingSummaryWithRetry(
+            user.id,
+            sessionId,
+            transcript,
+            language,
+            patientName,
+            sessionStartTimeRef.current
+              ? Math.floor((Date.now() - sessionStartTimeRef.current) / 1000)
+              : 0
+          );
+          lastAutoSaveCountRef.current = currentCount;
+          logger.debug(`💾 Auto-save: ${currentCount} mensajes guardados en pending_summaries`);
+        } catch (e) {
+          logger.warn('⚠️ Auto-save falló silenciosamente:', e);
+        }
+      }
+    }, AUTO_SAVE_INTERVAL);
+
+    // También guardar cuando hay 5+ mensajes nuevos desde el último save
+    const messageThreshold = 5;
+    if (
+      transcript.length >= 2 &&
+      transcript.length - lastAutoSaveCountRef.current >= messageThreshold &&
+      user?.id
+    ) {
+      savePendingSummaryWithRetry(
+        user.id,
+        sessionId,
+        transcript,
+        language,
+        patientName,
+        sessionStartTimeRef.current
+          ? Math.floor((Date.now() - sessionStartTimeRef.current) / 1000)
+          : 0
+      ).then(() => {
+        lastAutoSaveCountRef.current = transcript.length;
+        logger.debug(`💾 Auto-save por umbral: ${transcript.length} mensajes guardados`);
+      }).catch(() => {
+        // Silently fail - best effort
+      });
+    }
+
+    return () => clearInterval(autoSaveInterval);
+  }, [appState, transcript.length, user?.id, sessionId, language, patientName, transcript]);
+
   const handleToggleWelcomeSound = () => {
     setWelcomeSoundEnabled((prev: boolean) => !prev);
   };
