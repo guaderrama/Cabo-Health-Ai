@@ -3,6 +3,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { type Language } from '../types';
 import { UI_TEXTS } from '../constants';
 import ConsultationHistory from './ConsultationHistory';
+import { logger } from '../lib/logger';
 
 interface HeaderProps {
   language: Language;
@@ -27,7 +28,7 @@ const Header: React.FC<HeaderProps> = ({ language, welcomeSoundEnabled, onToggle
       try {
         await signOut();
       } catch (error) {
-        console.error('Error signing out:', error);
+        logger.error('Error signing out:', error);
         setIsSigningOut(false);
       }
     }

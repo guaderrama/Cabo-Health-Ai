@@ -20,7 +20,10 @@ export async function uploadAudioFragment(
     
     // Crear nombre de archivo único
     const timestamp = Date.now();
-    const fileName = `${sessionId}/${sender.toLowerCase()}_${messageId}_${timestamp}.pcm`;
+    // Get user ID for owner-based storage path
+    const { data: { user } } = await supabase.auth.getUser();
+    const userId = user?.id || 'anonymous';
+    const fileName = `${userId}/${sessionId}/${sender.toLowerCase()}_${messageId}_${timestamp}.pcm`;
 
     // Subir a Supabase Storage
     const { data, error } = await supabase.storage
@@ -31,7 +34,7 @@ export async function uploadAudioFragment(
       });
 
     if (error) {
-      console.error('Error al subir audio:', error);
+      // Silent fail - audio upload is best-effort
       return null;
     }
 
@@ -42,7 +45,6 @@ export async function uploadAudioFragment(
 
     return urlData.publicUrl;
   } catch (error) {
-    console.error('Error en uploadAudioFragment:', error);
     return null;
   }
 }
@@ -115,7 +117,10 @@ export async function uploadAudioFragmentWav(
   try {
     const wavBlob = pcmToWav(pcmData, sampleRate);
     const timestamp = Date.now();
-    const fileName = `${sessionId}/${sender.toLowerCase()}_${messageId}_${timestamp}.wav`;
+    // Get user ID for owner-based storage path
+    const { data: { user } } = await supabase.auth.getUser();
+    const userId = user?.id || 'anonymous';
+    const fileName = `${userId}/${sessionId}/${sender.toLowerCase()}_${messageId}_${timestamp}.wav`;
 
     const { data, error } = await supabase.storage
       .from('consultation-audio')
@@ -125,7 +130,7 @@ export async function uploadAudioFragmentWav(
       });
 
     if (error) {
-      console.error('Error al subir audio WAV:', error);
+      // Silent fail - audio upload is best-effort
       return null;
     }
 
@@ -135,7 +140,6 @@ export async function uploadAudioFragmentWav(
 
     return urlData.publicUrl;
   } catch (error) {
-    console.error('Error en uploadAudioFragmentWav:', error);
     return null;
   }
 }

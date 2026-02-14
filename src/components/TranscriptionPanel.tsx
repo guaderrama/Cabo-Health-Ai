@@ -2,6 +2,7 @@ import React, { useRef, useEffect, useState } from 'react';
 import { type AppState, type Language, type TranscriptMessage } from '../types';
 import { UI_TEXTS } from '../constants';
 import { CopyIcon } from './icons';
+import { logger } from '../lib/logger';
 
 interface TranscriptionPanelProps {
   transcript: TranscriptMessage[];
@@ -31,7 +32,7 @@ const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({ transcript, app
         setShowCopied(true);
         setTimeout(() => setShowCopied(false), 3000);
       } catch (err) {
-        console.error('Failed to copy transcript:', err);
+        logger.error('Failed to copy transcript:', err);
       }
     }
   };

@@ -1,4 +1,5 @@
 import { supabase } from '../lib/supabase';
+import { logger } from '../lib/logger';
 import type { SessionCheckpoint, RecoverableSession, TranscriptMessage, AppState, Language, InterviewModule } from '../types';
 
 const CHECKPOINT_INTERVAL = 2; // Guardar cada 2 mensajes
@@ -47,7 +48,7 @@ export async function saveSessionCheckpoint(
   try {
     localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(checkpoint));
   } catch (e) {
-    console.error('Error guardando en localStorage:', e);
+    logger.error('Error guardando en localStorage:', e);
   }
 
   // Guardar en Supabase con reintentos

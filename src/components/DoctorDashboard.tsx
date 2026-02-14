@@ -61,7 +61,7 @@ const DoctorDashboard: React.FC<DoctorDashboardProps> = ({ language }) => {
 
   useEffect(() => {
     loadConsultations();
-  }, [user]);
+  }, [user?.id]);
 
   const handleDeleteConsultation = async (id: string) => {
     try {
@@ -89,13 +89,14 @@ const DoctorDashboard: React.FC<DoctorDashboardProps> = ({ language }) => {
         throw new Error('No user logged in');
       }
 
-      logger.debug('🏥 Cargando consultas para médico:', user.email);
+      logger.debug('🏥 Loading consultations for doctor');
 
-      // Load ALL consultations (all doctors see all patients)
+      // Load consultations with pagination (limit 100 most recent)
       const { data, error } = await supabase
         .from('consultations')
         .select('*')
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false })
+        .limit(100);
 
       if (error) {
         logger.error('Error al cargar consultas:', error);

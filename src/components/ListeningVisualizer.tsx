@@ -195,4 +195,4 @@ const ListeningVisualizer: React.FC<ListeningVisualizerProps> = ({ isListening, 
   );
 };
 
-export default ListeningVisualizer;
+export default React.memo(ListeningVisualizer);

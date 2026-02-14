@@ -124,7 +124,7 @@ const SendSummaryModal: React.FC<SendSummaryModalProps> = ({
     }
 
     // Validar que los mensajes tengan contenido real (no solo saludos)
-    const totalWordCount = transcript.reduce((sum, msg) => sum + msg.text.split(' ').filter((w: string) => w.length > 0).length, 0);
+    const totalWordCount = transcript.reduce((sum, msg) => sum + (msg?.text || '').split(' ').filter((w: string) => w.length > 0).length, 0);
     if (totalWordCount < 50) {
       logger.debug('Validación fallida: contenido muy breve (<50 palabras)');
       setError(language === 'es'
@@ -201,7 +201,10 @@ const SendSummaryModal: React.FC<SendSummaryModalProps> = ({
       const extractScore = (text: string, patterns: RegExp[]): number | null => {
         for (const pattern of patterns) {
           const match = text.match(pattern);
-          if (match?.[1]) return parseFloat(match[1]);
+          if (match?.[1]) {
+            const score = parseFloat(match[1]);
+            if (!isNaN(score)) return score;
+          }
         }
         return null;
       };
@@ -290,6 +293,16 @@ const SendSummaryModal: React.FC<SendSummaryModalProps> = ({
 
       // 🗑️ Limpiar respaldo local - ya no es necesario
       clearPendingConsultation();
+
+      // 🗑️ Limpiar pending_summaries - ya no es necesario
+      try {
+        await supabase
+          .from('pending_summaries')
+          .delete()
+          .eq('session_id', sessionId);
+      } catch (cleanupErr) {
+        logger.warn('⚠️ Failed to cleanup pending_summaries:', cleanupErr);
+      }
 
       const consultationId = consultationData?.id;
       setConfirmationId((consultationId || sessionId).substring(0, 8).toUpperCase());

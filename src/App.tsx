@@ -8,13 +8,11 @@ import { sanitizeHtml } from './utils/sanitizeHtml';
 import { uploadAudioFragmentWav } from './utils/audioStorage';
 import { useAuth } from './contexts/AuthContext';
 import AuthForm from './components/AuthForm';
-import DoctorDashboard from './components/DoctorDashboard';
 import Header from './components/Header';
 import ControlPanel from './components/ControlPanel';
 import ModeSelector from './components/ModeSelector';
 import TextChatPanel from './components/TextChatPanel';
 import TranscriptionPanel from './components/TranscriptionPanel';
-import SummaryPanel from './components/SummaryPanel';
 import ProgressIndicator from './components/ProgressIndicator';
 import ErrorBoundary from './components/ErrorBoundary';
 import { playWelcomeSound } from './services/audioService';
@@ -25,6 +23,8 @@ import { resetMetrics, logNovaResponse, logTimeout, logError, logReconnect } fro
 // Lazy loading de componentes no críticos para mejorar performance inicial
 const SessionRecoveryModal = lazy(() => import('./components/SessionRecoveryModal'));
 const MicrophoneDiagnostic = lazy(() => import('./components/MicrophoneDiagnostic'));
+const DoctorDashboard = lazy(() => import('./components/DoctorDashboard'));
+const SummaryPanel = lazy(() => import('./components/SummaryPanel'));
 import {
   saveSessionCheckpoint,
   findRecoverableSessions,
@@ -281,13 +281,13 @@ const MainApp: React.FC = () => {
       ).then(() => {
         lastAutoSaveCountRef.current = transcript.length;
         logger.debug(`💾 Auto-save por umbral: ${transcript.length} mensajes guardados`);
-      }).catch(() => {
-        // Silently fail - best effort
+      }).catch((e) => {
+        logger.warn('⚠️ Auto-save por umbral falló:', e);
       });
     }
 
     return () => clearInterval(autoSaveInterval);
-  }, [appState, transcript.length, user?.id, sessionId, language, patientName, transcript]);
+  }, [appState, transcript.length, user?.id, sessionId, language, patientName]);
 
   const handleToggleWelcomeSound = () => {
     setWelcomeSoundEnabled((prev: boolean) => !prev);
@@ -308,6 +308,7 @@ const MainApp: React.FC = () => {
   const outputAudioContextRef = useRef<AudioContext | null>(null);
   const nextAudioStartTime = useRef(0);
   const outputSourcesRef = useRef<Set<AudioBufferSourceNode>>(new Set());
+  const audioTrackEndedHandlerRef = useRef<{ track: MediaStreamTrack; handler: () => void } | null>(null);
 
   const appStateRef = useRef(appState);
   const interviewModeRef = useRef(interviewMode);
@@ -785,6 +786,12 @@ const MainApp: React.FC = () => {
     analyserRef.current = null;
     audioWorkletNodeRef.current = null;
     mediaStreamSourceRef.current = null;
+
+    // Remove audio track ended listener
+    if (audioTrackEndedHandlerRef.current) {
+      audioTrackEndedHandlerRef.current.track.removeEventListener('ended', audioTrackEndedHandlerRef.current.handler);
+      audioTrackEndedHandlerRef.current = null;
+    }
 
     // Detener tracks de media stream
     mediaStreamRef.current?.getTracks().forEach(track => track.stop());
@@ -1264,7 +1271,7 @@ const MainApp: React.FC = () => {
       const audioTracks = stream.getAudioTracks();
       const audioTrack = audioTracks.length > 0 ? audioTracks[0] : null;
       if (audioTrack) {
-        audioTrack.addEventListener('ended', () => {
+        const handleTrackEnded = () => {
           logger.debug('Micrófono desconectado');
           if (appStateRef.current === 'LISTENING') {
             const errorMsg = language === 'es'
@@ -1275,7 +1282,10 @@ const MainApp: React.FC = () => {
             setAppState('ERROR');
             cleanupAudio();
           }
-        });
+        };
+        audioTrack.addEventListener('ended', handleTrackEnded);
+        // Store reference for cleanup
+        audioTrackEndedHandlerRef.current = { track: audioTrack, handler: handleTrackEnded };
       }
 
       audioContextRef.current = new AudioContext({ sampleRate: 16000 });
@@ -1726,7 +1736,9 @@ const MainApp: React.FC = () => {
               // Reintentar conexión después de 1 segundo
               setTimeout(() => {
                 if (appStateRef.current !== 'COMPLETED') {
-                  handleStartSession().finally(() => {
+                  handleStartSession().catch((err) => {
+                    logger.error('Reconnection failed:', err);
+                  }).finally(() => {
                     isReconnectingRef.current = false; // Liberar flag de reconexión
                   });
                 } else {

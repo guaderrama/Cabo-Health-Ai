@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase';
 import { type Language } from '../types';
 import { sanitizeHtml } from '../utils/sanitizeHtml';
 import { formatDate, formatDuration, getMotivationLevel } from '../utils/consultation';
+import { logger } from '../lib/logger';
 
 interface Consultation {
   id: string;
@@ -70,7 +71,7 @@ const ConsultationHistory: React.FC<ConsultationHistoryProps> = ({ language, onC
         setConsultations(data);
       }
     } catch (err) {
-      console.error('Error al cargar consultas:', err);
+      logger.error('Error loading consultations:', err);
       setError(
         language === 'es'
           ? 'Error al cargar el historial de consultas'

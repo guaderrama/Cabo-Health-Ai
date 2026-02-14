@@ -162,4 +162,4 @@ const ProgressIndicator: React.FC<ProgressIndicatorProps> = ({
   );
 };
 
-export default ProgressIndicator;
+export default React.memo(ProgressIndicator);
