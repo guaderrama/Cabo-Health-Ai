@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { type AppState, type Language, type TranscriptMessage, type TopicTracking, TOPIC_NAMES } from '../types';
 import { UI_TEXTS } from '../constants';
+import { logger } from '../lib/logger';
 import { SendIcon, MicrophoneIcon, StopIcon, SpeakerIcon } from './icons';
 import ConfirmationModal from './ConfirmationModal';
 import TypingMessage from './TypingMessage';
@@ -173,7 +174,7 @@ const TextChatPanel: React.FC<TextChatPanelProps> = ({
     };
 
     recognition.onerror = (event: any) => {
-      console.error('Speech recognition error:', event.error);
+      logger.error('Speech recognition error:', event.error);
       setIsDictating(false);
     };
 
@@ -205,7 +206,7 @@ const TextChatPanel: React.FC<TextChatPanelProps> = ({
         recognitionRef.current.start();
         setIsDictating(true);
       } catch (e) {
-        console.error('Error starting dictation:', e);
+        logger.error('Error starting dictation:', e);
       }
     }
   };
