@@ -4,6 +4,7 @@ import { type Language } from '../types';
 import { UI_TEXTS } from '../constants';
 import { UserIcon, CalendarIcon, SendIcon, CheckIcon, XIcon } from './icons';
 import { logger } from '../lib/logger';
+import { useFocusTrap } from '../hooks/useFocusTrap';
 
 // Key para respaldo local de consultas pendientes
 const PENDING_CONSULTATION_KEY = 'cabo_health_pending_consultation';
@@ -70,6 +71,7 @@ const SendSummaryModal: React.FC<SendSummaryModalProps> = ({
   sessionDuration 
 }) => {
   const texts = UI_TEXTS[language];
+  const focusTrapRef = useFocusTrap(isOpen);
   const [submissionState, setSubmissionState] = useState<SubmissionState>('FORM');
   const [error, setError] = useState('');
   const [confirmationId, setConfirmationId] = useState('');
@@ -442,6 +444,7 @@ const SendSummaryModal: React.FC<SendSummaryModalProps> = ({
         aria-labelledby="send-summary-title"
     >
       <div
+        ref={focusTrapRef}
         className="bg-white rounded-xl shadow-2xl w-full max-w-md flex flex-col max-h-[90vh]"
         onClick={e => e.stopPropagation()}
       >

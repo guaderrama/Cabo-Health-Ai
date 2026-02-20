@@ -1,5 +1,6 @@
 import React, { useEffect } from 'react';
 import { type Language } from '../types';
+import { useFocusTrap } from '../hooks/useFocusTrap';
 
 interface ConfirmationModalProps {
   isOpen: boolean;
@@ -23,6 +24,7 @@ const ConfirmationModal: React.FC<ConfirmationModalProps> = ({
   onCancel,
   isDangerous = false,
 }) => {
+  const focusTrapRef = useFocusTrap(isOpen);
   // Scroll lock - Prevenir scroll del body cuando el modal está abierto
   useEffect(() => {
     if (isOpen) {
@@ -58,6 +60,7 @@ const ConfirmationModal: React.FC<ConfirmationModalProps> = ({
       onClick={onCancel} // Cerrar al hacer clic en el fondo
     >
       <div
+        ref={focusTrapRef}
         className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 modal-enter"
         onClick={(e) => e.stopPropagation()} // No cerrar al hacer clic en el modal
         role="dialog"
