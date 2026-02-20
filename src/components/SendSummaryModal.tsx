@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
-import { type Language } from '../types';
+import { type Language, type TranscriptMessage } from '../types';
 import { UI_TEXTS } from '../constants';
 import { UserIcon, CalendarIcon, SendIcon, CheckIcon, XIcon } from './icons';
 import { logger } from '../lib/logger';
@@ -53,7 +53,7 @@ interface SendSummaryModalProps {
   summary: string;
   language: Language;
   patientName: string;
-  transcript: any[];
+  transcript: TranscriptMessage[];
   sessionId: string;
   sessionDuration?: number;
 }

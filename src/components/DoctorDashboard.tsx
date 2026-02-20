@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { z } from 'zod';
 import { supabase } from '../lib/supabase';
-import { type Language } from '../types';
+import { type Language, type TranscriptMessage } from '../types';
 import { useAuth } from '../contexts/AuthContext';
 import SystemsMatrixChart from './SystemsMatrixChart';
 import DashboardStats from './DashboardStats';
@@ -11,6 +11,12 @@ import { logger } from '../lib/logger';
 import { formatDate, formatDuration, getMotivationLevel } from '../utils/consultation';
 
 // Schema de validación para consultas de Supabase
+const TranscriptMessageSchema = z.object({
+  sender: z.string(),
+  text: z.string(),
+  timestamp: z.number().optional(),
+});
+
 const ConsultationSchema = z.object({
   id: z.string(),
   session_id: z.string(),
@@ -20,7 +26,7 @@ const ConsultationSchema = z.object({
   language: z.string(),
   created_at: z.string(),
   session_duration: z.number(),
-  transcript: z.array(z.any()),
+  transcript: z.array(TranscriptMessageSchema),
   summary: z.string(),
   motivation_score: z.number().nullable().optional(),
   empathy_score: z.number().nullable().optional(),
@@ -37,7 +43,7 @@ interface Consultation {
   language: string;
   created_at: string;
   session_duration: number;
-  transcript: any[];
+  transcript: TranscriptMessage[];
   summary: string;
   motivation_score?: number;
   empathy_score?: number;

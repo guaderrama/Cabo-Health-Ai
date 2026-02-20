@@ -1,5 +1,6 @@
 import React, { useMemo } from 'react';
 import { Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, ResponsiveContainer, Tooltip } from 'recharts';
+import { logger } from '../lib/logger';
 
 interface SystemScore {
   system: string;
@@ -80,7 +81,7 @@ const SystemsMatrixChart: React.FC<SystemsMatrixChartProps> = ({ summaryHTML }) 
         ];
       }
     } catch (error) {
-      console.error('Error parsing systems data:', error);
+      logger.error('Error parsing systems data:', error);
     }
 
     return defaultSystems;

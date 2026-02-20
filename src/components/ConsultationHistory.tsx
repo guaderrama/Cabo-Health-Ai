@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
-import { type Language } from '../types';
+import { type Language, type TranscriptMessage } from '../types';
 import { sanitizeHtml } from '../utils/sanitizeHtml';
 import { formatDate, formatDuration, getMotivationLevel } from '../utils/consultation';
 import { logger } from '../lib/logger';
@@ -15,7 +15,7 @@ interface Consultation {
   language: string;
   created_at: string;
   duration: number;
-  transcript: any[];
+  transcript: TranscriptMessage[];
   summary: string;
   motivation_score?: number;
   empathy_score?: number;
@@ -412,7 +412,7 @@ const ConsultationHistory: React.FC<ConsultationHistoryProps> = ({ language, onC
                     </span>
                   </h4>
                   <div className="space-y-3 max-h-96 overflow-y-auto bg-gradient-to-b from-slate-50 to-white rounded-lg p-4 border border-slate-200">
-                    {selectedConsultation.transcript.map((t: any, idx: number) => {
+                    {selectedConsultation.transcript.map((t: TranscriptMessage, idx: number) => {
                       const isNova = t.sender === 'Nova' || t.sender === 'nova';
                       const timestamp = t.timestamp ? new Date(t.timestamp).toLocaleTimeString(language, { hour: '2-digit', minute: '2-digit' }) : '';
 

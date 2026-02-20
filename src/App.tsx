@@ -1838,7 +1838,7 @@ const MainApp: React.FC = () => {
   const handleNewSession = useCallback(() => {
     cleanupAudio();
     if (sessionPromiseRef.current) {
-      sessionPromiseRef.current.then(session => session.close()).catch(console.error);
+      sessionPromiseRef.current.then(session => session.close()).catch(err => logger.error('Error closing session:', err));
       sessionPromiseRef.current = null;
     }
     setAppState('IDLE');
@@ -1862,7 +1862,7 @@ const MainApp: React.FC = () => {
     // Limpiar error y volver a estado IDLE manteniendo el progreso
     cleanupAudio();
     if (sessionPromiseRef.current) {
-      sessionPromiseRef.current.then(session => session.close()).catch(console.error);
+      sessionPromiseRef.current.then(session => session.close()).catch(err => logger.error('Error closing session:', err));
       sessionPromiseRef.current = null;
     }
     setError(null);

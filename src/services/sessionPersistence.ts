@@ -100,7 +100,7 @@ async function saveToSupabaseWithRetry(
     return { success: true };
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
-    console.error(`Error guardando checkpoint (intento ${attempt}):`, errorMessage);
+    logger.error(`Error guardando checkpoint (intento ${attempt}):`, errorMessage);
 
     if (attempt < MAX_RETRY_ATTEMPTS) {
       // Reintento con delay exponencial
@@ -159,7 +159,7 @@ export async function findRecoverableSessions(
       }
     }
   } catch (e) {
-    console.error('Error leyendo localStorage:', e);
+    logger.error('Error leyendo localStorage:', e);
   }
 
   // Buscar en Supabase
@@ -196,7 +196,7 @@ export async function findRecoverableSessions(
       }
     }
   } catch (e) {
-    console.error('Error buscando checkpoints en Supabase:', e);
+    logger.error('Error buscando checkpoints en Supabase:', e);
   }
 
   return recoverableSessions;
@@ -223,7 +223,7 @@ export async function clearCheckpoint(sessionId: string, userId: string): Promis
       }
     }
   } catch (e) {
-    console.error('Error limpiando localStorage:', e);
+    logger.error('Error limpiando localStorage:', e);
   }
 
   // Limpiar Supabase
@@ -234,7 +234,7 @@ export async function clearCheckpoint(sessionId: string, userId: string): Promis
       .eq('session_id', sessionId)
       .eq('user_id', userId);
   } catch (e) {
-    console.error('Error limpiando checkpoint de Supabase:', e);
+    logger.error('Error limpiando checkpoint de Supabase:', e);
   }
 }
 
@@ -297,7 +297,7 @@ export async function saveModuleTranscript(
     const moduleKey = `cabo_health_module_${sessionId}`;
     localStorage.setItem(moduleKey, JSON.stringify(updatedTranscripts));
   } catch (e) {
-    console.error('Error saving module transcript to localStorage:', e);
+    logger.error('Error saving module transcript to localStorage:', e);
   }
 
   return updatedTranscripts;
@@ -343,7 +343,7 @@ export function clearModuleData(sessionId: string): void {
     const moduleKey = `cabo_health_module_${sessionId}`;
     localStorage.removeItem(moduleKey);
   } catch (e) {
-    console.error('Error clearing module data from localStorage:', e);
+    logger.error('Error clearing module data from localStorage:', e);
   }
 }
 
@@ -360,7 +360,7 @@ export function loadModuleTranscripts(
       return JSON.parse(data);
     }
   } catch (e) {
-    console.error('Error loading module transcripts from localStorage:', e);
+    logger.error('Error loading module transcripts from localStorage:', e);
   }
   return null;
 }

@@ -7,6 +7,7 @@
  */
 
 import { supabase } from '../lib/supabase';
+import { logger } from '../lib/logger';
 import type { PendingSummary, PendingSummaryStatus, TranscriptMessage, Language } from '../types';
 
 const MAX_RETRY_ATTEMPTS = 3;
@@ -73,7 +74,7 @@ export async function savePendingSummary(
     return { success: true, id: result.data?.id };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error saving pending summary';
-    console.error('Error saving pending summary:', errorMessage);
+    logger.error('Error saving pending summary:', errorMessage);
     return { success: false, error: errorMessage };
   }
 }
@@ -114,7 +115,7 @@ export async function updateSummaryStatus(
     return { success: true };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error updating summary status';
-    console.error('Error updating summary status:', errorMessage);
+    logger.error('Error updating summary status:', errorMessage);
     return { success: false, error: errorMessage };
   }
 }
@@ -138,7 +139,7 @@ export async function incrementAttempts(sessionId: string): Promise<void> {
         .eq('session_id', sessionId);
     }
   } catch (error) {
-    console.error('Error incrementing attempts:', error);
+    logger.error('Error incrementing attempts:', error);
   }
 }
 
@@ -159,7 +160,7 @@ export async function getPendingSummary(
 
     return data;
   } catch (error) {
-    console.error('Error getting pending summary:', error);
+    logger.error('Error getting pending summary:', error);
     return null;
   }
 }
@@ -183,7 +184,7 @@ export async function getUserPendingSummaries(
 
     return data || [];
   } catch (error) {
-    console.error('Error getting user pending summaries:', error);
+    logger.error('Error getting user pending summaries:', error);
     return [];
   }
 }
@@ -225,7 +226,7 @@ export async function deletePendingSummary(
     return { success: true };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error deleting pending summary';
-    console.error('Error deleting pending summary:', errorMessage);
+    logger.error('Error deleting pending summary:', errorMessage);
     return { success: false, error: errorMessage };
   }
 }
