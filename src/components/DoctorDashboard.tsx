@@ -49,6 +49,8 @@ interface Consultation {
   empathy_score?: number;
   message_count?: number;
   status?: string;
+  /** True when this entry comes from pending_summaries (not yet sent to doctor) */
+  isPending?: boolean;
 }
 
 interface DoctorDashboardProps {
@@ -97,38 +99,84 @@ const DoctorDashboard: React.FC<DoctorDashboardProps> = ({ language }) => {
 
       logger.debug('🏥 Loading consultations for doctor');
 
-      // Load consultations with pagination (limit 100 most recent)
-      const { data, error } = await supabase
+      // Load completed consultations
+      const { data, error: consultError } = await supabase
         .from('consultations')
         .select('*')
         .order('created_at', { ascending: false })
         .limit(100);
 
-      if (error) {
-        logger.error('Error al cargar consultas:', error);
-        throw error;
+      if (consultError) {
+        logger.error('Error al cargar consultas:', consultError);
+        throw consultError;
       }
 
-      logger.debug('✅ Consultas cargadas:', data?.length || 0);
+      // Also load pending_summaries that have transcripts but were never sent to consultations
+      const { data: pendingData, error: pendingError } = await supabase
+        .from('pending_summaries')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(50);
+
+      if (pendingError) {
+        // Non-blocking: pending summaries are supplemental
+        logger.warn('Could not load pending summaries:', pendingError);
+      }
+
+      logger.debug('✅ Consultas cargadas:', data?.length || 0, '| Pendientes:', pendingData?.length || 0);
+
+      // Collect session_ids from completed consultations to avoid duplicates
+      const completedSessionIds = new Set(
+        (data || []).map((c: Record<string, unknown>) => c.session_id as string)
+      );
+
+      // Convert pending_summaries to Consultation format (those NOT already in consultations)
+      const pendingAsConsultations: Consultation[] = (pendingData || [])
+        .filter((p: Record<string, unknown>) => !completedSessionIds.has(p.session_id as string))
+        .filter((p: Record<string, unknown>) => {
+          // Only show entries with meaningful transcripts
+          const transcript = p.transcript as TranscriptMessage[] | null;
+          return transcript && transcript.length >= 2;
+        })
+        .map((p: Record<string, unknown>) => ({
+          id: p.id as string,
+          session_id: p.session_id as string,
+          patient_name: (p.patient_name as string) || 'Unknown',
+          patient_dob: '',
+          patient_email: null,
+          language: (p.language as string) || 'en',
+          created_at: p.created_at as string,
+          session_duration: (p.session_duration as number) || 0,
+          transcript: (p.transcript as TranscriptMessage[]) || [],
+          summary: (p.summary as string) || '',
+          message_count: ((p.transcript as TranscriptMessage[]) || []).length,
+          status: p.status as string,
+          isPending: true,
+        }));
 
       if (data) {
-        // Validar cada consulta y filtrar las inválidas
-        const validConsultations = data.filter((consultation, index) => {
+        // Validate completed consultations
+        const validConsultations = data.filter((consultation: Record<string, unknown>, index: number) => {
           const result = ConsultationSchema.safeParse(consultation);
           if (!result.success) {
-            logger.warn(`Consulta #${index} inválida (id: ${consultation.id || 'unknown'}):`, {
+            logger.warn(`Consulta #${index} inválida (id: ${(consultation.id as string) || 'unknown'}):`, {
               errors: result.error.issues.map(i => `${i.path.join('.')}: ${i.message}`)
             });
             return false;
           }
           return true;
-        });
+        }) as Consultation[];
 
         if (validConsultations.length < data.length) {
           logger.warn(`${data.length - validConsultations.length} consultas filtradas por datos inválidos`);
         }
 
-        setConsultations(validConsultations);
+        // Merge: pending first (they need attention), then completed
+        const allConsultations = [...pendingAsConsultations, ...validConsultations];
+        // Sort all by date descending
+        allConsultations.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+
+        setConsultations(allConsultations);
       }
     } catch (err) {
       logger.error('Error al cargar consultas:', err);
@@ -338,11 +386,22 @@ const DoctorDashboard: React.FC<DoctorDashboardProps> = ({ language }) => {
               return (
                 <div
                   key={consultation.id}
-                  className="bg-white border border-slate-200 rounded-xl p-6 hover:border-purple-400 hover:shadow-xl transition-all cursor-pointer relative"
+                  className={`bg-white border rounded-xl p-6 hover:shadow-xl transition-all cursor-pointer relative ${
+                    consultation.isPending
+                      ? 'border-amber-300 bg-amber-50/30 hover:border-amber-400'
+                      : 'border-slate-200 hover:border-purple-400'
+                  }`}
                   onClick={() => setSelectedConsultation(consultation)}
                 >
+                  {/* Pending Badge */}
+                  {consultation.isPending && (
+                    <div className="absolute top-4 right-4 bg-amber-500 text-white px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1 shadow-lg animate-pulse">
+                      <span>⏳</span>
+                      <span>{language === 'es' ? 'PENDIENTE' : 'PENDING'}</span>
+                    </div>
+                  )}
                   {/* Alert Badge */}
-                  {alertBadge && (
+                  {!consultation.isPending && alertBadge && (
                     <div className={`absolute top-4 right-4 ${alertBadge.bgColor} ${alertBadge.textColor} px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1 shadow-lg ${alertBadge.pulse ? 'animate-pulse' : ''}`}>
                       <span>{alertBadge.icon}</span>
                       <span>{alertBadge.label}</span>
@@ -549,6 +608,23 @@ const DoctorDashboard: React.FC<DoctorDashboardProps> = ({ language }) => {
                         </div>
                       );
                     })}
+                  </div>
+                </div>
+              )}
+
+              {/* Pending consultation notice */}
+              {selectedConsultation.isPending && (
+                <div className="bg-amber-50 border-2 border-amber-300 rounded-lg p-4 flex items-start gap-3">
+                  <span className="text-2xl">⏳</span>
+                  <div>
+                    <h4 className="font-bold text-amber-800">
+                      {language === 'es' ? 'Consulta Pendiente' : 'Pending Consultation'}
+                    </h4>
+                    <p className="text-sm text-amber-700 mt-1">
+                      {language === 'es'
+                        ? 'El paciente completó la entrevista pero el resumen clínico no fue generado o enviado. La transcripción completa está disponible abajo.'
+                        : 'The patient completed the interview but the clinical summary was not generated or sent. The full transcript is available below.'}
+                    </p>
                   </div>
                 </div>
               )}
