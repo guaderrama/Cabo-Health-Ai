@@ -76,17 +76,19 @@ const DoctorDashboard: React.FC<DoctorDashboardProps> = ({ language }) => {
     loadConsultations();
   }, [user?.id]);
 
-  const handleDeleteConsultation = async (id: string) => {
+  const handleDeleteConsultation = async (consultation: Consultation) => {
     try {
+      // Delete from the correct table based on whether it's a pending or completed consultation
+      const table = consultation.isPending ? 'pending_summaries' : 'consultations';
       const { error } = await supabase
-        .from('consultations')
+        .from(table)
         .delete()
-        .eq('id', id);
+        .eq('id', consultation.id);
 
       if (error) throw error;
 
       // Remove from local state
-      setConsultations(prev => prev.filter(c => c.id !== id));
+      setConsultations(prev => prev.filter(c => c.id !== consultation.id));
       setConsultationToDelete(null);
     } catch (err) {
       logger.error('Error deleting consultation:', err);
@@ -97,6 +99,7 @@ const DoctorDashboard: React.FC<DoctorDashboardProps> = ({ language }) => {
   const loadConsultations = async () => {
     try {
       setLoading(true);
+      setError('');
 
       if (!user || !user.email) {
         throw new Error('No user logged in');
@@ -136,19 +139,32 @@ const DoctorDashboard: React.FC<DoctorDashboardProps> = ({ language }) => {
       );
 
       // Convert pending_summaries to Consultation format (those NOT already in consultations)
-      const pendingAsConsultations: Consultation[] = (pendingData || [])
+      const pendingFiltered = (pendingData || [])
         .filter((p: Record<string, unknown>) => !completedSessionIds.has(p.session_id as string))
         .filter((p: Record<string, unknown>) => {
-          // Only show entries with meaningful transcripts
           const transcript = p.transcript as TranscriptMessage[] | null;
           return transcript && transcript.length >= 2;
-        })
+        });
+
+      // Lookup patient emails for pending summaries via secure RPC
+      let userEmailMap: Record<string, string> = {};
+      if (pendingFiltered.length > 0) {
+        const userIds = [...new Set(pendingFiltered.map((p: Record<string, unknown>) => p.user_id as string))];
+        const { data: emailData } = await supabase.rpc('get_patient_emails', { user_ids: userIds });
+        if (emailData) {
+          for (const row of emailData as Array<{ id: string; email: string }>) {
+            userEmailMap[row.id] = row.email;
+          }
+        }
+      }
+
+      const pendingAsConsultations: Consultation[] = pendingFiltered
         .map((p: Record<string, unknown>) => ({
           id: p.id as string,
           session_id: p.session_id as string,
           patient_name: (p.patient_name as string) || 'Unknown',
           patient_dob: '',
-          patient_email: null,
+          patient_email: userEmailMap[p.user_id as string] || null,
           language: (p.language as string) || 'en',
           created_at: p.created_at as string,
           session_duration: (p.session_duration as number) || 0,
@@ -159,30 +175,30 @@ const DoctorDashboard: React.FC<DoctorDashboardProps> = ({ language }) => {
           isPending: true,
         }));
 
-      if (data) {
-        // Validate completed consultations
-        const validConsultations = data.filter((consultation: Record<string, unknown>, index: number) => {
-          const result = ConsultationSchema.safeParse(consultation);
-          if (!result.success) {
-            logger.warn(`Consulta #${index} inválida (id: ${(consultation.id as string) || 'unknown'}):`, {
-              errors: result.error.issues.map(i => `${i.path.join('.')}: ${i.message}`)
-            });
-            return false;
-          }
-          return true;
-        }) as Consultation[];
-
-        if (validConsultations.length < data.length) {
-          logger.warn(`${data.length - validConsultations.length} consultas filtradas por datos inválidos`);
+      // Validate completed consultations
+      const validConsultations = (data || []).filter((consultation: Record<string, unknown>, index: number) => {
+        const result = ConsultationSchema.safeParse(consultation);
+        if (!result.success) {
+          logger.warn(`Consulta #${index} inválida (id: ${(consultation.id as string) || 'unknown'}):`, {
+            errors: result.error.issues.map(i => `${i.path.join('.')}: ${i.message}`)
+          });
+          return false;
         }
+        return true;
+      }) as Consultation[];
 
-        // Merge: pending first (they need attention), then completed
-        const allConsultations = [...pendingAsConsultations, ...validConsultations];
-        // Sort all by date descending
-        allConsultations.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-
-        setConsultations(allConsultations);
+      if (data && validConsultations.length < data.length) {
+        logger.warn(`${data.length - validConsultations.length} consultas filtradas por datos inválidos`);
       }
+
+      // Merge: pending first (they need attention), then completed
+      const allConsultations = [...pendingAsConsultations, ...validConsultations];
+      // Sort all by date descending
+      allConsultations.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+
+      logger.debug('📊 Total consultations to display:', allConsultations.length, '(completed:', validConsultations.length, '| pending:', pendingAsConsultations.length, ')');
+
+      setConsultations(allConsultations);
     } catch (err) {
       logger.error('Error al cargar consultas:', err);
       setError(
@@ -522,7 +538,7 @@ const DoctorDashboard: React.FC<DoctorDashboardProps> = ({ language }) => {
                 {language === 'es' ? 'Cancelar' : 'Cancel'}
               </button>
               <button
-                onClick={() => handleDeleteConsultation(consultationToDelete.id)}
+                onClick={() => handleDeleteConsultation(consultationToDelete)}
                 className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-semibold"
               >
                 {language === 'es' ? 'Sí, Eliminar' : 'Yes, Delete'}

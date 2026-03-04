@@ -254,6 +254,7 @@ const SendSummaryModal: React.FC<SendSummaryModalProps> = ({
         session_id: sessionId,
         patient_name: formData.fullName,
         patient_dob: formData.dob,
+        patient_email: session.user.email || null,
         language: language,
         transcript: transcript,
         summary: summary,

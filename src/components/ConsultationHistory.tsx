@@ -9,12 +9,11 @@ interface Consultation {
   id: string;
   session_id: string;
   patient_name: string;
-  patient_email: string;
-  doctor_email: string;
-  dob: string;
+  patient_email: string | null;
+  patient_dob: string | null;
   language: string;
   created_at: string;
-  duration: number;
+  session_duration: number;
   transcript: TranscriptMessage[];
   summary: string;
   motivation_score?: number;
@@ -59,11 +58,19 @@ const ConsultationHistory: React.FC<ConsultationHistoryProps> = ({ language, onC
         throw new Error('No user logged in');
       }
 
-      const { data, error } = await supabase
+      // Doctors see all consultations (RLS handles access control)
+      // Patients only see their own
+      const isDoctor = user.user_metadata?.role === 'doctor';
+      let query = supabase
         .from('consultations')
         .select('*')
-        .eq('user_id', user.id)
         .order('created_at', { ascending: false });
+
+      if (!isDoctor) {
+        query = query.eq('user_id', user.id);
+      }
+
+      const { data, error } = await query;
 
       if (error) throw error;
 
@@ -282,10 +289,10 @@ const ConsultationHistory: React.FC<ConsultationHistoryProps> = ({ language, onC
                             <span className="text-lg">📅</span>
                             <span>{formatDate(consultation.created_at, language)}</span>
                           </div>
-                          {consultation.duration && (
+                          {consultation.session_duration && (
                             <div className="flex items-center gap-1">
                               <span className="text-lg">⏱️</span>
-                              <span>{formatDuration(consultation.duration)}</span>
+                              <span>{formatDuration(consultation.session_duration)}</span>
                             </div>
                           )}
                         </div>
@@ -332,8 +339,8 @@ const ConsultationHistory: React.FC<ConsultationHistoryProps> = ({ language, onC
                       </div>
                     )}
 
-                    {/* Estado para pacientes - Muestra si fue enviado al médico */}
-                    {!isDoctor && consultation.doctor_email && (
+                    {/* Estado para pacientes - Muestra si fue guardado */}
+                    {!isDoctor && consultation.summary && (
                       <div className="mt-4 flex items-center gap-2 text-sm text-green-600 bg-green-50 px-3 py-2 rounded-lg">
                         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
@@ -408,7 +415,7 @@ const ConsultationHistory: React.FC<ConsultationHistoryProps> = ({ language, onC
                     <span className="text-2xl">💬</span>
                     {language === 'es' ? 'Transcripción' : 'Transcript'}
                     <span className="text-sm font-normal text-slate-500">
-                      ({selectedConsultation.duration ? formatDuration(selectedConsultation.duration) : ''})
+                      ({selectedConsultation.session_duration ? formatDuration(selectedConsultation.session_duration) : ''})
                     </span>
                   </h4>
                   <div className="space-y-3 max-h-96 overflow-y-auto bg-gradient-to-b from-slate-50 to-white rounded-lg p-4 border border-slate-200">
