@@ -43,6 +43,7 @@ import {
   failSummary,
   incrementAttempts,
 } from './services/summaryQueue';
+import { autoSaveConsultation } from './services/autoSaveConsultation';
 
 // FIX: A local 'LiveSession' type is defined here based on its usage to resolve the import error.
 type LiveSession = {
@@ -1053,6 +1054,20 @@ const MainApp: React.FC = () => {
         // Marcar como completado en la cola
         if (user?.id) {
           await completeSummary(sessionId, sanitizedSummary);
+
+          // AUTO-SAVE: Guardar en consultations inmediatamente
+          // Esto garantiza que el doctor VEA la consulta aunque el paciente
+          // no haga click en "Enviar al Doctor"
+          autoSaveConsultation({
+            userId: user.id,
+            userEmail: user.email,
+            sessionId,
+            patientName,
+            transcript: finalTranscript,
+            summary: sanitizedSummary,
+            language,
+            sessionDuration,
+          }).catch(err => logger.warn('Auto-save to consultations failed (non-blocking):', err));
         }
 
         // Limpiar backup de localStorage

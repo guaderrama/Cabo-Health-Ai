@@ -27,8 +27,8 @@ export function useFocusTrap(isActive: boolean) {
       const focusable = getFocusableElements();
       if (focusable.length === 0) return;
 
-      const first = focusable[0];
-      const last = focusable[focusable.length - 1];
+      const first = focusable[0]!;
+      const last = focusable[focusable.length - 1]!;
 
       if (e.shiftKey) {
         if (document.activeElement === first) {
@@ -49,7 +49,7 @@ export function useFocusTrap(isActive: boolean) {
     requestAnimationFrame(() => {
       if (container.contains(document.activeElement)) return;
       const focusable = getFocusableElements();
-      if (focusable.length > 0) focusable[0].focus();
+      if (focusable.length > 0) focusable[0]!.focus();
     });
 
     return () => {

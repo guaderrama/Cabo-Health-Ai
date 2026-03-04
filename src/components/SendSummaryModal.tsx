@@ -136,7 +136,7 @@ const SendSummaryModal: React.FC<SendSummaryModalProps> = ({
     }
 
     // Validar que Nova haya respondido (no solo el paciente hablando)
-    const novaMessageCount = transcript.filter(msg => msg.sender === 'Nova' || msg.sender === 'model').length;
+    const novaMessageCount = transcript.filter(msg => msg.sender === 'Nova').length;
     if (novaMessageCount < 1) {
       logger.debug('Validación fallida: Nova no ha respondido');
       setError(language === 'es'
@@ -277,10 +277,10 @@ const SendSummaryModal: React.FC<SendSummaryModalProps> = ({
       // Si Supabase falla, los datos no se perderán
       savePendingConsultation(dataToInsert);
 
-      // Guardar directamente en consultations (estructura simplificada)
+      // Upsert: updates auto-saved record if exists, otherwise inserts new
       const { data: consultationData, error: saveError } = await supabase
         .from('consultations')
-        .insert([dataToInsert])
+        .upsert([dataToInsert], { onConflict: 'session_id' })
         .select()
         .single();
 
