@@ -11,26 +11,31 @@ import { logger } from '../lib/logger';
 import { formatDate, formatDuration, getMotivationLevel } from '../utils/consultation';
 
 // Schema de validación para consultas de Supabase
+// Nota: timestamp puede ser ISO string o epoch number según cómo se guardó
 const TranscriptMessageSchema = z.object({
   sender: z.string(),
   text: z.string(),
-  timestamp: z.number().optional(),
+  timestamp: z.union([z.string(), z.number()]).optional(),
 });
+
+// Supabase PostgREST devuelve columnas `numeric` como strings ("5.0")
+// z.coerce.number() convierte strings numéricos a number automáticamente
+const coercedNumber = z.coerce.number();
 
 const ConsultationSchema = z.object({
   id: z.string(),
   session_id: z.string(),
   patient_name: z.string(),
-  patient_dob: z.string(),
+  patient_dob: z.string().nullable(),
   patient_email: z.string().nullable(),
   language: z.string(),
   created_at: z.string(),
-  session_duration: z.number(),
+  session_duration: coercedNumber,
   transcript: z.array(TranscriptMessageSchema),
   summary: z.string(),
-  motivation_score: z.number().nullable().optional(),
-  empathy_score: z.number().nullable().optional(),
-  message_count: z.number().nullable().optional(),
+  motivation_score: coercedNumber.nullable().optional(),
+  empathy_score: coercedNumber.nullable().optional(),
+  message_count: coercedNumber.nullable().optional(),
   status: z.string().nullable().optional(),
 });
 
@@ -586,7 +591,7 @@ const DoctorDashboard: React.FC<DoctorDashboardProps> = ({ language }) => {
                     {language === 'es' ? 'Transcripción' : 'Transcript'}
                   </h4>
                   <div className="space-y-3 max-h-96 overflow-y-auto bg-gradient-to-b from-slate-50 to-white rounded-lg p-4 border border-slate-200">
-                    {selectedConsultation.transcript.map((t: any, idx: number) => {
+                    {selectedConsultation.transcript.map((t: TranscriptMessage, idx: number) => {
                       const isNova = t.sender === 'Nova' || t.sender === 'nova';
                       const timestamp = t.timestamp ? new Date(t.timestamp).toLocaleTimeString(language, { hour: '2-digit', minute: '2-digit' }) : '';
 
