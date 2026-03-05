@@ -9,6 +9,11 @@ import MotivationGauge from './MotivationGauge';
 import ClinicalSummaryView from './ClinicalSummaryView';
 import { logger } from '../lib/logger';
 import { formatDate, formatDuration, getMotivationLevel } from '../utils/consultation';
+import { SUMMARY_PROMPT } from '../constants/summaryPrompt';
+import { GoogleGenAI } from '@google/genai';
+import { sanitizeHtml } from '../utils/sanitizeHtml';
+import { completeSummary } from '../services/summaryQueue';
+import { autoSaveConsultation } from '../services/autoSaveConsultation';
 
 // Schema de validación para consultas de Supabase
 // Nota: timestamp puede ser ISO string o epoch number según cómo se guardó
@@ -54,6 +59,8 @@ interface Consultation {
   empathy_score?: number;
   message_count?: number;
   status?: string;
+  /** User ID from pending_summaries (needed for regeneration) */
+  user_id?: string;
   /** True when this entry comes from pending_summaries (not yet sent to doctor) */
   isPending?: boolean;
 }
@@ -71,6 +78,8 @@ const DoctorDashboard: React.FC<DoctorDashboardProps> = ({ language }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [filterMotivation, setFilterMotivation] = useState<'all' | 'high' | 'medium' | 'low'>('all');
   const [consultationToDelete, setConsultationToDelete] = useState<Consultation | null>(null);
+  const [regenerating, setRegenerating] = useState(false);
+  const [regenerateError, setRegenerateError] = useState<string | null>(null);
 
   useEffect(() => {
     loadConsultations();
@@ -93,6 +102,101 @@ const DoctorDashboard: React.FC<DoctorDashboardProps> = ({ language }) => {
     } catch (err) {
       logger.error('Error deleting consultation:', err);
       alert(language === 'es' ? 'Error al eliminar la consulta' : 'Error deleting consultation');
+    }
+  };
+
+  const handleRegenerateSummary = async (consultation: Consultation) => {
+    setRegenerating(true);
+    setRegenerateError(null);
+
+    try {
+      const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+      if (!apiKey) throw new Error('VITE_GEMINI_API_KEY not configured');
+
+      // Build transcript text
+      const transcript = consultation.transcript || [];
+      const fullTranscriptText = transcript
+        .map((msg: TranscriptMessage) => `${msg.sender}: ${msg.text}`)
+        .join('\n');
+
+      if (!fullTranscriptText || fullTranscriptText.length < 50) {
+        throw new Error(language === 'es'
+          ? 'La transcripción es demasiado corta para generar un resumen'
+          : 'Transcript too short to generate summary');
+      }
+
+      const lang = (consultation.language || 'es') as 'es' | 'en';
+      const prompt = SUMMARY_PROMPT[lang](fullTranscriptText);
+
+      // Call Gemini API with fallback
+      const ai = new GoogleGenAI({ apiKey });
+      let response;
+
+      try {
+        response = await Promise.race([
+          ai.models.generateContent({
+            model: 'gemini-3-flash-preview',
+            contents: prompt,
+          }),
+          new Promise<never>((_, reject) =>
+            setTimeout(() => reject(new Error('Timeout')), 120000)
+          ),
+        ]);
+      } catch (gemini3Error) {
+        logger.warn('Gemini 3 Flash failed, falling back to 2.5 Flash:', gemini3Error);
+        response = await Promise.race([
+          ai.models.generateContent({
+            model: 'gemini-2.5-flash',
+            contents: prompt,
+          }),
+          new Promise<never>((_, reject) =>
+            setTimeout(() => reject(new Error('Timeout')), 120000)
+          ),
+        ]);
+      }
+
+      const summaryText = sanitizeHtml(response.text ?? '');
+
+      if (!summaryText || summaryText.trim().length < 50) {
+        throw new Error(language === 'es'
+          ? 'El resumen generado está vacío o es muy corto'
+          : 'Generated summary is empty or too short');
+      }
+
+      // Mark pending_summaries as completed
+      await completeSummary(consultation.session_id, summaryText);
+
+      // Auto-save to consultations table
+      const userId = consultation.user_id || user?.id || '';
+      await autoSaveConsultation({
+        userId,
+        sessionId: consultation.session_id,
+        patientName: consultation.patient_name,
+        transcript: consultation.transcript,
+        summary: summaryText,
+        language: lang,
+        sessionDuration: consultation.session_duration,
+      });
+
+      // Update local state immediately
+      if (selectedConsultation?.session_id === consultation.session_id) {
+        setSelectedConsultation({
+          ...selectedConsultation,
+          summary: summaryText,
+          isPending: false,
+          status: 'completed',
+        });
+      }
+
+      // Refresh consultations list
+      await loadConsultations();
+
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Unknown error';
+      logger.error('Error regenerating summary:', err);
+      setRegenerateError(message);
+    } finally {
+      setRegenerating(false);
     }
   };
 
@@ -171,6 +275,7 @@ const DoctorDashboard: React.FC<DoctorDashboardProps> = ({ language }) => {
           transcript: (p.transcript as TranscriptMessage[]) || [],
           summary: (p.summary as string) || '',
           message_count: ((p.transcript as TranscriptMessage[]) || []).length,
+          user_id: p.user_id as string,
           status: p.status as string,
           isPending: true,
         }));
@@ -646,6 +751,28 @@ const DoctorDashboard: React.FC<DoctorDashboardProps> = ({ language }) => {
                         ? 'El paciente completó la entrevista pero el resumen clínico no fue generado o enviado. La transcripción completa está disponible abajo.'
                         : 'The patient completed the interview but the clinical summary was not generated or sent. The full transcript is available below.'}
                     </p>
+                    <button
+                      onClick={() => handleRegenerateSummary(selectedConsultation)}
+                      disabled={regenerating}
+                      className="mt-3 w-full py-3 px-4 bg-teal-600 hover:bg-teal-700 text-white font-semibold rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                    >
+                      {regenerating ? (
+                        <>
+                          <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                          {language === 'es' ? 'Generando resumen clínico...' : 'Generating clinical summary...'}
+                        </>
+                      ) : (
+                        <>
+                          <span>🔄</span>
+                          {language === 'es' ? 'Regenerar Resumen Clínico' : 'Regenerate Clinical Summary'}
+                        </>
+                      )}
+                    </button>
+                    {regenerateError && (
+                      <p className="mt-2 text-sm text-red-600 bg-red-50 p-2 rounded">
+                        {regenerateError}
+                      </p>
+                    )}
                   </div>
                 </div>
               )}

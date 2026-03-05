@@ -87,14 +87,14 @@ const TextChatPanel: React.FC<TextChatPanelProps> = ({
     }
   }, [isListening, isIdle]);
 
-  // Actualizar duración cada 5 segundos (más responsivo para el botón Finalizar)
+  // Actualizar duración cada segundo (visible timer in header)
   useEffect(() => {
     if (!isListening) return;
     const interval = setInterval(() => {
       if (sessionStartRef.current) {
         setSessionDuration(Date.now() - sessionStartRef.current);
       }
-    }, 5000);
+    }, 1000);
     return () => clearInterval(interval);
   }, [isListening]);
 
@@ -211,10 +211,21 @@ const TextChatPanel: React.FC<TextChatPanelProps> = ({
     }
   };
 
+  // Auto-resize textarea handler
+  const handleTextareaInput = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setInputText(e.target.value);
+    e.target.style.height = 'auto';
+    e.target.style.height = Math.min(e.target.scrollHeight, 150) + 'px';
+  };
+
   const handleSend = () => {
     if (!inputText.trim() || isProcessing) return;
     onSendMessage(inputText.trim());
     setInputText('');
+    // Reset textarea height after clearing
+    if (inputRef.current) {
+      inputRef.current.style.height = 'auto';
+    }
     inputRef.current?.focus();
   };
 
@@ -253,6 +264,21 @@ const TextChatPanel: React.FC<TextChatPanelProps> = ({
             </div>
           </div>
 
+          {/* Session Timer */}
+          {isListening && sessionStartRef.current && (
+            <div className="flex items-center gap-2 text-sm">
+              <span className="font-mono text-slate-600">
+                {String(Math.floor(sessionDuration / 60000)).padStart(2, '0')}:
+                {String(Math.floor((sessionDuration % 60000) / 1000)).padStart(2, '0')}
+              </span>
+              {sessionDuration < MIN_SESSION_DURATION && (
+                <span className="text-xs text-amber-600">
+                  ({language === 'es' ? 'mín' : 'min'} {Math.ceil((MIN_SESSION_DURATION - sessionDuration) / 60000)}min)
+                </span>
+              )}
+            </div>
+          )}
+
           {/* TTS Toggle */}
           {ttsSupported && isListening && (
             <button
@@ -278,7 +304,7 @@ const TextChatPanel: React.FC<TextChatPanelProps> = ({
                   return (
                     <div
                       key={topicNum}
-                      className={`w-2 h-2 rounded-full transition-colors ${
+                      className={`w-3 h-3 rounded-full transition-colors ${
                         isCovered
                           ? 'bg-emerald-500'
                           : isEssential
@@ -293,6 +319,11 @@ const TextChatPanel: React.FC<TextChatPanelProps> = ({
               <span className="text-xs text-slate-500 font-medium">
                 {topicTracking.coveredTopics.size}/{MIN_TOPICS_REQUIRED}
               </span>
+              {topicTracking.currentTopic && TOPIC_NAMES[language][topicTracking.currentTopic] && (
+                <span className="text-xs text-teal-700 font-medium hidden sm:inline">
+                  {TOPIC_NAMES[language][topicTracking.currentTopic]}
+                </span>
+              )}
             </div>
           )}
         </div>
@@ -314,6 +345,9 @@ const TextChatPanel: React.FC<TextChatPanelProps> = ({
       <div
         ref={chatContainerRef}
         className="flex-1 overflow-y-auto p-4 space-y-4"
+        role="log"
+        aria-live="polite"
+        aria-label={language === 'es' ? 'Historial de chat' : 'Chat history'}
       >
         {transcript.length === 0 && isIdle && (
           <div className="text-center py-8">
@@ -338,7 +372,7 @@ const TextChatPanel: React.FC<TextChatPanelProps> = ({
             timestamp={msg.timestamp}
             language={language}
             isLatest={index === transcript.length - 1}
-            speed={50}
+            speed={20}
           />
         ))}
 
@@ -416,13 +450,13 @@ const TextChatPanel: React.FC<TextChatPanelProps> = ({
                 <textarea
                   ref={inputRef}
                   value={inputText}
-                  onChange={(e) => setInputText(e.target.value)}
+                  onChange={handleTextareaInput}
                   onKeyDown={handleKeyDown}
                   placeholder={texts.chatPlaceholder}
                   disabled={isProcessing}
-                  className="w-full px-4 py-3 pr-14 border-2 border-slate-200 rounded-2xl resize-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500 transition disabled:bg-slate-50 text-lg shadow-sm"
-                  style={{ fontSize: '1.125rem', lineHeight: '1.6' }}
-                  rows={3}
+                  className="w-full px-4 py-3 pr-14 border-2 border-slate-200 rounded-2xl focus:ring-2 focus:ring-teal-500 focus:border-teal-500 transition disabled:bg-slate-50 text-lg shadow-sm"
+                  style={{ fontSize: '1.125rem', lineHeight: '1.6', minHeight: '48px', maxHeight: '150px', overflow: 'auto' }}
+                  rows={1}
                 />
 
                 {/* Dictation button - ocean blue theme */}
