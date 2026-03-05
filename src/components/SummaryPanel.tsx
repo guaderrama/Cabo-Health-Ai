@@ -61,13 +61,13 @@ const SummaryPanel: React.FC<SummaryPanelProps> = ({
 
             {/* Animated brain/AI icon */}
             <div className="relative mb-6">
-              <div className="w-20 h-20 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full flex items-center justify-center shadow-lg">
+              <div className="w-20 h-20 bg-gradient-to-br from-teal-600 to-cyan-700 rounded-full flex items-center justify-center shadow-lg">
                 <svg className="w-10 h-10 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
                 </svg>
               </div>
               {/* Pulsing ring animation */}
-              <div className="absolute inset-0 w-20 h-20 bg-blue-400 rounded-full animate-ping opacity-20"></div>
+              <div className="absolute inset-0 w-20 h-20 bg-teal-400 rounded-full animate-ping opacity-20"></div>
             </div>
 
             <h3 className="text-xl font-bold text-slate-800 mb-2">{texts.summaryProcessingTitle}</h3>
@@ -76,7 +76,7 @@ const SummaryPanel: React.FC<SummaryPanelProps> = ({
             {/* Animated progress bar */}
             <div className="w-full max-w-xs mb-4">
               <div className="h-2 bg-slate-200 rounded-full overflow-hidden">
-                <div className="h-full bg-gradient-to-r from-blue-500 via-indigo-500 to-blue-500 rounded-full animate-shimmer w-full">
+                <div className="h-full bg-gradient-to-r from-teal-500 via-cyan-500 to-teal-500 rounded-full animate-shimmer w-full">
                 </div>
               </div>
             </div>
@@ -104,7 +104,7 @@ const SummaryPanel: React.FC<SummaryPanelProps> = ({
              <p className="mb-6">{texts.summaryReadyBody}</p>
              <button
                 onClick={() => setIsModalOpen(true)}
-                className="w-48 h-12 flex items-center justify-center rounded-lg font-semibold text-white bg-blue-600 hover:bg-blue-700 transition-all duration-300 shadow-md"
+                className="w-48 h-12 flex items-center justify-center rounded-lg font-semibold text-white bg-teal-600 hover:bg-teal-700 transition-all duration-300 shadow-md"
              >
                 <SendIcon className="w-5 h-5 mr-2" />
                 {texts.sendToDoctorButton}

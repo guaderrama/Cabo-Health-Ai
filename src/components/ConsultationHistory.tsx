@@ -134,7 +134,7 @@ const ConsultationHistory: React.FC<ConsultationHistoryProps> = ({ language, onC
                   placeholder={language === 'es' ? 'Buscar paciente...' : 'Search patient...'}
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
                 />
               </div>
             )}
@@ -146,7 +146,7 @@ const ConsultationHistory: React.FC<ConsultationHistoryProps> = ({ language, onC
                   onClick={() => setFilterMotivation('all')}
                   className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors active:scale-95 ${
                     filterMotivation === 'all'
-                      ? 'bg-blue-600 text-white'
+                      ? 'bg-teal-600 text-white'
                       : 'bg-white text-slate-600 border border-slate-300 hover:bg-slate-100'
                   }`}
                   title={language === 'es' ? 'Mostrar todas las consultas' : 'Show all consultations'}
@@ -240,7 +240,7 @@ const ConsultationHistory: React.FC<ConsultationHistoryProps> = ({ language, onC
               <p className="text-red-600">{error}</p>
               <button
                 onClick={loadConsultations}
-                className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors active:scale-95"
+                className="mt-4 px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition-colors active:scale-95"
                 title={language === 'es' ? 'Cargar consultas nuevamente' : 'Load consultations again'}
               >
                 {language === 'es' ? 'Reintentar' : 'Retry'}
@@ -267,7 +267,7 @@ const ConsultationHistory: React.FC<ConsultationHistoryProps> = ({ language, onC
                 return (
                   <div
                     key={consultation.id}
-                    className="border border-slate-200 rounded-lg p-5 hover:border-blue-400 hover:shadow-lg transition-all cursor-pointer bg-white"
+                    className="border border-slate-200 rounded-lg p-5 hover:border-teal-400 hover:shadow-lg transition-all cursor-pointer bg-white"
                     onClick={() => setSelectedConsultation(consultation)}
                   >
                     <div className="flex items-start justify-between mb-3">
@@ -329,7 +329,7 @@ const ConsultationHistory: React.FC<ConsultationHistoryProps> = ({ language, onC
                             </div>
                             <div className="w-full bg-slate-200 rounded-full h-3">
                               <div
-                                className="bg-purple-500 h-3 rounded-full transition-all duration-500"
+                                className="bg-teal-500 h-3 rounded-full transition-all duration-500"
                                 style={{ width: `${(consultation.empathy_score / 10) * 100}%` }}
                               ></div>
                             </div>
@@ -357,7 +357,7 @@ const ConsultationHistory: React.FC<ConsultationHistoryProps> = ({ language, onC
                         <span>{consultation.transcript?.length || 0} {language === 'es' ? 'mensajes' : 'messages'}</span>
                       </div>
                       <button
-                        className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-semibold active:scale-95"
+                        className="px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition-colors text-sm font-semibold active:scale-95"
                         title={language === 'es' ? 'Ver transcripción completa y resumen' : 'View full transcript and summary'}
                       >
                         {language === 'es' ? 'Ver Detalle' : 'View Details'} →
@@ -386,7 +386,7 @@ const ConsultationHistory: React.FC<ConsultationHistoryProps> = ({ language, onC
       {selectedConsultation && (
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-[60] p-4">
           <div className="bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col">
-            <div className="flex items-center justify-between p-6 border-b bg-gradient-to-r from-blue-50 to-purple-50">
+            <div className="flex items-center justify-between p-6 border-b bg-gradient-to-r from-teal-50 to-cyan-50">
               <div>
                 <h3 className="text-2xl font-bold text-slate-800">
                   {language === 'es' ? 'Detalle de Consulta' : 'Consultation Detail'}
@@ -428,7 +428,7 @@ const ConsultationHistory: React.FC<ConsultationHistoryProps> = ({ language, onC
                           <div className={`max-w-[75%] ${isNova ? 'order-1' : 'order-2'}`}>
                             <div className={`rounded-2xl px-4 py-3 shadow-sm ${
                               isNova
-                                ? 'bg-blue-100 text-blue-900 rounded-tl-none'
+                                ? 'bg-teal-50 text-teal-900 rounded-tl-none'
                                 : 'bg-green-100 text-green-900 rounded-tr-none'
                             }`}>
                               <div className="flex items-center gap-2 mb-1">
@@ -466,16 +466,16 @@ const ConsultationHistory: React.FC<ConsultationHistoryProps> = ({ language, onC
 
               {/* Mensaje para pacientes - El resumen fue enviado al médico */}
               {!isDoctor && selectedConsultation.summary && (
-                <div className="bg-blue-50 border border-blue-200 rounded-lg p-6 text-center">
-                  <div className="w-12 h-12 bg-blue-100 rounded-full mx-auto flex items-center justify-center mb-3">
-                    <svg className="w-6 h-6 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <div className="bg-teal-50 border border-teal-200 rounded-lg p-6 text-center">
+                  <div className="w-12 h-12 bg-teal-100 rounded-full mx-auto flex items-center justify-center mb-3">
+                    <svg className="w-6 h-6 text-teal-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                     </svg>
                   </div>
-                  <h4 className="text-lg font-semibold text-blue-800 mb-2">
+                  <h4 className="text-lg font-semibold text-teal-800 mb-2">
                     {language === 'es' ? 'Resumen enviado a tu médico' : 'Summary sent to your doctor'}
                   </h4>
-                  <p className="text-sm text-blue-600">
+                  <p className="text-sm text-teal-600">
                     {language === 'es'
                       ? 'El resumen clínico de esta consulta ha sido enviado a tu médico para su revisión.'
                       : 'The clinical summary of this consultation has been sent to your doctor for review.'}
@@ -519,7 +519,7 @@ const ConsultationHistory: React.FC<ConsultationHistoryProps> = ({ language, onC
                       printWindow.print();
                     }
                   }}
-                  className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-semibold flex items-center gap-2 active:scale-95"
+                  className="px-6 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition-colors font-semibold flex items-center gap-2 active:scale-95"
                   title={language === 'es' ? 'Imprimir resumen clínico' : 'Print clinical summary'}
                 >
                   <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">

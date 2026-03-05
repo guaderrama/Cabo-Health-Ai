@@ -345,7 +345,7 @@ const ClinicalSummaryView: React.FC<ClinicalSummaryViewProps> = ({ summaryHTML, 
             onClick={() => setActiveTab(tab.id)}
             className={`flex items-center gap-2 px-4 py-2 rounded-lg font-semibold text-sm transition-all whitespace-nowrap ${
               activeTab === tab.id
-                ? 'bg-white text-purple-700 shadow-md ring-2 ring-purple-200'
+                ? 'bg-white text-teal-700 shadow-md ring-2 ring-teal-200'
                 : 'text-slate-600 hover:bg-white/50'
             }`}
           >
@@ -361,8 +361,8 @@ const ClinicalSummaryView: React.FC<ClinicalSummaryViewProps> = ({ summaryHTML, 
           <div className="space-y-6">
             {/* Hero Section - Motivo Principal */}
             {parsed.chiefComplaint && (
-              <div className="bg-gradient-to-r from-purple-50 to-blue-50 rounded-xl p-6 border-l-4 border-purple-500">
-                <h3 className="text-sm font-semibold text-purple-700 mb-2 uppercase tracking-wide">
+              <div className="bg-gradient-to-r from-teal-50 to-cyan-50 rounded-xl p-6 border-l-4 border-teal-500">
+                <h3 className="text-sm font-semibold text-teal-700 mb-2 uppercase tracking-wide">
                   {language === 'es' ? 'Motivo Principal' : 'Chief Complaint'}
                 </h3>
                 <p className="text-lg font-medium text-slate-800 leading-relaxed">{parsed.chiefComplaint}</p>
@@ -540,7 +540,7 @@ const ClinicalSummaryView: React.FC<ClinicalSummaryViewProps> = ({ summaryHTML, 
                   <h4 className="text-sm font-semibold text-slate-700">
                     📊 {language === 'es' ? 'Completitud' : 'Completeness'}
                   </h4>
-                  <span className="px-2 py-1 rounded-full text-xs font-bold bg-blue-100 text-blue-700">
+                  <span className="px-2 py-1 rounded-full text-xs font-bold bg-teal-100 text-teal-700">
                     {parsed.completeness}/20
                   </span>
                 </div>
@@ -564,7 +564,7 @@ const ClinicalSummaryView: React.FC<ClinicalSummaryViewProps> = ({ summaryHTML, 
                 </div>
                 <div className="flex items-center justify-center py-6">
                   <div className="text-center">
-                    <p className="text-4xl font-bold text-purple-700">{parsed.duration}</p>
+                    <p className="text-4xl font-bold text-teal-700">{parsed.duration}</p>
                     <p className="text-sm text-slate-600 mt-1">
                       {language === 'es' ? 'de conversación' : 'of conversation'}
                     </p>
@@ -607,15 +607,15 @@ const ClinicalSummaryView: React.FC<ClinicalSummaryViewProps> = ({ summaryHTML, 
 
             {/* Hallazgos Clave */}
             {parsed.keyFindings.length > 0 && (
-              <div className="bg-white border-2 border-blue-200 rounded-xl p-5">
+              <div className="bg-white border-2 border-teal-200 rounded-xl p-5">
                 <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
                   <span className="text-2xl">🔍</span>
                   {language === 'es' ? 'Hallazgos Clave' : 'Key Findings'}
                 </h3>
                 <div className="space-y-3">
                   {parsed.keyFindings.map((finding, idx) => (
-                    <div key={idx} className="flex items-start gap-3 bg-blue-50 rounded-lg p-3">
-                      <div className="flex-shrink-0 w-6 h-6 bg-blue-600 rounded-full flex items-center justify-center text-white text-xs font-bold">
+                    <div key={idx} className="flex items-start gap-3 bg-teal-50 rounded-lg p-3">
+                      <div className="flex-shrink-0 w-6 h-6 bg-teal-600 rounded-full flex items-center justify-center text-white text-xs font-bold">
                         {idx + 1}
                       </div>
                       <p className="text-slate-700 leading-relaxed flex-1">{finding}</p>

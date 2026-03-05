@@ -283,7 +283,7 @@ const DoctorDashboard: React.FC<DoctorDashboardProps> = ({ language }) => {
 
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-50 via-white to-blue-50 p-6 pt-24">
+    <div className="min-h-screen bg-gradient-to-br from-cyan-50 via-white to-teal-50 p-6 pt-24">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="mb-8">
@@ -312,7 +312,7 @@ const DoctorDashboard: React.FC<DoctorDashboardProps> = ({ language }) => {
                 placeholder={language === 'es' ? 'Buscar paciente...' : 'Search patient...'}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 text-lg"
+                className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-lg"
               />
             </div>
 
@@ -321,7 +321,7 @@ const DoctorDashboard: React.FC<DoctorDashboardProps> = ({ language }) => {
               <button
                 onClick={() => setFilterMotivation('all')}
                 className={`px-4 py-3 rounded-lg text-sm font-medium transition-colors ${filterMotivation === 'all'
-                  ? 'bg-purple-600 text-white'
+                  ? 'bg-teal-600 text-white'
                   : 'bg-white text-slate-600 border border-slate-300 hover:bg-slate-100'
                   }`}
               >
@@ -365,7 +365,7 @@ const DoctorDashboard: React.FC<DoctorDashboardProps> = ({ language }) => {
         {/* Content */}
         {loading ? (
           <div className="flex flex-col items-center justify-center py-20">
-            <div className="w-16 h-16 border-4 border-purple-500/30 border-t-purple-600 rounded-full animate-spin mb-4"></div>
+            <div className="w-16 h-16 border-4 border-teal-500/30 border-t-teal-600 rounded-full animate-spin mb-4"></div>
             <p className="text-slate-600 text-lg">
               {language === 'es' ? 'Cargando consultas...' : 'Loading consultations...'}
             </p>
@@ -380,7 +380,7 @@ const DoctorDashboard: React.FC<DoctorDashboardProps> = ({ language }) => {
             <p className="text-red-600 text-lg mb-4">{error}</p>
             <button
               onClick={loadConsultations}
-              className="px-6 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors font-semibold"
+              className="px-6 py-3 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition-colors font-semibold"
             >
               {language === 'es' ? 'Reintentar' : 'Retry'}
             </button>
@@ -410,7 +410,7 @@ const DoctorDashboard: React.FC<DoctorDashboardProps> = ({ language }) => {
                   className={`bg-white border rounded-xl p-6 hover:shadow-xl transition-all cursor-pointer relative ${
                     consultation.isPending
                       ? 'border-amber-300 bg-amber-50/30 hover:border-amber-400'
-                      : 'border-slate-200 hover:border-purple-400'
+                      : 'border-slate-200 hover:border-teal-400'
                   }`}
                   onClick={() => setSelectedConsultation(consultation)}
                 >
@@ -501,7 +501,7 @@ const DoctorDashboard: React.FC<DoctorDashboardProps> = ({ language }) => {
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                         </svg>
                       </button>
-                      <button className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors text-sm font-semibold">
+                      <button className="px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition-colors text-sm font-semibold">
                         {language === 'es' ? 'Ver Detalle' : 'View Details'} →
                       </button>
                     </div>
@@ -552,7 +552,7 @@ const DoctorDashboard: React.FC<DoctorDashboardProps> = ({ language }) => {
       {selectedConsultation && (
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-[60] p-4">
           <div className="bg-white rounded-xl shadow-2xl w-full max-w-5xl max-h-[90vh] flex flex-col">
-            <div className="flex items-center justify-between p-6 border-b bg-gradient-to-r from-purple-50 to-blue-50">
+            <div className="flex items-center justify-between p-6 border-b bg-gradient-to-r from-teal-50 to-cyan-50">
               <div>
                 <h3 className="text-2xl font-bold text-slate-800">
                   {language === 'es' ? 'Detalle de Consulta' : 'Consultation Detail'}
@@ -615,7 +615,7 @@ const DoctorDashboard: React.FC<DoctorDashboardProps> = ({ language }) => {
                         <div key={idx} className={`flex ${isNova ? 'justify-start' : 'justify-end'}`}>
                           <div className={`max-w-[75%] ${isNova ? 'order-1' : 'order-2'}`}>
                             <div className={`rounded-2xl px-4 py-3 shadow-sm ${isNova
-                              ? 'bg-purple-100 text-purple-900 rounded-tl-none'
+                              ? 'bg-teal-50 text-teal-900 rounded-tl-none'
                               : 'bg-green-100 text-green-900 rounded-tr-none'
                               }`}>
                               <div className="flex items-center gap-2 mb-1">
@@ -737,14 +737,14 @@ const DoctorDashboard: React.FC<DoctorDashboardProps> = ({ language }) => {
                               line-height: 1.6;
                             }
                             .header {
-                              border-bottom: 4px solid #8b5cf6;
+                              border-bottom: 4px solid #0F766E;
                               padding-bottom: 20px;
                               margin-bottom: 30px;
                             }
                             .logo {
                               font-size: 32px;
                               font-weight: bold;
-                              color: #8b5cf6;
+                              color: #0F766E;
                               margin-bottom: 10px;
                             }
                             h1 {
@@ -777,7 +777,7 @@ const DoctorDashboard: React.FC<DoctorDashboardProps> = ({ language }) => {
                             }
                             .score-card {
                               flex: 1;
-                              background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                              background: linear-gradient(135deg, #0F766E 0%, #155E75 100%);
                               color: white;
                               padding: 20px;
                               border-radius: 8px;
@@ -894,7 +894,7 @@ const DoctorDashboard: React.FC<DoctorDashboardProps> = ({ language }) => {
                     printWindow.document.close();
                   }
                 }}
-                className="px-6 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors font-semibold flex items-center gap-2"
+                className="px-6 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition-colors font-semibold flex items-center gap-2"
               >
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />

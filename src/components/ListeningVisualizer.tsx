@@ -42,7 +42,7 @@ const ListeningVisualizer: React.FC<ListeningVisualizerProps> = ({ isListening, 
       {/* Outer Glow (Pulsing) - Colores Cabo Health */}
       {!prefersReducedMotion && (
         <div
-          className={`absolute w-full h-full rounded-full bg-gradient-to-r from-teal-500/20 via-blue-500/20 to-cyan-400/20 ${
+          className={`absolute w-full h-full rounded-full bg-gradient-to-r from-teal-500/20 via-cyan-500/20 to-cyan-400/20 ${
             isListening ? 'animate-pulse-glow' : ''
           }`}
           style={{
@@ -57,7 +57,7 @@ const ListeningVisualizer: React.FC<ListeningVisualizerProps> = ({ isListening, 
       {/* Flowing Waves - Layer 1 (Outermost) - Colores Cabo Health */}
       {!prefersReducedMotion && (
         <div
-          className={`absolute w-full h-full rounded-full bg-gradient-to-br from-blue-500 via-teal-500 to-transparent opacity-20 ${
+          className={`absolute w-full h-full rounded-full bg-gradient-to-br from-teal-500 via-cyan-500 to-transparent opacity-20 ${
             isListening ? 'animate-wave-1' : ''
           }`}
           style={{
@@ -87,7 +87,7 @@ const ListeningVisualizer: React.FC<ListeningVisualizerProps> = ({ isListening, 
 
       {/* Flowing Waves - Layer 3 - Colores Cabo Health */}
       <div
-        className={`absolute w-[80%] h-[80%] rounded-full bg-gradient-to-br from-cyan-400 via-blue-400 to-transparent ${
+        className={`absolute w-[80%] h-[80%] rounded-full bg-gradient-to-br from-cyan-400 via-cyan-400 to-transparent ${
           prefersReducedMotion ? 'opacity-20' : 'opacity-30'
         } ${isListening && !prefersReducedMotion ? 'animate-wave-3' : ''}`}
         style={{
@@ -103,7 +103,7 @@ const ListeningVisualizer: React.FC<ListeningVisualizerProps> = ({ isListening, 
       {isListening && !prefersReducedMotion && (
         <>
           <div
-            className="absolute w-full h-full rounded-full border-2 border-blue-400/40 animate-ripple"
+            className="absolute w-full h-full rounded-full border-2 border-teal-400/40 animate-ripple"
             style={{ animationDelay: '0s', willChange: 'transform, opacity' }}
           />
           <div
@@ -119,7 +119,7 @@ const ListeningVisualizer: React.FC<ListeningVisualizerProps> = ({ isListening, 
 
       {/* Inner Glow (Dynamic) - Colores Cabo Health */}
       <div
-        className="absolute w-64 h-64 rounded-full bg-gradient-to-br from-teal-500/30 via-blue-500/30 to-cyan-400/30"
+        className="absolute w-64 h-64 rounded-full bg-gradient-to-br from-teal-500/30 via-cyan-500/30 to-cyan-400/30"
         style={{
           filter: prefersReducedMotion ? 'blur(10px)' : `blur(${30 * blurIntensity}px)`,
           opacity: isListening ? glowIntensity : 0.2,
@@ -131,7 +131,7 @@ const ListeningVisualizer: React.FC<ListeningVisualizerProps> = ({ isListening, 
 
       {/* Central Orb - Medical Orb Luminoso */}
       <div
-        className="relative w-56 h-56 rounded-full bg-gradient-to-br from-white via-blue-50 to-teal-50 border-2 border-blue-200/40 shadow-2xl backdrop-blur-sm flex items-center justify-center overflow-hidden"
+        className="relative w-56 h-56 rounded-full bg-gradient-to-br from-white via-cyan-50 to-teal-50 border-2 border-teal-200/40 shadow-2xl backdrop-blur-sm flex items-center justify-center overflow-hidden"
         style={{
           transform: `scale(${isListening ? scale : 1})`,
           transition: 'transform 0.1s ease-out',
@@ -146,7 +146,7 @@ const ListeningVisualizer: React.FC<ListeningVisualizerProps> = ({ isListening, 
         {/* Rotating gradient background (subtle) - Colores Cabo Health */}
         {!prefersReducedMotion && (
           <div
-            className={`absolute inset-0 rounded-full bg-gradient-to-br from-teal-500/5 via-blue-500/5 to-cyan-400/5 ${
+            className={`absolute inset-0 rounded-full bg-gradient-to-br from-teal-500/5 via-cyan-500/5 to-cyan-400/5 ${
               isListening ? 'animate-wave-1' : ''
             }`}
             style={{ filter: `blur(${20 * blurIntensity}px)`, willChange: 'transform' }}

@@ -10,8 +10,8 @@ export const SUMMARY_PROMPT: Record<Language, (transcript: string) => string> = 
     <div class="medical-report" style="font-family: system-ui, -apple-system, sans-serif; max-width: 900px; margin: 0 auto;">
 
       <!-- SECCIÓN 1: INFORMACIÓN DEL PACIENTE -->
-      <div class="section" style="margin-bottom: 2rem; padding: 1.5rem; background: #f8fafc; border-left: 4px solid #3b82f6; border-radius: 8px;">
-        <h2 style="color: #1e40af; margin-bottom: 1rem;">👤 Información del Paciente</h2>
+      <div class="section" style="margin-bottom: 2rem; padding: 1.5rem; background: #f8fafc; border-left: 4px solid #0F766E; border-radius: 8px;">
+        <h2 style="color: #0F766E; margin-bottom: 1rem;">👤 Información del Paciente</h2>
         <table style="width: 100%; border-collapse: collapse;">
           <tr><td style="padding: 0.5rem; font-weight: 600;">Motivo principal de consulta:</td><td style="padding: 0.5rem;">[Descripción breve y específica]</td></tr>
           <tr><td style="padding: 0.5rem; font-weight: 600;">Objetivos del paciente:</td><td style="padding: 0.5rem;">[Lista de objetivos mencionados]</td></tr>
@@ -20,7 +20,7 @@ export const SUMMARY_PROMPT: Record<Language, (transcript: string) => string> = 
       </div>
 
       <!-- DASHBOARD VISUAL -->
-      <div class="dashboard" style="margin-bottom: 2rem; padding: 1.5rem; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 12px; color: white;">
+      <div class="dashboard" style="margin-bottom: 2rem; padding: 1.5rem; background: linear-gradient(135deg, #0F766E 0%, #155E75 100%); border-radius: 12px; color: white;">
         <h2 style="color: white; margin-bottom: 1.5rem; font-size: 1.5rem;">📊 Vista Rápida - Dashboard Clínico</h2>
 
         <!-- Métricas Clave en Grid -->
@@ -70,7 +70,7 @@ export const SUMMARY_PROMPT: Record<Language, (transcript: string) => string> = 
               <span style="font-size: 0.875rem; font-weight: 700;">[X/10]</span>
             </div>
             <div style="background: rgba(0,0,0,0.2); height: 8px; border-radius: 4px; overflow: hidden;">
-              <div style="background: #3b82f6; height: 100%; width: [X]0%;"></div>
+              <div style="background: #0F766E; height: 100%; width: [X]0%;"></div>
             </div>
           </div>
           <div>
@@ -86,8 +86,8 @@ export const SUMMARY_PROMPT: Record<Language, (transcript: string) => string> = 
       </div>
 
       <!-- MATRIZ DE SISTEMAS (FUNCTIONAL MEDICINE MATRIX) -->
-      <div class="systems-matrix" style="margin-bottom: 2rem; padding: 1.5rem; background: #f8fafc; border-left: 4px solid #3b82f6; border-radius: 8px;">
-        <h2 style="color: #1e40af; margin-bottom: 1.5rem; font-size: 1.5rem;">🔬 Matriz de Sistemas - Functional Medicine</h2>
+      <div class="systems-matrix" style="margin-bottom: 2rem; padding: 1.5rem; background: #f8fafc; border-left: 4px solid #0F766E; border-radius: 8px;">
+        <h2 style="color: #0F766E; margin-bottom: 1.5rem; font-size: 1.5rem;">🔬 Matriz de Sistemas - Functional Medicine</h2>
         <p style="color: #64748b; margin-bottom: 1.5rem; font-size: 0.875rem;">Evaluación del estado de los sistemas corporales principales (escala 0-10, donde 10 es óptimo)</p>
 
         <!-- Grid de 6 Sistemas -->
@@ -97,10 +97,10 @@ export const SUMMARY_PROMPT: Record<Language, (transcript: string) => string> = 
           <div style="background: white; border-radius: 8px; padding: 1rem; border: 2px solid #e2e8f0;">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
               <h3 style="margin: 0; color: #0f172a; font-size: 1rem;">🍽️ DIGESTIÓN</h3>
-              <span style="font-size: 1.5rem; font-weight: 700; color: #3b82f6;">[X/10]</span>
+              <span style="font-size: 1.5rem; font-weight: 700; color: #0F766E;">[X/10]</span>
             </div>
             <div style="background: #e2e8f0; height: 8px; border-radius: 4px; overflow: hidden; margin-bottom: 0.75rem;">
-              <div style="background: #3b82f6; height: 100%; width: [X]0%;"></div>
+              <div style="background: #0F766E; height: 100%; width: [X]0%;"></div>
             </div>
             <p style="font-size: 0.75rem; color: #64748b; margin: 0; line-height: 1.4;">
               [Breve evaluación: síntomas digestivos, hábitos intestinales, sensibilidades]
@@ -125,10 +125,10 @@ export const SUMMARY_PROMPT: Record<Language, (transcript: string) => string> = 
           <div style="background: white; border-radius: 8px; padding: 1rem; border: 2px solid #e2e8f0;">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
               <h3 style="margin: 0; color: #0f172a; font-size: 1rem;">🧠 MENTE</h3>
-              <span style="font-size: 1.5rem; font-weight: 700; color: #8b5cf6;">[X/10]</span>
+              <span style="font-size: 1.5rem; font-weight: 700; color: #155E75;">[X/10]</span>
             </div>
             <div style="background: #e2e8f0; height: 8px; border-radius: 4px; overflow: hidden; margin-bottom: 0.75rem;">
-              <div style="background: #8b5cf6; height: 100%; width: [X]0%;"></div>
+              <div style="background: #155E75; height: 100%; width: [X]0%;"></div>
             </div>
             <p style="font-size: 0.75rem; color: #64748b; margin: 0; line-height: 1.4;">
               [Breve evaluación: estrés, estado de ánimo, bienestar emocional, claridad mental]
@@ -258,7 +258,7 @@ export const SUMMARY_PROMPT: Record<Language, (transcript: string) => string> = 
           <li>[Recomendación #2]</li>
         </ol>
 
-        <h4 style="color: #3b82f6; margin-top: 1rem;">💡 Prioridad BAJA (Considerar después de 1 mes):</h4>
+        <h4 style="color: #0F766E; margin-top: 1rem;">💡 Prioridad BAJA (Considerar después de 1 mes):</h4>
         <ol style="line-height: 1.8;">
           <li>[Recomendación #1]</li>
           <li>[Recomendación #2]</li>
@@ -455,8 +455,8 @@ export const SUMMARY_PROMPT: Record<Language, (transcript: string) => string> = 
     <div class="medical-report" style="font-family: system-ui, -apple-system, sans-serif; max-width: 900px; margin: 0 auto;">
 
       <!-- SECTION 1: PATIENT INFORMATION -->
-      <div class="section" style="margin-bottom: 2rem; padding: 1.5rem; background: #f8fafc; border-left: 4px solid #3b82f6; border-radius: 8px;">
-        <h2 style="color: #1e40af; margin-bottom: 1rem;">👤 Patient Information</h2>
+      <div class="section" style="margin-bottom: 2rem; padding: 1.5rem; background: #f8fafc; border-left: 4px solid #0F766E; border-radius: 8px;">
+        <h2 style="color: #0F766E; margin-bottom: 1rem;">👤 Patient Information</h2>
         <table style="width: 100%; border-collapse: collapse;">
           <tr><td style="padding: 0.5rem; font-weight: 600;">Primary reason for consultation:</td><td style="padding: 0.5rem;">[Brief specific description]</td></tr>
           <tr><td style="padding: 0.5rem; font-weight: 600;">Patient's objectives:</td><td style="padding: 0.5rem;">[List of mentioned goals]</td></tr>
@@ -465,7 +465,7 @@ export const SUMMARY_PROMPT: Record<Language, (transcript: string) => string> = 
       </div>
 
       <!-- VISUAL DASHBOARD -->
-      <div class="dashboard" style="margin-bottom: 2rem; padding: 1.5rem; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 12px; color: white;">
+      <div class="dashboard" style="margin-bottom: 2rem; padding: 1.5rem; background: linear-gradient(135deg, #0F766E 0%, #155E75 100%); border-radius: 12px; color: white;">
         <h2 style="color: white; margin-bottom: 1.5rem; font-size: 1.5rem;">📊 Quick View - Clinical Dashboard</h2>
 
         <!-- Key Metrics Grid -->
@@ -515,7 +515,7 @@ export const SUMMARY_PROMPT: Record<Language, (transcript: string) => string> = 
               <span style="font-size: 0.875rem; font-weight: 700;">[X/10]</span>
             </div>
             <div style="background: rgba(0,0,0,0.2); height: 8px; border-radius: 4px; overflow: hidden;">
-              <div style="background: #3b82f6; height: 100%; width: [X]0%;"></div>
+              <div style="background: #0F766E; height: 100%; width: [X]0%;"></div>
             </div>
           </div>
           <div>
@@ -531,8 +531,8 @@ export const SUMMARY_PROMPT: Record<Language, (transcript: string) => string> = 
       </div>
 
       <!-- SYSTEMS MATRIX (FUNCTIONAL MEDICINE MATRIX) -->
-      <div class="systems-matrix" style="margin-bottom: 2rem; padding: 1.5rem; background: #f8fafc; border-left: 4px solid #3b82f6; border-radius: 8px;">
-        <h2 style="color: #1e40af; margin-bottom: 1.5rem; font-size: 1.5rem;">🔬 Systems Matrix - Functional Medicine</h2>
+      <div class="systems-matrix" style="margin-bottom: 2rem; padding: 1.5rem; background: #f8fafc; border-left: 4px solid #0F766E; border-radius: 8px;">
+        <h2 style="color: #0F766E; margin-bottom: 1.5rem; font-size: 1.5rem;">🔬 Systems Matrix - Functional Medicine</h2>
         <p style="color: #64748b; margin-bottom: 1.5rem; font-size: 0.875rem;">Evaluation of main body systems status (scale 0-10, where 10 is optimal)</p>
 
         <!-- Grid of 6 Systems -->
@@ -542,10 +542,10 @@ export const SUMMARY_PROMPT: Record<Language, (transcript: string) => string> = 
           <div style="background: white; border-radius: 8px; padding: 1rem; border: 2px solid #e2e8f0;">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
               <h3 style="margin: 0; color: #0f172a; font-size: 1rem;">🍽️ DIGESTION</h3>
-              <span style="font-size: 1.5rem; font-weight: 700; color: #3b82f6;">[X/10]</span>
+              <span style="font-size: 1.5rem; font-weight: 700; color: #0F766E;">[X/10]</span>
             </div>
             <div style="background: #e2e8f0; height: 8px; border-radius: 4px; overflow: hidden; margin-bottom: 0.75rem;">
-              <div style="background: #3b82f6; height: 100%; width: [X]0%;"></div>
+              <div style="background: #0F766E; height: 100%; width: [X]0%;"></div>
             </div>
             <p style="font-size: 0.75rem; color: #64748b; margin: 0; line-height: 1.4;">
               [Brief assessment: digestive symptoms, bowel habits, sensitivities]
@@ -570,10 +570,10 @@ export const SUMMARY_PROMPT: Record<Language, (transcript: string) => string> = 
           <div style="background: white; border-radius: 8px; padding: 1rem; border: 2px solid #e2e8f0;">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
               <h3 style="margin: 0; color: #0f172a; font-size: 1rem;">🧠 MIND</h3>
-              <span style="font-size: 1.5rem; font-weight: 700; color: #8b5cf6;">[X/10]</span>
+              <span style="font-size: 1.5rem; font-weight: 700; color: #155E75;">[X/10]</span>
             </div>
             <div style="background: #e2e8f0; height: 8px; border-radius: 4px; overflow: hidden; margin-bottom: 0.75rem;">
-              <div style="background: #8b5cf6; height: 100%; width: [X]0%;"></div>
+              <div style="background: #155E75; height: 100%; width: [X]0%;"></div>
             </div>
             <p style="font-size: 0.75rem; color: #64748b; margin: 0; line-height: 1.4;">
               [Brief assessment: stress, mood, emotional wellbeing, mental clarity]
@@ -703,7 +703,7 @@ export const SUMMARY_PROMPT: Record<Language, (transcript: string) => string> = 
           <li>[Recommendation #2]</li>
         </ol>
 
-        <h4 style="color: #3b82f6; margin-top: 1rem;">💡 LOW Priority (Consider after 1 month):</h4>
+        <h4 style="color: #0F766E; margin-top: 1rem;">💡 LOW Priority (Consider after 1 month):</h4>
         <ol style="line-height: 1.8;">
           <li>[Recommendation #1]</li>
           <li>[Recommendation #2]</li>

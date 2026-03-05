@@ -33,10 +33,10 @@ const AuthForm: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-gradient-to-br from-teal-50 via-white to-cyan-50 flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-8">
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full mb-4">
+          <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-r from-teal-600 to-cyan-700 rounded-full mb-4">
             <UserIcon className="w-8 h-8 text-white" />
           </div>
           <h1 className="text-3xl font-bold text-slate-800 mb-2">Cabo Health Nova</h1>
@@ -58,7 +58,7 @@ const AuthForm: React.FC = () => {
                   onClick={() => setRole('patient')}
                   className={`p-4 rounded-lg border-2 transition-all ${
                     role === 'patient'
-                      ? 'border-blue-600 bg-blue-50 shadow-md'
+                      ? 'border-teal-600 bg-teal-50 shadow-md'
                       : 'border-slate-200 hover:border-slate-300'
                   }`}
                 >
@@ -73,7 +73,7 @@ const AuthForm: React.FC = () => {
                   onClick={() => setRole('doctor')}
                   className={`p-4 rounded-lg border-2 transition-all ${
                     role === 'doctor'
-                      ? 'border-purple-600 bg-purple-50 shadow-md'
+                      ? 'border-cyan-700 bg-cyan-50 shadow-md'
                       : 'border-slate-200 hover:border-slate-300'
                   }`}
                 >
@@ -97,7 +97,7 @@ const AuthForm: React.FC = () => {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
-              className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
+              className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 outline-none transition"
               placeholder="you@email.com"
             />
           </div>
@@ -113,7 +113,7 @@ const AuthForm: React.FC = () => {
               onChange={(e) => setPassword(e.target.value)}
               required
               minLength={6}
-              className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
+              className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 outline-none transition"
               placeholder="••••••••"
             />
           </div>
@@ -133,7 +133,7 @@ const AuthForm: React.FC = () => {
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-3 px-4 bg-gradient-to-r from-blue-600 to-purple-600 text-white font-semibold rounded-lg hover:from-blue-700 hover:to-purple-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full py-3 px-4 bg-gradient-to-r from-teal-600 to-teal-700 text-white font-semibold rounded-lg hover:from-teal-700 hover:to-teal-800 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-offset-2 transition disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {loading ? 'Processing...' : (isLogin ? 'Sign In' : 'Sign Up')}
           </button>
@@ -147,7 +147,7 @@ const AuthForm: React.FC = () => {
               setSuccess('');
               setRole('patient'); // Reset to patient when switching
             }}
-            className="text-blue-600 hover:text-blue-700 font-medium transition"
+            className="text-teal-600 hover:text-teal-700 font-medium transition"
           >
             {isLogin ? "Don't have an account? Sign Up" : 'Already have an account? Sign In'}
           </button>

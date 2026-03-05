@@ -78,11 +78,11 @@ const ProgressIndicator: React.FC<ProgressIndicatorProps> = ({
   const isLongSession = elapsedTime > 15 * 60 * 1000;
 
   return (
-    <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg p-4 shadow-sm">
+    <div className="bg-gradient-to-r from-teal-50 to-cyan-50 border border-teal-200 rounded-lg p-4 shadow-sm">
       <div className="flex items-center justify-between gap-4 flex-wrap">
         {/* Contador de mensajes */}
         <div className="flex items-center gap-3">
-          <div className="bg-blue-600 text-white rounded-full w-10 h-10 flex items-center justify-center font-bold text-lg shadow-md">
+          <div className="bg-teal-600 text-white rounded-full w-10 h-10 flex items-center justify-center font-bold text-lg shadow-md">
             {messageCount}
           </div>
           <div>
@@ -93,9 +93,9 @@ const ProgressIndicator: React.FC<ProgressIndicatorProps> = ({
 
         {/* Tiempo transcurrido */}
         <div className={`flex items-center gap-2 px-4 py-2 rounded-lg shadow-sm border ${
-          isLongSession ? 'bg-amber-50 border-amber-200' : 'bg-white border-blue-100'
+          isLongSession ? 'bg-amber-50 border-amber-200' : 'bg-white border-teal-100'
         }`}>
-          <svg className={`w-5 h-5 ${isLongSession ? 'text-amber-600' : 'text-blue-600'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg className={`w-5 h-5 ${isLongSession ? 'text-amber-600' : 'text-teal-600'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>
           <div>
@@ -109,7 +109,7 @@ const ProgressIndicator: React.FC<ProgressIndicatorProps> = ({
         {/* Indicador de guardado mejorado */}
         <div className="flex items-center gap-2 min-w-[140px]">
           {isSaving ? (
-            <div className="flex items-center gap-2 text-blue-600 bg-blue-50 px-3 py-1.5 rounded-full">
+            <div className="flex items-center gap-2 text-teal-600 bg-teal-50 px-3 py-1.5 rounded-full">
               <svg className="w-4 h-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
               </svg>
@@ -153,7 +153,7 @@ const ProgressIndicator: React.FC<ProgressIndicatorProps> = ({
           className={`h-full transition-all duration-500 ease-out rounded-full ${
             isLongSession
               ? 'bg-gradient-to-r from-amber-400 to-amber-600'
-              : 'bg-gradient-to-r from-blue-500 to-indigo-600'
+              : 'bg-gradient-to-r from-teal-500 to-cyan-600'
           }`}
           style={{ width: `${Math.min((messageCount / 20) * 100, 100)}%` }}
         />

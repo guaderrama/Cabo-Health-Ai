@@ -383,7 +383,7 @@ const SendSummaryModal: React.FC<SendSummaryModalProps> = ({
       case 'SENDING':
         return (
           <div className="flex flex-col items-center justify-center h-48" role="status" aria-live="polite">
-            <div className="w-10 h-10 border-4 border-blue-500/30 border-t-blue-600 rounded-full animate-spin" aria-hidden="true"></div>
+            <div className="w-10 h-10 border-4 border-teal-500/30 border-t-teal-600 rounded-full animate-spin" aria-hidden="true"></div>
             <p className="mt-4 text-lg font-semibold text-slate-700">{texts.sendingButton}</p>
           </div>
         );
@@ -415,14 +415,14 @@ const SendSummaryModal: React.FC<SendSummaryModalProps> = ({
               <label htmlFor="fullName" className="block text-sm font-medium text-slate-700">{texts.fullNameLabel}</label>
               <div className="mt-1 relative">
                 <UserIcon className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                <input type="text" name="fullName" id="fullName" value={formData.fullName} onChange={handleChange} required className="w-full pl-10 pr-3 py-2 border border-slate-300 rounded-lg focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-base" />
+                <input type="text" name="fullName" id="fullName" value={formData.fullName} onChange={handleChange} required className="w-full pl-10 pr-3 py-2 border border-slate-300 rounded-lg focus:ring-1 focus:ring-teal-500 focus:border-teal-500 text-base" />
               </div>
             </div>
              <div>
               <label htmlFor="dob" className="block text-sm font-medium text-slate-700">{texts.dobLabel}</label>
               <div className="mt-1 relative">
                 <CalendarIcon className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                <input type="date" name="dob" id="dob" value={formData.dob} onChange={handleChange} required max={today} className="w-full pl-10 pr-3 py-2 border border-slate-300 rounded-lg focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-base" />
+                <input type="date" name="dob" id="dob" value={formData.dob} onChange={handleChange} required max={today} className="w-full pl-10 pr-3 py-2 border border-slate-300 rounded-lg focus:ring-1 focus:ring-teal-500 focus:border-teal-500 text-base" />
               </div>
             </div>
             {error && (
@@ -476,7 +476,7 @@ const SendSummaryModal: React.FC<SendSummaryModalProps> = ({
                 type="submit"
                 onClick={handleSubmit}
                 disabled={submissionState === 'SENDING'}
-                className="w-40 h-10 flex items-center justify-center rounded-lg font-semibold text-white bg-blue-600 hover:bg-blue-700 transition-all duration-300 shadow-md disabled:opacity-50 disabled:cursor-not-allowed active:scale-95"
+                className="w-40 h-10 flex items-center justify-center rounded-lg font-semibold text-white bg-teal-600 hover:bg-teal-700 transition-all duration-300 shadow-md disabled:opacity-50 disabled:cursor-not-allowed active:scale-95"
              >
                 <SendIcon className="w-5 h-5 mr-2" />
                 {texts.sendSummaryButton}
@@ -485,7 +485,7 @@ const SendSummaryModal: React.FC<SendSummaryModalProps> = ({
            {submissionState === 'SUCCESS' && (
              <button
                 onClick={handleClose}
-                className="w-40 h-10 flex items-center justify-center rounded-lg font-semibold text-white bg-blue-600 hover:bg-blue-700 transition-all duration-300 shadow-md"
+                className="w-40 h-10 flex items-center justify-center rounded-lg font-semibold text-white bg-teal-600 hover:bg-teal-700 transition-all duration-300 shadow-md"
              >
                 {texts.doneButton}
              </button>

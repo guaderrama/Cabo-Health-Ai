@@ -65,10 +65,10 @@ const DashboardStats: React.FC<DashboardStatsProps> = ({ consultations, language
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
       {/* Total Pacientes */}
-      <div className="bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl shadow-lg p-6 text-white">
+      <div className="bg-gradient-to-br from-teal-600 to-teal-700 rounded-xl shadow-lg p-6 text-white">
         <div className="flex items-center justify-between">
           <div>
-            <p className="text-purple-100 text-sm font-medium mb-1">
+            <p className="text-teal-100 text-sm font-medium mb-1">
               {language === 'es' ? 'Total Pacientes' : 'Total Patients'}
             </p>
             <p className="text-4xl font-bold">{stats.total}</p>
@@ -114,14 +114,14 @@ const DashboardStats: React.FC<DashboardStatsProps> = ({ consultations, language
       </div>
 
       {/* Consultas Esta Semana */}
-      <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl shadow-lg p-6 text-white">
+      <div className="bg-gradient-to-br from-cyan-700 to-cyan-800 rounded-xl shadow-lg p-6 text-white">
         <div className="flex items-center justify-between">
           <div>
-            <p className="text-blue-100 text-sm font-medium mb-1">
+            <p className="text-cyan-100 text-sm font-medium mb-1">
               {language === 'es' ? 'Esta Semana' : 'This Week'}
             </p>
             <p className="text-4xl font-bold">{stats.thisWeek}</p>
-            <p className="text-xs text-blue-100 mt-1">
+            <p className="text-xs text-cyan-100 mt-1">
               {language === 'es' ? 'consultas' : 'consultations'}
             </p>
           </div>

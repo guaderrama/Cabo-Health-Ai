@@ -44,19 +44,19 @@ const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({ transcript, app
     return (
       <div className={`flex items-start gap-3 ${isNova ? 'justify-start' : 'justify-end'}`}>
         {isNova && (
-          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-blue-700 flex-shrink-0 flex items-center justify-center text-white font-bold text-sm shadow-md">
+          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-teal-600 to-teal-700 flex-shrink-0 flex items-center justify-center text-white font-bold text-sm shadow-md">
             N
           </div>
         )}
         <div className={`max-w-[85%] md:max-w-md rounded-2xl px-4 py-3 animate-fade-in-up shadow-sm ${
           isNova
             ? 'bg-slate-100 text-slate-900 rounded-tl-sm border border-slate-200'
-            : 'bg-gradient-to-br from-indigo-600 to-indigo-700 text-white rounded-tr-sm'
+            : 'bg-gradient-to-br from-cyan-700 to-cyan-800 text-white rounded-tr-sm'
         }`}>
           <p className="text-sm md:text-base leading-relaxed whitespace-pre-wrap break-words">{message.text}</p>
         </div>
         {!isNova && (
-          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-indigo-500 to-indigo-700 flex-shrink-0 flex items-center justify-center text-white font-bold text-sm shadow-md">
+          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-cyan-600 to-cyan-700 flex-shrink-0 flex items-center justify-center text-white font-bold text-sm shadow-md">
             {youChar}
           </div>
         )}

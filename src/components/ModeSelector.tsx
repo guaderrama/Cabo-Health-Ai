@@ -39,8 +39,8 @@ const ModeSelector: React.FC<ModeSelectorProps> = ({
       {/* Logo removed - already in header, was causing overlap */}
 
       {/* Patient Name Input */}
-      <div className="w-full max-w-sm mb-8 bg-blue-50 border-2 border-blue-200 rounded-xl p-4">
-        <label htmlFor="patient-name-mode" className="block text-sm font-medium text-blue-700 mb-2 text-center">
+      <div className="w-full max-w-sm mb-8 bg-teal-50 border-2 border-teal-200 rounded-xl p-4">
+        <label htmlFor="patient-name-mode" className="block text-sm font-medium text-teal-700 mb-2 text-center">
           {language === 'es' ? 'Tu Nombre' : 'Your Name'}
         </label>
         <input
@@ -50,7 +50,7 @@ const ModeSelector: React.FC<ModeSelectorProps> = ({
           value={patientName}
           onChange={handleNameChange}
           placeholder={texts.fullNameLabel}
-          className="w-full px-4 py-3 border-2 border-blue-300 rounded-lg text-center bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition text-lg font-medium"
+          className="w-full px-4 py-3 border-2 border-teal-300 rounded-lg text-center bg-white focus:ring-2 focus:ring-teal-500 focus:border-teal-500 transition text-lg font-medium"
           aria-required="true"
           maxLength={100}
         />
@@ -71,7 +71,7 @@ const ModeSelector: React.FC<ModeSelectorProps> = ({
           style={{
             background: isNameMissing
               ? 'linear-gradient(to bottom right, #9ca3af, #6b7280)'
-              : 'linear-gradient(to bottom right, #0369a1, #0284c7)'
+              : 'linear-gradient(to bottom right, #0F766E, #0D9488)'
           }}
           aria-label={texts.modeVoiceTitle}
         >
@@ -92,7 +92,7 @@ const ModeSelector: React.FC<ModeSelectorProps> = ({
           style={{
             background: isNameMissing
               ? 'linear-gradient(to bottom right, #9ca3af, #6b7280)'
-              : 'linear-gradient(to bottom right, #4d7c0f, #65a30d)'
+              : 'linear-gradient(to bottom right, #155E75, #0E7490)'
           }}
           aria-label={texts.modeTextTitle}
         >
@@ -119,7 +119,7 @@ const ModeSelector: React.FC<ModeSelectorProps> = ({
       <div className="mt-8 flex space-x-4" role="radiogroup" aria-label={language === 'es' ? 'Selección de idioma' : 'Language selection'}>
         <button
           onClick={() => onLanguageChange('es')}
-          className={`px-6 py-3 rounded-full font-semibold transition-colors ${language === 'es' ? 'bg-blue-600 text-white' : 'bg-slate-200 text-slate-700 hover:bg-slate-300'
+          className={`px-6 py-3 rounded-full font-semibold transition-colors ${language === 'es' ? 'bg-teal-600 text-white' : 'bg-slate-200 text-slate-700 hover:bg-slate-300'
             }`}
           role="radio"
           aria-checked={language === 'es'}
@@ -128,7 +128,7 @@ const ModeSelector: React.FC<ModeSelectorProps> = ({
         </button>
         <button
           onClick={() => onLanguageChange('en')}
-          className={`px-6 py-3 rounded-full font-semibold transition-colors ${language === 'en' ? 'bg-blue-600 text-white' : 'bg-slate-200 text-slate-700 hover:bg-slate-300'
+          className={`px-6 py-3 rounded-full font-semibold transition-colors ${language === 'en' ? 'bg-teal-600 text-white' : 'bg-slate-200 text-slate-700 hover:bg-slate-300'
             }`}
           role="radio"
           aria-checked={language === 'en'}

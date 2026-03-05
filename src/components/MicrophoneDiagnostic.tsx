@@ -415,7 +415,7 @@ const MicrophoneDiagnostic: React.FC<MicrophoneDiagnosticProps> = ({ language, o
         return <div className="w-6 h-6 rounded-full border-2 border-gray-300"></div>;
       case 'checking':
         return (
-          <svg className="w-6 h-6 text-blue-500 animate-spin" fill="none" viewBox="0 0 24 24">
+          <svg className="w-6 h-6 text-teal-500 animate-spin" fill="none" viewBox="0 0 24 24">
             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
             <path className="opacity-75" fill="currentColor" d="m4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
           </svg>
@@ -436,7 +436,7 @@ const MicrophoneDiagnostic: React.FC<MicrophoneDiagnosticProps> = ({ language, o
       case 'error':
         return 'text-red-600 bg-red-50 border-red-200';
       case 'checking':
-        return 'text-blue-600 bg-blue-50 border-blue-200';
+        return 'text-teal-600 bg-teal-50 border-teal-200';
       default:
         return 'text-gray-600 bg-gray-50 border-gray-200';
     }
@@ -451,13 +451,13 @@ const MicrophoneDiagnostic: React.FC<MicrophoneDiagnosticProps> = ({ language, o
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden">
         {/* Header */}
-        <div className="bg-gradient-to-r from-blue-600 to-blue-700 text-white p-6">
+        <div className="bg-gradient-to-r from-teal-700 to-cyan-800 text-white p-6">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-3">
               <MicrophoneIcon className="w-8 h-8" />
               <div>
                 <h2 className="text-xl font-bold">{t.title}</h2>
-                <p className="text-blue-100">{t.subtitle}</p>
+                <p className="text-teal-100">{t.subtitle}</p>
               </div>
             </div>
             {onClose && (
@@ -486,7 +486,7 @@ const MicrophoneDiagnostic: React.FC<MicrophoneDiagnosticProps> = ({ language, o
               </p>
               <button
                 onClick={runDiagnostic}
-                className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-medium transition-colors flex items-center space-x-2 mx-auto"
+                className="bg-teal-600 hover:bg-teal-700 text-white px-6 py-3 rounded-lg font-medium transition-colors flex items-center space-x-2 mx-auto"
               >
                 <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
                   <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
@@ -499,7 +499,7 @@ const MicrophoneDiagnostic: React.FC<MicrophoneDiagnosticProps> = ({ language, o
 
           {isRunning && (
             <div className="text-center mb-6">
-              <svg className="w-8 h-8 text-blue-600 animate-spin mx-auto mb-2" fill="none" viewBox="0 0 24 24">
+              <svg className="w-8 h-8 text-teal-600 animate-spin mx-auto mb-2" fill="none" viewBox="0 0 24 24">
                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
                 <path className="opacity-75" fill="currentColor" d="m4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
               </svg>
@@ -529,7 +529,7 @@ const MicrophoneDiagnostic: React.FC<MicrophoneDiagnosticProps> = ({ language, o
                       {step.actionUrl && step.status === 'error' && (
                         <button
                           onClick={() => window.open(step.actionUrl!, '_blank')}
-                          className="mt-2 text-sm bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded transition-colors"
+                          className="mt-2 text-sm bg-teal-600 hover:bg-teal-700 text-white px-3 py-1 rounded transition-colors"
                         >
                           {step.action}
                         </button>
@@ -572,7 +572,7 @@ const MicrophoneDiagnostic: React.FC<MicrophoneDiagnosticProps> = ({ language, o
               <div className="mt-4 flex space-x-3">
                 <button
                   onClick={() => window.location.reload()}
-                  className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm transition-colors flex items-center space-x-2"
+                  className="bg-teal-600 hover:bg-teal-700 text-white px-4 py-2 rounded-lg text-sm transition-colors flex items-center space-x-2"
                 >
                   <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
                     <path d="M12 6v6l4 2" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>

@@ -170,7 +170,7 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
       <button
         onClick={onStartSession}
         disabled={isNameMissing || isBusy}
-        className="w-28 h-28 rounded-full bg-blue-600 hover:bg-blue-700 text-white flex flex-col items-center justify-center transition-all duration-300 shadow-lg disabled:bg-slate-400 disabled:cursor-not-allowed active:scale-95"
+        className="w-28 h-28 rounded-full bg-teal-600 hover:bg-teal-700 text-white flex flex-col items-center justify-center transition-all duration-300 shadow-lg disabled:bg-slate-400 disabled:cursor-not-allowed active:scale-95"
         aria-label={texts.startSession}
         title={isNameMissing
           ? (language === 'es' ? 'Ingresa el nombre del paciente para comenzar' : 'Enter patient name to start')
@@ -219,12 +219,12 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
 
       {/* Module Progress Indicator */}
       {(isListening || isTransitioningModule) && (
-        <div className="w-full max-w-xs mt-4 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-xl p-3">
+        <div className="w-full max-w-xs mt-4 bg-gradient-to-r from-teal-50 to-cyan-50 border border-teal-200 rounded-xl p-3">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-semibold text-blue-700 uppercase tracking-wide">
+            <span className="text-xs font-semibold text-teal-700 uppercase tracking-wide">
               {language === 'es' ? 'Modulo' : 'Module'} {currentModule.replace('MODULE_', '')} {language === 'es' ? 'de' : 'of'} 3
             </span>
-            <span className="text-xs text-blue-600">
+            <span className="text-xs text-teal-600">
               {MODULE_CONFIGS[currentModule][language === 'es' ? 'nameEs' : 'name']}
             </span>
           </div>
@@ -238,7 +238,7 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
                   completedModules.includes(mod)
                     ? 'bg-green-500'
                     : mod === currentModule
-                    ? 'bg-blue-500'
+                    ? 'bg-teal-500'
                     : 'bg-slate-200'
                 }`}
               />
@@ -251,7 +251,7 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
 
           {/* Final module - show end session hint */}
           {isListening && currentModule === 'MODULE_3' && (
-            <p className="text-xs text-center text-indigo-600 mt-2">
+            <p className="text-xs text-center text-teal-600 mt-2">
               {language === 'es'
                 ? 'Ultimo modulo - Presiona "Finalizar" cuando termines'
                 : 'Last module - Press "End Session" when done'}
@@ -263,8 +263,8 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
       {/* Transitioning Module Overlay */}
       {isTransitioningModule && (
         <div className="w-full max-w-xs mt-2 text-center">
-          <div className="flex items-center justify-center gap-2 text-indigo-600">
-            <div className="w-5 h-5 border-2 border-indigo-300 border-t-indigo-600 rounded-full animate-spin"></div>
+          <div className="flex items-center justify-center gap-2 text-teal-600">
+            <div className="w-5 h-5 border-2 border-teal-300 border-t-teal-600 rounded-full animate-spin"></div>
             <span className="text-sm font-medium">
               {language === 'es' ? 'Preparando siguiente modulo...' : 'Preparing next module...'}
             </span>
@@ -335,8 +335,8 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
       )}
       
       {isIdle && (
-        <div className="w-full max-w-sm my-6 bg-blue-50 border-2 border-blue-200 rounded-xl p-4">
-           <label htmlFor="patient-name" className="block text-sm font-medium text-blue-700 mb-2 text-center">
+        <div className="w-full max-w-sm my-6 bg-teal-50 border-2 border-teal-200 rounded-xl p-4">
+           <label htmlFor="patient-name" className="block text-sm font-medium text-teal-700 mb-2 text-center">
              {language === 'es' ? '👤 Tu Nombre' : '👤 Your Name'}
            </label>
            <input
@@ -346,11 +346,11 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
              value={patientName}
              onChange={handleNameChange}
              placeholder={texts.fullNameLabel}
-             className="w-full px-4 py-3 border-2 border-blue-300 rounded-lg text-center bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition text-lg font-medium"
+             className="w-full px-4 py-3 border-2 border-teal-300 rounded-lg text-center bg-white focus:ring-2 focus:ring-teal-500 focus:border-teal-500 transition text-lg font-medium"
              aria-required="true"
              maxLength={100}
            />
-           <p className="text-xs text-blue-600 text-center mt-2">
+           <p className="text-xs text-teal-600 text-center mt-2">
              {language === 'es' ? 'Ingresa el nombre para comenzar la sesión' : 'Enter name to start the session'}
            </p>
         </div>
@@ -358,15 +358,15 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
 
       {!isIdle && patientName && (
         <div className="my-6 h-[58px] flex items-center justify-center">
-          <div className="bg-blue-50 border border-blue-200 px-6 py-3 rounded-xl flex items-center gap-3 shadow-sm">
-            <svg className="w-5 h-5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <div className="bg-teal-50 border border-teal-200 px-6 py-3 rounded-xl flex items-center gap-3 shadow-sm">
+            <svg className="w-5 h-5 text-teal-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
             </svg>
             <div>
-              <p className="text-xs text-blue-600 font-medium uppercase tracking-wide">
+              <p className="text-xs text-teal-600 font-medium uppercase tracking-wide">
                 {language === 'es' ? 'Paciente' : 'Patient'}
               </p>
-              <p className="text-sm font-bold text-blue-900">
+              <p className="text-sm font-bold text-teal-900">
                 {patientName}
               </p>
             </div>
@@ -380,7 +380,7 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
           onClick={() => onLanguageChange('es')}
           disabled={disableLangButtons}
           className={`px-6 py-2 rounded-full font-semibold transition-colors ${
-            language === 'es' ? 'bg-blue-600 text-white' : 'bg-slate-200 text-slate-700 hover:bg-slate-300'
+            language === 'es' ? 'bg-teal-600 text-white' : 'bg-slate-200 text-slate-700 hover:bg-slate-300'
           } disabled:opacity-50 disabled:cursor-not-allowed`}
           title={language === 'es' ? 'Idioma Español (actual)' : 'Change to Spanish'}
           role="radio"
@@ -392,7 +392,7 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
           onClick={() => onLanguageChange('en')}
           disabled={disableLangButtons}
           className={`px-6 py-2 rounded-full font-semibold transition-colors ${
-            language === 'en' ? 'bg-blue-600 text-white' : 'bg-slate-200 text-slate-700 hover:bg-slate-300'
+            language === 'en' ? 'bg-teal-600 text-white' : 'bg-slate-200 text-slate-700 hover:bg-slate-300'
           } disabled:opacity-50 disabled:cursor-not-allowed`}
           title={language === 'es' ? 'Cambiar a Inglés' : 'English Language (current)'}
           role="radio"

@@ -62,7 +62,7 @@ textarea:focus-visible,
 select:focus-visible,
 [role="button"]:focus-visible,
 [role="link"]:focus-visible {
-  outline: 2px solid #3b82f6; /* Blue-500 */
+  outline: 2px solid #0F766E; /* Teal-700 */
   outline-offset: 2px;
   border-radius: 4px;
 }
@@ -75,14 +75,14 @@ input[type="date"]:focus-visible,
 input[type="number"]:focus-visible,
 textarea:focus-visible {
   outline: none;
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.3);
-  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(15, 118, 110, 0.3);
+  border-color: #0F766E;
 }
 
-/* Focus visible para botones primarios (azul) */
-button.bg-blue-600:focus-visible,
-button.bg-blue-700:focus-visible {
-  outline: 2px solid #1d4ed8; /* Blue-700 darker */
+/* Focus visible para botones primarios (teal) */
+button.bg-teal-600:focus-visible,
+button.bg-teal-700:focus-visible {
+  outline: 2px solid #115E59; /* Teal-800 */
   outline-offset: 2px;
 }
 
@@ -95,7 +95,7 @@ button.bg-red-700:focus-visible {
 
 /* Focus visible para botones redondos grandes (microfono, stop) */
 button.rounded-full:focus-visible {
-  outline: 3px solid #3b82f6;
+  outline: 3px solid #0F766E;
   outline-offset: 3px;
 }
 

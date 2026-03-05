@@ -240,7 +240,7 @@ const TextChatPanel: React.FC<TextChatPanelProps> = ({
       <div className="p-4 border-b border-slate-200">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-gradient-to-br from-emerald-500 to-emerald-600 rounded-full flex items-center justify-center">
+            <div className="w-10 h-10 bg-gradient-to-br from-teal-600 to-teal-700 rounded-full flex items-center justify-center">
               <span className="text-white font-bold">N</span>
             </div>
             <div>
@@ -258,7 +258,7 @@ const TextChatPanel: React.FC<TextChatPanelProps> = ({
             <button
               onClick={() => setTtsEnabled(!ttsEnabled)}
               className={`p-2 rounded-lg transition-colors ${ttsEnabled
-                ? 'bg-sky-100 text-sky-600'
+                ? 'bg-teal-100 text-teal-600'
                 : 'bg-slate-100 text-slate-400 hover:bg-slate-200'
                 }`}
               title={texts.listenResponse}
@@ -299,11 +299,11 @@ const TextChatPanel: React.FC<TextChatPanelProps> = ({
 
         {/* Patient info */}
         {patientName && (
-          <div className="mt-2 px-3 py-1.5 bg-blue-50 rounded-lg inline-flex items-center gap-2">
-            <span className="text-xs text-blue-600 font-medium">
+          <div className="mt-2 px-3 py-1.5 bg-teal-50 rounded-lg inline-flex items-center gap-2">
+            <span className="text-xs text-teal-600 font-medium">
               {language === 'es' ? 'Paciente:' : 'Patient:'}
             </span>
-            <span className="text-sm text-blue-800 font-semibold">{patientName}</span>
+            <span className="text-sm text-teal-800 font-semibold">{patientName}</span>
           </div>
         )}
 
@@ -317,8 +317,8 @@ const TextChatPanel: React.FC<TextChatPanelProps> = ({
       >
         {transcript.length === 0 && isIdle && (
           <div className="text-center py-8">
-            <div className="w-16 h-16 mx-auto mb-4 bg-sky-100 rounded-full flex items-center justify-center">
-              <svg className="w-8 h-8 text-sky-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <div className="w-16 h-16 mx-auto mb-4 bg-teal-100 rounded-full flex items-center justify-center">
+              <svg className="w-8 h-8 text-teal-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
               </svg>
             </div>
@@ -392,7 +392,7 @@ const TextChatPanel: React.FC<TextChatPanelProps> = ({
               onClick={onStartSession}
               disabled={!patientName.trim()}
               className="w-full py-3 text-white font-semibold rounded-xl transition-colors disabled:bg-slate-300"
-              style={{ background: patientName.trim() ? 'linear-gradient(135deg, #0369a1 0%, #0284c7 100%)' : undefined }}
+              style={{ background: patientName.trim() ? 'linear-gradient(135deg, #0F766E 0%, #0D9488 100%)' : undefined }}
             >
               {language === 'es' ? 'Iniciar Chat' : 'Start Chat'}
             </button>
@@ -405,7 +405,7 @@ const TextChatPanel: React.FC<TextChatPanelProps> = ({
           </div>
         ) : isConnecting ? (
           <div className="flex items-center justify-center py-4">
-            <div className="w-6 h-6 border-2 border-sky-300 border-t-sky-600 rounded-full animate-spin mr-2" />
+            <div className="w-6 h-6 border-2 border-teal-300 border-t-teal-600 rounded-full animate-spin mr-2" />
             <span className="text-slate-600">{texts.connecting}</span>
           </div>
         ) : (
@@ -420,7 +420,7 @@ const TextChatPanel: React.FC<TextChatPanelProps> = ({
                   onKeyDown={handleKeyDown}
                   placeholder={texts.chatPlaceholder}
                   disabled={isProcessing}
-                  className="w-full px-4 py-3 pr-14 border-2 border-slate-200 rounded-2xl resize-none focus:ring-2 focus:ring-sky-500 focus:border-sky-500 transition disabled:bg-slate-50 text-lg shadow-sm"
+                  className="w-full px-4 py-3 pr-14 border-2 border-slate-200 rounded-2xl resize-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500 transition disabled:bg-slate-50 text-lg shadow-sm"
                   style={{ fontSize: '1.125rem', lineHeight: '1.6' }}
                   rows={3}
                 />
@@ -432,7 +432,7 @@ const TextChatPanel: React.FC<TextChatPanelProps> = ({
                     disabled={isProcessing}
                     className={`absolute right-2 bottom-2 p-2.5 rounded-xl transition-all min-w-[44px] min-h-[44px] flex items-center justify-center ${isDictating
                         ? 'bg-red-500 text-white shadow-lg scale-110'
-                        : 'bg-sky-50 text-sky-600 hover:bg-sky-100 hover:text-sky-700 border border-sky-200'
+                        : 'bg-teal-50 text-teal-600 hover:bg-teal-100 hover:text-teal-700 border border-teal-200'
                       }`}
                     title={isDictating ? texts.stopDictation : texts.dictateButton}
                     aria-label={isDictating ? texts.stopDictation : texts.dictateButton}
@@ -450,7 +450,7 @@ const TextChatPanel: React.FC<TextChatPanelProps> = ({
                 style={{
                   background: !inputText.trim() || isProcessing
                     ? '#cbd5e1'
-                    : 'linear-gradient(135deg, #0369a1 0%, #0284c7 100%)'
+                    : 'linear-gradient(135deg, #0F766E 0%, #0D9488 100%)'
                 }}
                 aria-label={language === 'es' ? 'Enviar mensaje' : 'Send message'}
               >
@@ -471,7 +471,7 @@ const TextChatPanel: React.FC<TextChatPanelProps> = ({
               <button
                 onClick={handleEndClick}
                 className="w-full py-3 text-sm font-semibold text-white rounded-lg transition-colors shadow-md"
-                style={{ background: 'linear-gradient(135deg, #4d7c0f 0%, #65a30d 100%)' }}
+                style={{ background: 'linear-gradient(135deg, #0F766E 0%, #0D9488 100%)' }}
               >
                 {language === 'es' ? '✓ Finalizar y Enviar al Doctor' : '✓ Finish and Send to Doctor'}
               </button>

@@ -111,18 +111,18 @@ const SystemsMatrixChart: React.FC<SystemsMatrixChartProps> = ({ summaryHTML }) 
   // Obtener color del sistema
   const getSystemColor = (systemName: string) => {
     const colors: Record<string, string> = {
-      'DIGESTIÓN': '#3b82f6', // blue-500
-      'ENERGÍA': '#f59e0b', // yellow-500
-      'MENTE': '#8b5cf6', // purple-500
+      'DIGESTIÓN': '#0F766E', // teal-700
+      'ENERGÍA': '#D97706', // amber-600
+      'MENTE': '#155E75', // cyan-800
       'HORMONAL': '#ec4899', // pink-500
-      'INMUNE': '#10b981', // green-500
-      'ESTRUCTURA': '#6366f1', // indigo-500
+      'INMUNE': '#15803D', // green-700
+      'ESTRUCTURA': '#0E7490', // cyan-600
     };
     return colors[systemName] || '#64748b';
   };
 
   return (
-    <div className="bg-gradient-to-br from-slate-50 to-blue-50 rounded-xl shadow-lg p-6">
+    <div className="bg-gradient-to-br from-slate-50 to-teal-50 rounded-xl shadow-lg p-6">
       <div className="flex items-center justify-between mb-6">
         <h3 className="text-xl font-bold text-slate-800 flex items-center gap-2">
           <span className="text-2xl">🔬</span>
@@ -164,8 +164,8 @@ const SystemsMatrixChart: React.FC<SystemsMatrixChartProps> = ({ summaryHTML }) 
               <Radar
                 name="Puntuación"
                 dataKey="score"
-                stroke="#3b82f6"
-                fill="#3b82f6"
+                stroke="#0F766E"
+                fill="#0F766E"
                 fillOpacity={0.5}
                 strokeWidth={3}
               />
