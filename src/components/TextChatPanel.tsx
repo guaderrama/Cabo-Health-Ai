@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { type AppState, type Language, type TranscriptMessage, type TopicTracking, TOPIC_NAMES } from '../types';
 import { UI_TEXTS } from '../constants';
 import { logger } from '../lib/logger';
@@ -65,6 +65,8 @@ const TextChatPanel: React.FC<TextChatPanelProps> = ({
   const recognitionRef = useRef<any>(null);
   const sessionStartRef = useRef<number | null>(null);
   const [sessionDuration, setSessionDuration] = useState(0);
+  const [interimText, setInterimText] = useState('');
+  const [showScrollButton, setShowScrollButton] = useState(false);
 
   const speechSupported = getSpeechRecognitionSupport();
   const ttsSupported = typeof window !== 'undefined' && 'speechSynthesis' in window;
@@ -126,12 +128,41 @@ const TextChatPanel: React.FC<TextChatPanelProps> = ({
     return patterns.some(pattern => text.includes(pattern));
   });
 
-  // Auto-scroll al nuevo mensaje
-  useEffect(() => {
+  // Smooth scroll to bottom
+  const scrollToBottom = useCallback((smooth = true) => {
     if (chatContainerRef.current) {
-      chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
+      chatContainerRef.current.scrollTo({
+        top: chatContainerRef.current.scrollHeight,
+        behavior: smooth ? 'smooth' : 'auto'
+      });
     }
-  }, [transcript]);
+  }, []);
+
+  // Scroll on new messages
+  useEffect(() => {
+    scrollToBottom();
+  }, [transcript, scrollToBottom]);
+
+  // Keep scrolling during typing animation (every 300ms while processing)
+  useEffect(() => {
+    if (!isProcessing) return;
+    const interval = setInterval(() => {
+      scrollToBottom();
+    }, 300);
+    return () => clearInterval(interval);
+  }, [isProcessing, scrollToBottom]);
+
+  // Detect if user scrolled up
+  useEffect(() => {
+    const container = chatContainerRef.current;
+    if (!container) return;
+    const handleScroll = () => {
+      const isNearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 100;
+      setShowScrollButton(!isNearBottom);
+    };
+    container.addEventListener('scroll', handleScroll);
+    return () => container.removeEventListener('scroll', handleScroll);
+  }, []);
 
   // Text-to-Speech para respuestas de Nova
   useEffect(() => {
@@ -159,17 +190,20 @@ const TextChatPanel: React.FC<TextChatPanelProps> = ({
 
     recognition.onresult = (event: any) => {
       let final = '';
-
+      let interim = '';
       for (let i = event.resultIndex; i < event.results.length; i++) {
         const transcriptText = event.results[i][0].transcript;
         if (event.results[i].isFinal) {
           final += transcriptText + ' ';
+        } else {
+          interim += transcriptText;
         }
-        // Los resultados intermedios (interim) se ignoran - solo usamos los finales
       }
-
       if (final) {
         setInputText(prev => prev + final);
+        setInterimText('');
+      } else {
+        setInterimText(interim);
       }
     };
 
@@ -180,6 +214,7 @@ const TextChatPanel: React.FC<TextChatPanelProps> = ({
 
     recognition.onend = () => {
       setIsDictating(false);
+      setInterimText('');
     };
 
     recognitionRef.current = recognition;
@@ -201,6 +236,7 @@ const TextChatPanel: React.FC<TextChatPanelProps> = ({
     if (isDictating) {
       recognitionRef.current.stop();
       setIsDictating(false);
+      setInterimText('');
     } else {
       try {
         recognitionRef.current.start();
@@ -248,7 +284,7 @@ const TextChatPanel: React.FC<TextChatPanelProps> = ({
   return (
     <div className="bg-white rounded-xl shadow-lg flex flex-col h-full min-h-[500px] md:min-h-[600px] lg:min-h-0">
       {/* Header */}
-      <div className="p-4 border-b border-slate-200">
+      <div className="p-4 border-b border-slate-200 sticky top-0 z-10 bg-white">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-gradient-to-br from-teal-600 to-teal-700 rounded-full flex items-center justify-center">
@@ -344,7 +380,7 @@ const TextChatPanel: React.FC<TextChatPanelProps> = ({
       {/* Chat Messages */}
       <div
         ref={chatContainerRef}
-        className="flex-1 overflow-y-auto p-4 space-y-4"
+        className="flex-1 overflow-y-auto p-4 space-y-4 relative"
         role="log"
         aria-live="polite"
         aria-label={language === 'es' ? 'Historial de chat' : 'Chat history'}
@@ -373,6 +409,7 @@ const TextChatPanel: React.FC<TextChatPanelProps> = ({
             language={language}
             isLatest={index === transcript.length - 1}
             speed={20}
+            patientName={patientName}
           />
         ))}
 
@@ -380,13 +417,31 @@ const TextChatPanel: React.FC<TextChatPanelProps> = ({
         {isProcessing && (
           <div className="flex justify-start">
             <div className="bg-slate-100 rounded-2xl rounded-bl-md px-4 py-3">
-              <div className="flex items-center gap-1">
-                <div className="w-2 h-2 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                <div className="w-2 h-2 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                <div className="w-2 h-2 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+              <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1">
+                  <div className="w-2 h-2 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                  <div className="w-2 h-2 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                  <div className="w-2 h-2 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                </div>
+                <span className="text-xs text-slate-400">
+                  {language === 'es' ? 'Nova está escribiendo...' : 'Nova is typing...'}
+                </span>
               </div>
             </div>
           </div>
+        )}
+
+        {/* Scroll to bottom floating button */}
+        {showScrollButton && (
+          <button
+            onClick={() => scrollToBottom()}
+            className="absolute bottom-4 right-4 w-10 h-10 bg-white shadow-lg rounded-full flex items-center justify-center border border-slate-200 hover:bg-slate-50 transition-colors z-10"
+            aria-label={language === 'es' ? 'Ir al final' : 'Scroll to bottom'}
+          >
+            <svg className="w-5 h-5 text-slate-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+            </svg>
+          </button>
         )}
       </div>
 
@@ -438,9 +493,19 @@ const TextChatPanel: React.FC<TextChatPanelProps> = ({
             </button>
           </div>
         ) : isConnecting ? (
-          <div className="flex items-center justify-center py-4">
-            <div className="w-6 h-6 border-2 border-teal-300 border-t-teal-600 rounded-full animate-spin mr-2" />
-            <span className="text-slate-600">{texts.connecting}</span>
+          <div className="flex flex-col items-center justify-center py-4 gap-3">
+            <div className="flex items-center">
+              <div className="w-6 h-6 border-2 border-teal-300 border-t-teal-600 rounded-full animate-spin mr-2" />
+              <span className="text-slate-600">{texts.connecting}</span>
+            </div>
+            {onBackToModeSelect && (
+              <button
+                onClick={onBackToModeSelect}
+                className="text-xs text-slate-400 hover:text-slate-600 underline transition-colors"
+              >
+                {language === 'es' ? 'Cancelar' : 'Cancel'}
+              </button>
+            )}
           </div>
         ) : (
           <div className="space-y-3">
@@ -500,6 +565,13 @@ const TextChatPanel: React.FC<TextChatPanelProps> = ({
               </div>
             )}
 
+            {/* Interim speech recognition text */}
+            {isDictating && interimText && (
+              <p className="text-sm text-slate-400 italic px-2 truncate">
+                {interimText}...
+              </p>
+            )}
+
             {/* End session button - visible when topics complete OR Nova signals completion, AND minimum duration met */}
             {(topicsComplete || interviewComplete) && sessionDuration >= MIN_SESSION_DURATION && (
               <button
@@ -520,6 +592,23 @@ const TextChatPanel: React.FC<TextChatPanelProps> = ({
               </p>
             )}
 
+            {/* Early end when topics complete but duration not met */}
+            {isListening && (topicsComplete || interviewComplete) && sessionDuration < MIN_SESSION_DURATION && sessionDuration > 5 * 60 * 1000 && (
+              <button
+                onClick={() => {
+                  const msg = language === 'es'
+                    ? '¿Estás seguro? La consulta podría estar incompleta y el resumen clínico podría no tener toda la información necesaria.'
+                    : 'Are you sure? The consultation may be incomplete and the clinical summary might not have all necessary information.';
+                  if (window.confirm(msg)) {
+                    handleEndClick();
+                  }
+                }}
+                className="w-full py-2 text-xs font-medium text-slate-500 hover:text-slate-700 underline transition-colors"
+              >
+                {language === 'es' ? 'Terminar sesión anticipadamente' : 'End session early'}
+              </button>
+            )}
+
             {/* Progress message when not enough topics covered */}
             {!topicsComplete && !interviewComplete && topicTracking && topicTracking.coveredTopics.size > 0 && (
               <p className="text-xs text-slate-500 text-center">
@@ -527,6 +616,23 @@ const TextChatPanel: React.FC<TextChatPanelProps> = ({
                   ? `Progreso: ${topicTracking.coveredTopics.size}/${MIN_TOPICS_REQUIRED} temas cubiertos`
                   : `Progress: ${topicTracking.coveredTopics.size}/${MIN_TOPICS_REQUIRED} topics covered`}
               </p>
+            )}
+
+            {/* Early end when topics NOT complete */}
+            {isListening && !topicsComplete && !interviewComplete && sessionDuration > 5 * 60 * 1000 && (
+              <button
+                onClick={() => {
+                  const msg = language === 'es'
+                    ? '¿Estás seguro? La consulta podría estar incompleta y el resumen clínico podría no tener toda la información necesaria.'
+                    : 'Are you sure? The consultation may be incomplete and the clinical summary might not have all necessary information.';
+                  if (window.confirm(msg)) {
+                    handleEndClick();
+                  }
+                }}
+                className="w-full py-2 text-xs font-medium text-slate-500 hover:text-slate-700 underline transition-colors"
+              >
+                {language === 'es' ? 'Terminar sesión anticipadamente' : 'End session early'}
+              </button>
             )}
           </div>
         )}
