@@ -171,12 +171,42 @@ const DoctorDashboard: React.FC<DoctorDashboardProps> = ({ language }) => {
       // Save directly to consultations table (upsert to handle duplicates)
       const userId = consultation.user_id || user?.id || '';
       const { motivationScore, empathyScore } = (() => {
-        const readinessMatch = summaryText.match(/Readiness\s*(?:general)?[:\s]+\[?(\d+(?:\.\d+)?)/i)
-          || summaryText.match(/Motivación\s*(?:general)?[:\s]+\[?(\d+(?:\.\d+)?)/i);
-        const confidenceMatch = summaryText.match(/Confianza[:\s]+\[?(\d+(?:\.\d+)?)/i);
+        // Strip HTML tags to get plain text for score extraction
+        const plainText = summaryText.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ');
+
+        const extractScore = (patterns: RegExp[]): number | null => {
+          for (const pattern of patterns) {
+            const match = plainText.match(pattern);
+            if (match?.[1]) {
+              const val = parseFloat(match[1]);
+              if (!isNaN(val) && val >= 0 && val <= 10) return val;
+            }
+          }
+          return null;
+        };
+
+        const readiness = extractScore([
+          /Readiness\s*(?:general)?[:\s]*(\d+(?:\.\d+)?)\s*\/\s*10/i,
+          /Motivación\s*(?:general)?[:\s]*(\d+(?:\.\d+)?)\s*\/\s*10/i,
+          /Readiness[^0-9]{0,30}(\d+(?:\.\d+)?)\s*\/\s*10/i,
+          /Motivación[^0-9]{0,30}(\d+(?:\.\d+)?)\s*\/\s*10/i,
+        ]);
+        const importance = extractScore([
+          /Importance[:\s]*(\d+(?:\.\d+)?)\s*\/\s*10/i,
+          /Importancia[^0-9]{0,30}(\d+(?:\.\d+)?)\s*\/\s*10/i,
+        ]);
+        const confidence = extractScore([
+          /Confidence[:\s]*(\d+(?:\.\d+)?)\s*\/\s*10/i,
+          /Confianza[^0-9]{0,30}(\d+(?:\.\d+)?)\s*\/\s*10/i,
+        ]);
+
+        const motScore = readiness !== null
+          ? (importance !== null ? (readiness + importance) / 2 : readiness)
+          : 5.0;
+
         return {
-          motivationScore: readinessMatch?.[1] ? parseFloat(readinessMatch[1]) : 5.0,
-          empathyScore: confidenceMatch?.[1] ? parseFloat(confidenceMatch[1]) : null,
+          motivationScore: motScore,
+          empathyScore: confidence,
         };
       })();
 
