@@ -100,7 +100,7 @@ const Header: React.FC<HeaderProps> = ({ language, welcomeSoundEnabled, onToggle
               </button>
             )}
             <div className="hidden sm:block text-right">
-              <p className="text-sm opacity-90">{user.email}</p>
+              <p className="text-sm opacity-90">{user?.email || ''}</p>
             </div>
             <button
               onClick={handleSignOut}

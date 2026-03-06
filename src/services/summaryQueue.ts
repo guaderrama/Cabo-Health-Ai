@@ -125,18 +125,28 @@ export async function updateSummaryStatus(
  */
 export async function incrementAttempts(sessionId: string): Promise<void> {
   try {
-    // Get current attempts
-    const { data } = await supabase
-      .from('pending_summaries')
-      .select('attempts')
-      .eq('session_id', sessionId)
-      .single();
+    // Try atomic increment via RPC first
+    const { error: rpcError } = await supabase.rpc('increment_attempts', {
+      p_session_id: sessionId,
+    });
 
-    if (data) {
-      await supabase
+    if (rpcError) {
+      // Fallback: read-then-write (acceptable race window since retries are serialized per session)
+      const { data } = await supabase
         .from('pending_summaries')
-        .update({ attempts: (data.attempts || 0) + 1 })
-        .eq('session_id', sessionId);
+        .select('attempts')
+        .eq('session_id', sessionId)
+        .single();
+
+      if (data) {
+        await supabase
+          .from('pending_summaries')
+          .update({
+            attempts: (data.attempts || 0) + 1,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('session_id', sessionId);
+      }
     }
   } catch (error) {
     logger.error('Error incrementing attempts:', error);

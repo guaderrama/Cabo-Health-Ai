@@ -853,10 +853,13 @@ const MainApp: React.FC = () => {
   const handleEndSession = useCallback(async () => {
     // Double-check lock para prevenir race conditions con múltiples llamadas
     if (endSessionLockRef.current) return;
-    if (appStateRef.current !== 'LISTENING') return;
-
-    // Adquirir lock inmediatamente antes de cualquier operación async
+    // Adquirir lock inmediatamente antes de cualquier otra verificación
     endSessionLockRef.current = true;
+
+    if (appStateRef.current !== 'LISTENING') {
+      endSessionLockRef.current = false;
+      return;
+    }
     appStateRef.current = 'PROCESSING';
     setAppState('PROCESSING');
 
@@ -1967,6 +1970,30 @@ const MainApp: React.FC = () => {
         }
 
         logger.debug(`✅ Resumen regenerado exitosamente${attempt > 0 ? ` (intento ${attempt + 1})` : ''}`);
+
+        // Auto-save to consultations table
+        if (user?.id) {
+          try {
+            await autoSaveConsultation({
+              userId: user.id,
+              userEmail: user.email,
+              sessionId,
+              patientName,
+              transcript,
+              summary: sanitizedSummary,
+              language,
+              sessionDuration: sessionStartTimeRef.current ? Math.floor((Date.now() - sessionStartTimeRef.current) / 1000) : 0,
+            });
+          } catch (saveError) {
+            logger.error('Error auto-saving after retry:', saveError);
+          }
+        }
+
+        // Complete in summary queue
+        if (user?.id && sessionId) {
+          await completeSummary(sessionId, sanitizedSummary);
+        }
+
         break;
 
       } catch (err) {

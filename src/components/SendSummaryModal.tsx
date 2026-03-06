@@ -117,7 +117,7 @@ const SendSummaryModal: React.FC<SendSummaryModalProps> = ({
     });
 
     // Validar que la consulta tenga datos significativos
-    if (transcript.length < 2) {
+    if ((transcript || []).length < 2) {
       logger.debug('Validación fallida: transcript < 2 mensajes');
       setError(language === 'es'
         ? 'La consulta debe tener al menos 2 mensajes para ser guardada.\n\n📋 Pasos:\n1. Continúa hablando con Nova\n2. Responde las preguntas del cuestionario\n3. Espera a completar al menos 2 intercambios'
@@ -126,7 +126,7 @@ const SendSummaryModal: React.FC<SendSummaryModalProps> = ({
     }
 
     // Validar que los mensajes tengan contenido real (no solo saludos)
-    const totalWordCount = transcript.reduce((sum, msg) => sum + (msg?.text || '').split(' ').filter((w: string) => w.length > 0).length, 0);
+    const totalWordCount = (transcript || []).reduce((sum, msg) => sum + (msg?.text || '').split(' ').filter((w: string) => w.length > 0).length, 0);
     if (totalWordCount < 50) {
       logger.debug('Validación fallida: contenido muy breve (<50 palabras)');
       setError(language === 'es'
@@ -136,7 +136,7 @@ const SendSummaryModal: React.FC<SendSummaryModalProps> = ({
     }
 
     // Validar que Nova haya respondido (no solo el paciente hablando)
-    const novaMessageCount = transcript.filter(msg => msg.sender === 'Nova').length;
+    const novaMessageCount = (transcript || []).filter(msg => msg.sender === 'Nova').length;
     if (novaMessageCount < 1) {
       logger.debug('Validación fallida: Nova no ha respondido');
       setError(language === 'es'
