@@ -13,7 +13,6 @@ import { SUMMARY_PROMPT } from '../constants/summaryPrompt';
 import { GoogleGenAI } from '@google/genai';
 import { sanitizeHtml } from '../utils/sanitizeHtml';
 import { completeSummary } from '../services/summaryQueue';
-import { autoSaveConsultation } from '../services/autoSaveConsultation';
 
 // Schema de validación para consultas de Supabase
 // Nota: timestamp puede ser ISO string o epoch number según cómo se guardó
@@ -164,19 +163,43 @@ const DoctorDashboard: React.FC<DoctorDashboardProps> = ({ language }) => {
       }
 
       // Mark pending_summaries as completed
-      await completeSummary(consultation.session_id, summaryText);
+      const completeResult = await completeSummary(consultation.session_id, summaryText);
+      if (!completeResult.success) {
+        logger.warn('completeSummary failed:', completeResult.error);
+      }
 
-      // Auto-save to consultations table
+      // Save directly to consultations table (upsert to handle duplicates)
       const userId = consultation.user_id || user?.id || '';
-      await autoSaveConsultation({
-        userId,
-        sessionId: consultation.session_id,
-        patientName: consultation.patient_name,
-        transcript: consultation.transcript,
-        summary: summaryText,
-        language: lang,
-        sessionDuration: consultation.session_duration,
-      });
+      const { motivationScore, empathyScore } = (() => {
+        const readinessMatch = summaryText.match(/Readiness\s*(?:general)?[:\s]+\[?(\d+(?:\.\d+)?)/i)
+          || summaryText.match(/Motivación\s*(?:general)?[:\s]+\[?(\d+(?:\.\d+)?)/i);
+        const confidenceMatch = summaryText.match(/Confianza[:\s]+\[?(\d+(?:\.\d+)?)/i);
+        return {
+          motivationScore: readinessMatch?.[1] ? parseFloat(readinessMatch[1]) : 5.0,
+          empathyScore: confidenceMatch?.[1] ? parseFloat(confidenceMatch[1]) : null,
+        };
+      })();
+
+      const { error: upsertError } = await supabase
+        .from('consultations')
+        .upsert([{
+          session_id: consultation.session_id,
+          user_id: userId,
+          patient_name: consultation.patient_name,
+          patient_email: consultation.patient_email || null,
+          language: lang,
+          transcript: consultation.transcript,
+          summary: summaryText,
+          motivation_score: motivationScore,
+          empathy_score: empathyScore,
+          session_duration: consultation.session_duration,
+          message_count: (consultation.transcript || []).length,
+          status: 'completed',
+        }], { onConflict: 'session_id' });
+
+      if (upsertError) {
+        throw new Error(`Error saving consultation: ${upsertError.message}`);
+      }
 
       // Update local state immediately
       if (selectedConsultation?.session_id === consultation.session_id) {
