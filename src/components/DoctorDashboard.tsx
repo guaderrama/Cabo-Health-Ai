@@ -134,7 +134,7 @@ const DoctorDashboard: React.FC<DoctorDashboardProps> = ({ language }) => {
       try {
         response = await Promise.race([
           ai.models.generateContent({
-            model: 'gemini-3-flash-preview',
+            model: 'gemini-3.1-pro-preview',
             contents: prompt,
           }),
           new Promise<never>((_, reject) =>
@@ -145,7 +145,7 @@ const DoctorDashboard: React.FC<DoctorDashboardProps> = ({ language }) => {
         logger.warn('Gemini 3 Flash failed, falling back to 2.5 Flash:', gemini3Error);
         response = await Promise.race([
           ai.models.generateContent({
-            model: 'gemini-2.5-flash',
+            model: 'gemini-3-flash-preview',
             contents: prompt,
           }),
           new Promise<never>((_, reject) =>

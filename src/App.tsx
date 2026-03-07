@@ -691,14 +691,14 @@ const MainApp: React.FC = () => {
 
       logger.debug('🔧 Configurando sesion de TEXTO con Chat API:', {
         mode: 'TEXT (Chat API) - Sesión continua sin módulos',
-        model: 'gemini-2.5-flash',
+        model: 'gemini-3-flash-preview',
         api: 'chats.create (NO Live API)'
       });
 
       // Crear sesión de chat usando Chat API (NO Live API)
       // Esto es HTTP request/response, no WebSocket - mucho más estable
       chatSessionRef.current = ai.chats.create({
-        model: 'gemini-2.5-flash',
+        model: 'gemini-3-flash-preview',
         config: {
           systemInstruction: fullInstructions
         }
@@ -1013,7 +1013,7 @@ const MainApp: React.FC = () => {
         try {
           response = await withTimeout(
             ai.models.generateContent({
-              model: 'gemini-3-flash-preview',
+              model: 'gemini-3.1-pro-preview',
               contents: SUMMARY_PROMPT[language](fullTranscriptText),
               config: {
                 thinkingConfig: {
@@ -1026,11 +1026,11 @@ const MainApp: React.FC = () => {
             SUMMARY_TIMEOUT
           );
         } catch (gemini3Error) {
-          // FALLBACK: Si Gemini 3 Flash falla, intentar con Gemini 2.5 Flash
-          logger.warn('Gemini 3 Flash falló, intentando con Gemini 2.5 Flash como fallback');
+          // FALLBACK: Si Gemini 3.1 Pro falla, intentar con Gemini 3 Flash
+          logger.warn('Gemini 3.1 Pro falló, intentando con Gemini 3 Flash como fallback');
           response = await withTimeout(
             ai.models.generateContent({
-              model: 'gemini-2.5-flash',
+              model: 'gemini-3-flash-preview',
               contents: SUMMARY_PROMPT[language](fullTranscriptText),
               config: {
                 thinkingConfig: {
@@ -1941,7 +1941,7 @@ const MainApp: React.FC = () => {
 
         const response = await withTimeout(
           ai.models.generateContent({
-            model: 'gemini-2.5-pro',
+            model: 'gemini-3.1-pro-preview',
             contents: SUMMARY_PROMPT[language](fullTranscriptText),
           }),
           SUMMARY_TIMEOUT
