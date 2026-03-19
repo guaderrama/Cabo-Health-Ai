@@ -883,19 +883,25 @@ const DoctorDashboard: React.FC<DoctorDashboardProps> = ({ language }) => {
               </button>
               <button
                 onClick={() => {
-                  // Extraer datos de sistemas del summary
+                  // Extraer datos de sistemas del summary (solo de la sección Systems Matrix)
                   let systemsTable = '';
                   if (selectedConsultation.summary) {
-                    const systems = ['DIGESTIÓN', 'ENERGÍA', 'MENTE', 'HORMONAL', 'INMUNE', 'ESTRUCTURA'];
+                    const sysSection = selectedConsultation.summary.match(/Systems Matrix[\s\S]*?(?=Executive Summary|Análisis Clínico|Clinical Analysis|📋|🩺|$)/i)?.[0] || selectedConsultation.summary;
+                    const systems = ['DIGESTIÓN', 'DIGESTION', 'ENERGÍA', 'ENERGY', 'MENTE', 'MIND', 'HORMONAL', 'INMUNE', 'IMMUNE', 'ESTRUCTURA', 'STRUCTURE'];
+                    const seen = new Set<string>();
                     const systemsData: string[] = [];
                     systems.forEach(system => {
-                      const match = selectedConsultation.summary!.match(new RegExp(`${system}[\\s\\S]*?(\\d+)\\/10`, 'i'));
+                      const baseNames: Record<string, string> = { 'DIGESTION': 'DIGESTIÓN', 'ENERGY': 'ENERGÍA', 'MIND': 'MENTE', 'IMMUNE': 'INMUNE', 'STRUCTURE': 'ESTRUCTURA' };
+                      const base = baseNames[system] || system;
+                      if (seen.has(base)) return;
+                      const match = sysSection.match(new RegExp(`${system}[\\s\\S]*?(\\d+)\\/10`, 'i'));
                       if (match && match[1]) {
+                        seen.add(base);
                         const score = parseInt(match[1]);
                         const status = score >= 7 ? '🟢 Óptimo' : score >= 4 ? '🟡 Moderado' : '🔴 Crítico';
                         systemsData.push(`
                           <tr>
-                            <td style="padding: 12px; border-bottom: 1px solid #e2e8f0;">${system}</td>
+                            <td style="padding: 12px; border-bottom: 1px solid #e2e8f0;">${base}</td>
                             <td style="padding: 12px; border-bottom: 1px solid #e2e8f0; font-weight: bold;">${score}/10</td>
                             <td style="padding: 12px; border-bottom: 1px solid #e2e8f0;">${status}</td>
                           </tr>

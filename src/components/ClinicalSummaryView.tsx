@@ -81,15 +81,23 @@ const parseSummaryHTML = (html: string): ParsedSummary => {
     readiness: extractScoreFlexible(plainText, html, ['Readiness', 'Motivación', 'General readiness', 'Overall readiness'], 'Readiness')
   };
 
-  // Extraer sistemas
+  // Extraer sistemas - buscar SOLO dentro de la sección Systems Matrix
+  // para evitar que "energy" en texto corrido matchee con scores del dashboard
   const systems: SystemData[] = [];
-  const systemNames = ['DIGESTIÓN', 'DIGESTION', 'ENERGÍA', 'ENERGY', 'MENTE', 'MIND', 'HORMONAL', 'INMUNE', 'IMMUNE', 'ESTRUCTURA', 'STRUCTURE'];
-  systemNames.forEach(name => {
-    const match = html.match(new RegExp(`${name}[\\s\\S]*?(\\d+)\\/10`, 'i'));
+  const systemsSection = html.match(/Systems Matrix[\s\S]*?(?=Executive Summary|Análisis Clínico|Clinical Analysis|📋|🩺|$)/i)?.[0] || '';
+  const systemNamesMap: [string, string][] = [
+    ['DIGESTIÓN', 'DIGESTION'], ['ENERGÍA', 'ENERGY'], ['MENTE', 'MIND'],
+    ['HORMONAL', 'HORMONAL'], ['INMUNE', 'IMMUNE'], ['ESTRUCTURA', 'STRUCTURE']
+  ];
+  systemNamesMap.forEach(([es, en]) => {
+    // Search within systems section only, using heading context (emoji + name)
+    const pattern = new RegExp(`(?:🍽️|⚡|🧠|🔬|🛡️|🏃)?\\s*(?:${es}|${en})[\\s\\S]*?(\\d+)\\s*\\/\\s*10`, 'i');
+    const match = systemsSection.match(pattern);
     if (match && match[1]) {
       const score = parseInt(match[1]);
+      const displayName = systemsSection.includes(en) ? en : es;
       systems.push({
-        name,
+        name: displayName,
         score,
         status: score >= 7 ? 'optimal' : score >= 4 ? 'moderate' : 'critical'
       });

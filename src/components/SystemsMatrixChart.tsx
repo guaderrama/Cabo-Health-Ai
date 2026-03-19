@@ -61,23 +61,27 @@ const SystemsMatrixChart: React.FC<SystemsMatrixChartProps> = ({ summaryHTML }) 
       const rawHTML = summaryHTML || '';
 
       // Extraer scores del texto
+      // Search systems section first (textSource), fallback to rawHTML
+      // Include both Spanish and English system names
       const digestScore = extractSystemScore(textSource, 'DIGESTIÓN') ?? extractSystemScore(textSource, 'DIGESTION') ?? extractSystemScore(rawHTML, 'DIGESTIÓN') ?? extractSystemScore(rawHTML, 'DIGESTION');
-      const energyScore = extractSystemScore(textSource, 'ENERGÍA') ?? extractSystemScore(textSource, 'ENERGIA') ?? extractSystemScore(rawHTML, 'ENERGÍA') ?? extractSystemScore(rawHTML, 'ENERGIA');
-      const mindScore = extractSystemScore(textSource, 'MENTE') ?? extractSystemScore(rawHTML, 'MENTE');
+      const energyScore = extractSystemScore(textSource, 'ENERGÍA') ?? extractSystemScore(textSource, 'ENERGY') ?? extractSystemScore(rawHTML, 'ENERGÍA') ?? extractSystemScore(rawHTML, 'ENERGY');
+      const mindScore = extractSystemScore(textSource, 'MENTE') ?? extractSystemScore(textSource, 'MIND') ?? extractSystemScore(rawHTML, 'MENTE') ?? extractSystemScore(rawHTML, 'MIND');
       const hormonalScore = extractSystemScore(textSource, 'HORMONAL') ?? extractSystemScore(rawHTML, 'HORMONAL');
-      const immuneScore = extractSystemScore(textSource, 'INMUNE') ?? extractSystemScore(rawHTML, 'INMUNE');
-      const structureScore = extractSystemScore(textSource, 'ESTRUCTURA') ?? extractSystemScore(rawHTML, 'ESTRUCTURA');
+      const immuneScore = extractSystemScore(textSource, 'INMUNE') ?? extractSystemScore(textSource, 'IMMUNE') ?? extractSystemScore(rawHTML, 'INMUNE') ?? extractSystemScore(rawHTML, 'IMMUNE');
+      const structureScore = extractSystemScore(textSource, 'ESTRUCTURA') ?? extractSystemScore(textSource, 'STRUCTURE') ?? extractSystemScore(rawHTML, 'ESTRUCTURA') ?? extractSystemScore(rawHTML, 'STRUCTURE');
 
       // Retornar si encontramos al menos un sistema válido
       if (digestScore !== null || energyScore !== null || mindScore !== null ||
           hormonalScore !== null || immuneScore !== null || structureScore !== null) {
+        // Detect language from content
+        const isEnglish = textSource.includes('ENERGY') || textSource.includes('MIND') || textSource.includes('IMMUNE');
         return [
-          { system: 'DIGESTIÓN', score: digestScore ?? 5, fullMark: 10 },
-          { system: 'ENERGÍA', score: energyScore ?? 5, fullMark: 10 },
-          { system: 'MENTE', score: mindScore ?? 5, fullMark: 10 },
+          { system: isEnglish ? 'DIGESTION' : 'DIGESTIÓN', score: digestScore ?? 5, fullMark: 10 },
+          { system: isEnglish ? 'ENERGY' : 'ENERGÍA', score: energyScore ?? 5, fullMark: 10 },
+          { system: isEnglish ? 'MIND' : 'MENTE', score: mindScore ?? 5, fullMark: 10 },
           { system: 'HORMONAL', score: hormonalScore ?? 5, fullMark: 10 },
-          { system: 'INMUNE', score: immuneScore ?? 5, fullMark: 10 },
-          { system: 'ESTRUCTURA', score: structureScore ?? 5, fullMark: 10 },
+          { system: isEnglish ? 'IMMUNE' : 'INMUNE', score: immuneScore ?? 5, fullMark: 10 },
+          { system: isEnglish ? 'STRUCTURE' : 'ESTRUCTURA', score: structureScore ?? 5, fullMark: 10 },
         ];
       }
     } catch (error) {
