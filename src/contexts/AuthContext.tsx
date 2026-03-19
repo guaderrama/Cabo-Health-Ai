@@ -31,9 +31,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setSession(session);
         setUser(session?.user || null);
 
-        // Extraer rol del user_metadata
+        // Extraer rol: app_metadata (seguro, admin-only) con fallback a user_metadata
         if (session?.user) {
-          const role = session.user.user_metadata?.role as UserRole || 'patient';
+          const role = (session.user.app_metadata?.role || session.user.user_metadata?.role || 'patient') as UserRole;
           setUserRole(role);
         }
       } finally {
@@ -50,7 +50,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
         // Actualizar rol cuando cambia la sesión
         if (session?.user) {
-          const role = session.user.user_metadata?.role as UserRole || 'patient';
+          const role = (session.user.app_metadata?.role || session.user.user_metadata?.role || 'patient') as UserRole;
           setUserRole(role);
         } else {
           setUserRole(null);

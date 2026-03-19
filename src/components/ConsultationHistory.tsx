@@ -60,7 +60,7 @@ const ConsultationHistory: React.FC<ConsultationHistoryProps> = ({ language, onC
 
       // Doctors see all consultations (RLS handles access control)
       // Patients only see their own
-      const isDoctor = user.user_metadata?.role === 'doctor';
+      const isDoctor = (user.app_metadata?.role || user.user_metadata?.role) === 'doctor';
       let query = supabase
         .from('consultations')
         .select('*')

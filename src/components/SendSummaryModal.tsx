@@ -211,23 +211,29 @@ const SendSummaryModal: React.FC<SendSummaryModalProps> = ({
         return null;
       };
 
-      // Patrones para Readiness/Motivación general
+      // Patrones para Readiness/Motivación general (ES + EN)
       const readinessPatterns = [
         /Readiness\s*general[:\s]+\[?(\d+(?:\.\d+)?)/i,
+        /Motivación\s*general[:\s]+\[?(\d+(?:\.\d+)?)/i,
+        /General\s*readiness[:\s]+\[?(\d+(?:\.\d+)?)/i,
+        /Overall\s*readiness[:\s]+\[?(\d+(?:\.\d+)?)/i,
         /Readiness[:\s]+\[?(\d+(?:\.\d+)?)\s*\/\s*10/i,
-        /Motivación\s*general[:\s]+\[?(\d+(?:\.\d+)?)/i
       ];
 
-      // Patrones para Importancia
+      // Patrones para Importancia (ES + EN)
       const importancePatterns = [
         /Importancia\s*del\s*cambio[:\s]+\[?(\d+(?:\.\d+)?)/i,
-        /Importancia[:\s]+\[?(\d+(?:\.\d+)?)\s*\/\s*10/i
+        /Importancia[:\s]+\[?(\d+(?:\.\d+)?)\s*\/\s*10/i,
+        /Importance\s*of\s*change[:\s]+\[?(\d+(?:\.\d+)?)/i,
+        /Importance[:\s]+\[?(\d+(?:\.\d+)?)\s*\/\s*10/i,
       ];
 
-      // Patrones para Confianza (usamos como proxy de empathy)
+      // Patrones para Confianza (ES + EN, usamos como proxy de empathy)
       const confidencePatterns = [
         /Confianza\s*en\s*cambiar[:\s]+\[?(\d+(?:\.\d+)?)/i,
-        /Confianza[:\s]+\[?(\d+(?:\.\d+)?)\s*\/\s*10/i
+        /Confianza[:\s]+\[?(\d+(?:\.\d+)?)\s*\/\s*10/i,
+        /Confidence\s*in\s*changing[:\s]+\[?(\d+(?:\.\d+)?)/i,
+        /Confidence[:\s]+\[?(\d+(?:\.\d+)?)\s*\/\s*10/i,
       ];
 
       const readinessScore = extractScore(summary, readinessPatterns);

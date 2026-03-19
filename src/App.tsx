@@ -1020,7 +1020,7 @@ const MainApp: React.FC = () => {
                   thinkingLevel: ThinkingLevel.HIGH, // Máxima calidad de razonamiento
                   includeThoughts: false // No necesitamos ver el thinking
                 },
-                maxOutputTokens: 8192
+                maxOutputTokens: 16384
               }
             }),
             SUMMARY_TIMEOUT
@@ -1036,7 +1036,7 @@ const MainApp: React.FC = () => {
                 thinkingConfig: {
                   thinkingBudget: 0 // Sin thinking = máxima velocidad
                 },
-                maxOutputTokens: 8192
+                maxOutputTokens: 16384
               }
             }),
             SUMMARY_TIMEOUT

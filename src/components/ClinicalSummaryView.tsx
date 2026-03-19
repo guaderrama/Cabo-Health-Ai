@@ -76,14 +76,14 @@ const parseSummaryHTML = (html: string): ParsedSummary => {
   // Extraer scores de motivación - múltiples patrones para diferentes formatos de HTML
   // El AI puede generar: <span>Importancia</span><span>10/10</span> o "Importancia: 10/10"
   const motivation: MotivationData = {
-    importance: extractScoreFlexible(plainText, html, ['Importancia'], 'Importancia'),
-    confidence: extractScoreFlexible(plainText, html, ['Confianza'], 'Confianza'),
-    readiness: extractScoreFlexible(plainText, html, ['Readiness', 'Motivación'], 'Readiness')
+    importance: extractScoreFlexible(plainText, html, ['Importancia', 'Importance'], 'Importancia'),
+    confidence: extractScoreFlexible(plainText, html, ['Confianza', 'Confidence'], 'Confianza'),
+    readiness: extractScoreFlexible(plainText, html, ['Readiness', 'Motivación', 'General readiness', 'Overall readiness'], 'Readiness')
   };
 
   // Extraer sistemas
   const systems: SystemData[] = [];
-  const systemNames = ['DIGESTIÓN', 'ENERGÍA', 'MENTE', 'HORMONAL', 'INMUNE', 'ESTRUCTURA'];
+  const systemNames = ['DIGESTIÓN', 'DIGESTION', 'ENERGÍA', 'ENERGY', 'MENTE', 'MIND', 'HORMONAL', 'INMUNE', 'IMMUNE', 'ESTRUCTURA', 'STRUCTURE'];
   systemNames.forEach(name => {
     const match = html.match(new RegExp(`${name}[\\s\\S]*?(\\d+)\\/10`, 'i'));
     if (match && match[1]) {
@@ -129,7 +129,7 @@ const parseSummaryHTML = (html: string): ParsedSummary => {
   }
 
   // Extraer motivo principal
-  const chiefComplaintMatch = html.match(/Motivo principal de consulta:[:\s]+(.+?)(?=Objetivos|<|$)/i);
+  const chiefComplaintMatch = html.match(/(?:Motivo principal de consulta|Primary reason for consultation)[:\s]+(.+?)(?=Objetivos|Patient|<|$)/i);
   const chiefComplaint = chiefComplaintMatch && chiefComplaintMatch[1] ? chiefComplaintMatch[1].trim() : '';
 
   // Extraer hallazgos clave (del Resumen Ejecutivo)
@@ -630,25 +630,33 @@ const ClinicalSummaryView: React.FC<ClinicalSummaryViewProps> = ({ summaryHTML, 
         {/* Otras tabs muestran el contenido completo */}
         {activeTab === 'soap' && (
           <div className="prose prose-sm max-w-none">
-            <div dangerouslySetInnerHTML={{ __html: sanitizeHtml(summaryHTML.match(/🩺 Análisis Clínico[\s\S]*?(?=🎯 Análisis|$)/i)?.[0] || '') || '<p class="text-gray-500">Sección no disponible</p>' }} />
+            <div dangerouslySetInnerHTML={{ __html: sanitizeHtml(
+              summaryHTML.match(/🩺\s*(?:Análisis Clínico|Clinical Analysis)[\s\S]*?(?=🎯\s*(?:Análisis|Motivation)|$)/i)?.[0] || ''
+            ) || '<p class="text-gray-500">Sección no disponible</p>' }} />
           </div>
         )}
 
         {activeTab === 'systems' && (
           <div className="prose prose-sm max-w-none">
-            <div dangerouslySetInnerHTML={{ __html: sanitizeHtml(summaryHTML.match(/🔬 Matriz de Sistemas[\s\S]*?(?=📋 Resumen|$)/i)?.[0] || '') || '<p class="text-gray-500">Sección no disponible</p>' }} />
+            <div dangerouslySetInnerHTML={{ __html: sanitizeHtml(
+              summaryHTML.match(/🔬\s*(?:Matriz de Sistemas|Systems Matrix)[\s\S]*?(?=📋\s*(?:Resumen|Executive)|🩺|$)/i)?.[0] || ''
+            ) || '<p class="text-gray-500">Sección no disponible</p>' }} />
           </div>
         )}
 
         {activeTab === 'motivation' && (
           <div className="prose prose-sm max-w-none">
-            <div dangerouslySetInnerHTML={{ __html: sanitizeHtml(summaryHTML.match(/🎯 Análisis de Motivación[\s\S]*?(?=✅ Checklist|$)/i)?.[0] || '') || '<p class="text-gray-500">Sección no disponible</p>' }} />
+            <div dangerouslySetInnerHTML={{ __html: sanitizeHtml(
+              summaryHTML.match(/🎯\s*(?:Análisis de Motivación|Motivation Analysis)[\s\S]*?(?=✅\s*(?:Checklist|Follow)|$)/i)?.[0] || ''
+            ) || '<p class="text-gray-500">Sección no disponible</p>' }} />
           </div>
         )}
 
         {activeTab === 'plan' && (
           <div className="prose prose-sm max-w-none">
-            <div dangerouslySetInnerHTML={{ __html: sanitizeHtml(summaryHTML.match(/P - PLAN[\s\S]*?(?=🔬 Estudios|📆 Plan de seguimiento|$)/i)?.[0] || '') || '<p class="text-gray-500">Sección no disponible</p>' }} />
+            <div dangerouslySetInnerHTML={{ __html: sanitizeHtml(
+              summaryHTML.match(/P\s*-\s*PLAN[\s\S]*?(?=🔬\s*(?:Estudios|Suggested)|📆|$)/i)?.[0] || ''
+            ) || '<p class="text-gray-500">Sección no disponible</p>' }} />
           </div>
         )}
       </div>

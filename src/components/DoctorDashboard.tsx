@@ -136,17 +136,19 @@ const DoctorDashboard: React.FC<DoctorDashboardProps> = ({ language }) => {
           ai.models.generateContent({
             model: 'gemini-3.1-pro-preview',
             contents: prompt,
+            config: { maxOutputTokens: 16384 },
           }),
           new Promise<never>((_, reject) =>
             setTimeout(() => reject(new Error('Timeout')), 120000)
           ),
         ]);
       } catch (gemini3Error) {
-        logger.warn('Gemini 3 Flash failed, falling back to 2.5 Flash:', gemini3Error);
+        logger.warn('Gemini 3.1 Pro failed, falling back to 3 Flash:', gemini3Error);
         response = await Promise.race([
           ai.models.generateContent({
             model: 'gemini-3-flash-preview',
             contents: prompt,
+            config: { maxOutputTokens: 16384 },
           }),
           new Promise<never>((_, reject) =>
             setTimeout(() => reject(new Error('Timeout')), 120000)
@@ -188,15 +190,21 @@ const DoctorDashboard: React.FC<DoctorDashboardProps> = ({ language }) => {
         const readiness = extractScore([
           /Readiness\s*(?:general)?[:\s]*(\d+(?:\.\d+)?)\s*\/\s*10/i,
           /Motivación\s*(?:general)?[:\s]*(\d+(?:\.\d+)?)\s*\/\s*10/i,
+          /General\s*readiness[:\s]*(\d+(?:\.\d+)?)/i,
+          /Overall\s*readiness[:\s]*(\d+(?:\.\d+)?)/i,
           /Readiness[^0-9]{0,30}(\d+(?:\.\d+)?)\s*\/\s*10/i,
           /Motivación[^0-9]{0,30}(\d+(?:\.\d+)?)\s*\/\s*10/i,
         ]);
         const importance = extractScore([
+          /Importance\s*of\s*change[:\s]*(\d+(?:\.\d+)?)/i,
           /Importance[:\s]*(\d+(?:\.\d+)?)\s*\/\s*10/i,
+          /Importancia\s*del\s*cambio[:\s]*(\d+(?:\.\d+)?)/i,
           /Importancia[^0-9]{0,30}(\d+(?:\.\d+)?)\s*\/\s*10/i,
         ]);
         const confidence = extractScore([
+          /Confidence\s*in\s*changing[:\s]*(\d+(?:\.\d+)?)/i,
           /Confidence[:\s]*(\d+(?:\.\d+)?)\s*\/\s*10/i,
+          /Confianza\s*en\s*cambiar[:\s]*(\d+(?:\.\d+)?)/i,
           /Confianza[^0-9]{0,30}(\d+(?:\.\d+)?)\s*\/\s*10/i,
         ]);
 
@@ -847,6 +855,26 @@ const DoctorDashboard: React.FC<DoctorDashboardProps> = ({ language }) => {
             </div>
 
             <div className="p-6 border-t bg-slate-50 rounded-b-xl flex justify-end gap-3">
+              {/* Regenerate button for completed consultations with transcript */}
+              {!selectedConsultation.isPending && selectedConsultation.transcript && (
+                <button
+                  onClick={() => handleRegenerateSummary(selectedConsultation)}
+                  disabled={regenerating}
+                  className="px-5 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-lg transition-colors font-semibold disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                >
+                  {regenerating ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      {language === 'es' ? 'Regenerando...' : 'Regenerating...'}
+                    </>
+                  ) : (
+                    <>
+                      <span>🔄</span>
+                      {language === 'es' ? 'Regenerar Reporte' : 'Regenerate Report'}
+                    </>
+                  )}
+                </button>
+              )}
               <button
                 onClick={() => setSelectedConsultation(null)}
                 className="px-6 py-2 bg-slate-200 text-slate-700 rounded-lg hover:bg-slate-300 transition-colors font-semibold"

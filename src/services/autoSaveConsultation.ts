@@ -24,17 +24,30 @@ function extractScores(summary: string) {
   };
 
   const readinessPatterns = [
+    // Spanish
     /Readiness\s*general[:\s]+\[?(\d+(?:\.\d+)?)/i,
+    /Motivación\s*general[:\s]+\[?(\d+(?:\.\d+)?)/i,
+    // English
+    /General\s*readiness[:\s]+\[?(\d+(?:\.\d+)?)/i,
+    /Overall\s*readiness[:\s]+\[?(\d+(?:\.\d+)?)/i,
+    // Generic
     /Readiness[:\s]+\[?(\d+(?:\.\d+)?)\s*\/\s*10/i,
-    /Motivación\s*general[:\s]+\[?(\d+(?:\.\d+)?)/i
   ];
   const importancePatterns = [
+    // Spanish
     /Importancia\s*del\s*cambio[:\s]+\[?(\d+(?:\.\d+)?)/i,
-    /Importancia[:\s]+\[?(\d+(?:\.\d+)?)\s*\/\s*10/i
+    /Importancia[:\s]+\[?(\d+(?:\.\d+)?)\s*\/\s*10/i,
+    // English
+    /Importance\s*of\s*change[:\s]+\[?(\d+(?:\.\d+)?)/i,
+    /Importance[:\s]+\[?(\d+(?:\.\d+)?)\s*\/\s*10/i,
   ];
   const confidencePatterns = [
+    // Spanish
     /Confianza\s*en\s*cambiar[:\s]+\[?(\d+(?:\.\d+)?)/i,
-    /Confianza[:\s]+\[?(\d+(?:\.\d+)?)\s*\/\s*10/i
+    /Confianza[:\s]+\[?(\d+(?:\.\d+)?)\s*\/\s*10/i,
+    // English
+    /Confidence\s*in\s*changing[:\s]+\[?(\d+(?:\.\d+)?)/i,
+    /Confidence[:\s]+\[?(\d+(?:\.\d+)?)\s*\/\s*10/i,
   ];
 
   const readinessScore = extractScore(summary, readinessPatterns);
