@@ -5,6 +5,7 @@ import { UI_TEXTS } from '../constants';
 import { UserIcon, CalendarIcon, SendIcon, CheckIcon, XIcon } from './icons';
 import { logger } from '../lib/logger';
 import { useFocusTrap } from '../hooks/useFocusTrap';
+import { extractScoresFromSummary } from '../utils/consultation';
 
 // Key para respaldo local de consultas pendientes
 const PENDING_CONSULTATION_KEY = 'cabo_health_pending_consultation';
@@ -199,54 +200,8 @@ const SendSummaryModal: React.FC<SendSummaryModalProps> = ({
 
       logger.debug('✅ Sesión autenticada:', { userId: session.user.id, email: session.user.email });
 
-      // Calcular motivation score del resumen (con múltiples patrones de fallback)
-      const extractScore = (text: string, patterns: RegExp[]): number | null => {
-        for (const pattern of patterns) {
-          const match = text.match(pattern);
-          if (match?.[1]) {
-            const score = parseFloat(match[1]);
-            if (!isNaN(score)) return score;
-          }
-        }
-        return null;
-      };
-
-      // Patrones para Readiness/Motivación general (ES + EN)
-      const readinessPatterns = [
-        /Readiness\s*general[:\s]+\[?(\d+(?:\.\d+)?)/i,
-        /Motivación\s*general[:\s]+\[?(\d+(?:\.\d+)?)/i,
-        /General\s*readiness[:\s]+\[?(\d+(?:\.\d+)?)/i,
-        /Overall\s*readiness[:\s]+\[?(\d+(?:\.\d+)?)/i,
-        /Readiness[:\s]+\[?(\d+(?:\.\d+)?)\s*\/\s*10/i,
-      ];
-
-      // Patrones para Importancia (ES + EN)
-      const importancePatterns = [
-        /Importancia\s*del\s*cambio[:\s]+\[?(\d+(?:\.\d+)?)/i,
-        /Importancia[:\s]+\[?(\d+(?:\.\d+)?)\s*\/\s*10/i,
-        /Importance\s*of\s*change[:\s]+\[?(\d+(?:\.\d+)?)/i,
-        /Importance[:\s]+\[?(\d+(?:\.\d+)?)\s*\/\s*10/i,
-      ];
-
-      // Patrones para Confianza (ES + EN, usamos como proxy de empathy)
-      const confidencePatterns = [
-        /Confianza\s*en\s*cambiar[:\s]+\[?(\d+(?:\.\d+)?)/i,
-        /Confianza[:\s]+\[?(\d+(?:\.\d+)?)\s*\/\s*10/i,
-        /Confidence\s*in\s*changing[:\s]+\[?(\d+(?:\.\d+)?)/i,
-        /Confidence[:\s]+\[?(\d+(?:\.\d+)?)\s*\/\s*10/i,
-      ];
-
-      const readinessScore = extractScore(summary, readinessPatterns);
-      const importanceScore = extractScore(summary, importancePatterns);
-      const confidenceScore = extractScore(summary, confidencePatterns);
-
-      // Motivation score: promedio de readiness e importancia, o solo readiness
-      const motivationScore = readinessScore !== null
-        ? (importanceScore !== null ? (readinessScore + importanceScore) / 2 : readinessScore)
-        : 5.0;
-
-      // Empathy score: usamos confianza como proxy (refleja rapport con el paciente)
-      const empathyScore = confidenceScore;
+      // Extract scores using centralized function (scoped to correct sections)
+      const { motivationScore, empathyScore, readiness: readinessScore, importance: importanceScore, confidence: confidenceScore } = extractScoresFromSummary(summary);
 
       logger.debug('💾 Preparando datos para guardar...', {
         motivationScore,

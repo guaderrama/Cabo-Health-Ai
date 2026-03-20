@@ -9,57 +9,7 @@
 import { supabase } from '../lib/supabase';
 import { logger } from '../lib/logger';
 import type { TranscriptMessage, Language } from '../types';
-
-/** Extract motivation/empathy scores from summary HTML */
-function extractScores(summary: string) {
-  const extractScore = (text: string, patterns: RegExp[]): number | null => {
-    for (const pattern of patterns) {
-      const match = text.match(pattern);
-      if (match?.[1]) {
-        const score = parseFloat(match[1]);
-        if (!isNaN(score)) return score;
-      }
-    }
-    return null;
-  };
-
-  const readinessPatterns = [
-    // Spanish
-    /Readiness\s*general[:\s]+\[?(\d+(?:\.\d+)?)/i,
-    /Motivación\s*general[:\s]+\[?(\d+(?:\.\d+)?)/i,
-    // English
-    /General\s*readiness[:\s]+\[?(\d+(?:\.\d+)?)/i,
-    /Overall\s*readiness[:\s]+\[?(\d+(?:\.\d+)?)/i,
-    // Generic
-    /Readiness[:\s]+\[?(\d+(?:\.\d+)?)\s*\/\s*10/i,
-  ];
-  const importancePatterns = [
-    // Spanish
-    /Importancia\s*del\s*cambio[:\s]+\[?(\d+(?:\.\d+)?)/i,
-    /Importancia[:\s]+\[?(\d+(?:\.\d+)?)\s*\/\s*10/i,
-    // English
-    /Importance\s*of\s*change[:\s]+\[?(\d+(?:\.\d+)?)/i,
-    /Importance[:\s]+\[?(\d+(?:\.\d+)?)\s*\/\s*10/i,
-  ];
-  const confidencePatterns = [
-    // Spanish
-    /Confianza\s*en\s*cambiar[:\s]+\[?(\d+(?:\.\d+)?)/i,
-    /Confianza[:\s]+\[?(\d+(?:\.\d+)?)\s*\/\s*10/i,
-    // English
-    /Confidence\s*in\s*changing[:\s]+\[?(\d+(?:\.\d+)?)/i,
-    /Confidence[:\s]+\[?(\d+(?:\.\d+)?)\s*\/\s*10/i,
-  ];
-
-  const readinessScore = extractScore(summary, readinessPatterns);
-  const importanceScore = extractScore(summary, importancePatterns);
-  const confidenceScore = extractScore(summary, confidencePatterns);
-
-  const motivationScore = readinessScore !== null
-    ? (importanceScore !== null ? (readinessScore + importanceScore) / 2 : readinessScore)
-    : 5.0;
-
-  return { motivationScore, empathyScore: confidenceScore };
-}
+import { extractScoresFromSummary } from '../utils/consultation';
 
 /**
  * Auto-saves the consultation to the consultations table immediately after
@@ -90,7 +40,7 @@ export async function autoSaveConsultation(params: {
       return { success: true };
     }
 
-    const { motivationScore, empathyScore } = extractScores(summary);
+    const { motivationScore, empathyScore } = extractScoresFromSummary(summary);
 
     const { error } = await supabase
       .from('consultations')

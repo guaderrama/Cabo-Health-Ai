@@ -8,6 +8,7 @@ import DashboardStats from './DashboardStats';
 import MotivationGauge from './MotivationGauge';
 import ClinicalSummaryView from './ClinicalSummaryView';
 import { logger } from '../lib/logger';
+import { extractScoresFromSummary } from '../utils/consultation';
 import { formatDate, formatDuration, getMotivationLevel } from '../utils/consultation';
 import { SUMMARY_PROMPT } from '../constants/summaryPrompt';
 import { GoogleGenAI } from '@google/genai';
@@ -172,51 +173,7 @@ const DoctorDashboard: React.FC<DoctorDashboardProps> = ({ language }) => {
 
       // Save directly to consultations table (upsert to handle duplicates)
       const userId = consultation.user_id || user?.id || '';
-      const { motivationScore, empathyScore } = (() => {
-        // Strip HTML tags to get plain text for score extraction
-        const plainText = summaryText.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ');
-
-        const extractScore = (patterns: RegExp[]): number | null => {
-          for (const pattern of patterns) {
-            const match = plainText.match(pattern);
-            if (match?.[1]) {
-              const val = parseFloat(match[1]);
-              if (!isNaN(val) && val >= 0 && val <= 10) return val;
-            }
-          }
-          return null;
-        };
-
-        const readiness = extractScore([
-          /Readiness\s*(?:general)?[:\s]*(\d+(?:\.\d+)?)\s*\/\s*10/i,
-          /Motivación\s*(?:general)?[:\s]*(\d+(?:\.\d+)?)\s*\/\s*10/i,
-          /General\s*readiness[:\s]*(\d+(?:\.\d+)?)/i,
-          /Overall\s*readiness[:\s]*(\d+(?:\.\d+)?)/i,
-          /Readiness[^0-9]{0,30}(\d+(?:\.\d+)?)\s*\/\s*10/i,
-          /Motivación[^0-9]{0,30}(\d+(?:\.\d+)?)\s*\/\s*10/i,
-        ]);
-        const importance = extractScore([
-          /Importance\s*of\s*change[:\s]*(\d+(?:\.\d+)?)/i,
-          /Importance[:\s]*(\d+(?:\.\d+)?)\s*\/\s*10/i,
-          /Importancia\s*del\s*cambio[:\s]*(\d+(?:\.\d+)?)/i,
-          /Importancia[^0-9]{0,30}(\d+(?:\.\d+)?)\s*\/\s*10/i,
-        ]);
-        const confidence = extractScore([
-          /Confidence\s*in\s*changing[:\s]*(\d+(?:\.\d+)?)/i,
-          /Confidence[:\s]*(\d+(?:\.\d+)?)\s*\/\s*10/i,
-          /Confianza\s*en\s*cambiar[:\s]*(\d+(?:\.\d+)?)/i,
-          /Confianza[^0-9]{0,30}(\d+(?:\.\d+)?)\s*\/\s*10/i,
-        ]);
-
-        const motScore = readiness !== null
-          ? (importance !== null ? (readiness + importance) / 2 : readiness)
-          : 5.0;
-
-        return {
-          motivationScore: motScore,
-          empathyScore: confidence,
-        };
-      })();
+      const { motivationScore, empathyScore } = extractScoresFromSummary(summaryText);
 
       const { error: upsertError } = await supabase
         .from('consultations')

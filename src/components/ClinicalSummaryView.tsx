@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { type Language } from '../types';
 import { sanitizeHtml } from '../utils/sanitizeHtml';
 import { logger } from '../lib/logger';
+import { extractScoresFromSummary } from '../utils/consultation';
 
 interface ClinicalSummaryViewProps {
   summaryHTML: string;
@@ -73,12 +74,12 @@ const parseSummaryHTML = (html: string): ParsedSummary => {
     }
   }
 
-  // Extraer scores de motivación - múltiples patrones para diferentes formatos de HTML
-  // El AI puede generar: <span>Importancia</span><span>10/10</span> o "Importancia: 10/10"
+  // Extraer scores de motivación usando función centralizada (scoped a sección correcta)
+  const centralScores = extractScoresFromSummary(html);
   const motivation: MotivationData = {
-    importance: extractScoreFlexible(plainText, html, ['Importancia', 'Importance'], 'Importancia'),
-    confidence: extractScoreFlexible(plainText, html, ['Confianza', 'Confidence'], 'Confianza'),
-    readiness: extractScoreFlexible(plainText, html, ['Readiness', 'Motivación', 'General readiness', 'Overall readiness'], 'Readiness')
+    importance: centralScores.importance ?? 0,
+    confidence: centralScores.confidence ?? 0,
+    readiness: centralScores.readiness ?? 0,
   };
 
   // Extraer sistemas - buscar SOLO dentro de la sección Systems Matrix
