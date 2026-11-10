@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { useTypingAnimation } from '../hooks/useTypingAnimation';
 import { type Language } from '../types';
 
@@ -9,12 +9,13 @@ interface TypingMessageProps {
     language: Language;
     isLatest: boolean; // Solo animar el último mensaje
     speed?: number; // ms por palabra
-    patientName?: string; // For avatar initial
+    patientName?: string; // Inicial del avatar
+    failed?: boolean; // El mensaje no llegó a Nova
+    onRetry?: () => void;
 }
 
 /**
- * Componente de mensaje con animación de typing palabra-por-palabra
- * Solo anima el último mensaje de Nova para mejor UX
+ * Mensaje del chat. Solo el último mensaje de Nova se escribe palabra por palabra.
  */
 const TypingMessage: React.FC<TypingMessageProps> = ({
     text,
@@ -22,73 +23,74 @@ const TypingMessage: React.FC<TypingMessageProps> = ({
     timestamp,
     language,
     isLatest,
-    speed = 50, // 50ms por palabra = ~20 palabras/segundo (rápido pero legible)
+    speed = 50,
     patientName,
+    failed = false,
+    onRetry,
 }) => {
-    // Solo animar si es el último mensaje Y es de Nova
-    const shouldAnimate = isLatest && sender === 'Nova';
+    const es = language === 'es';
+    const isNova = sender === 'Nova';
+    const shouldAnimate = isLatest && isNova;
 
-    const { displayedText, isComplete, skipAnimation } = useTypingAnimation(
-        text,
-        speed,
-        shouldAnimate
-    );
-
-    // El texto a mostrar: animado o completo
+    const { displayedText, isComplete, skipAnimation } = useTypingAnimation(text, speed, shouldAnimate);
     const textToShow = shouldAnimate ? displayedText : text;
+    const animating = shouldAnimate && !isComplete;
 
     return (
-        <div
-            className={`flex items-end gap-2 ${sender === 'Nova' ? 'justify-start' : 'justify-end'} animate-fade-in-up`}
-        >
-            {/* Nova avatar */}
-            {sender === 'Nova' && (
-                <div className="flex-shrink-0 w-8 h-8 rounded-full bg-gradient-to-br from-teal-600 to-teal-700 flex items-center justify-center shadow-sm">
-                    <span className="text-white text-xs font-bold">N</span>
+        <div className={`flex items-end gap-2 ${isNova ? 'justify-start' : 'justify-end'} animate-fade-in-up`}>
+            {isNova && (
+                <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-primary" aria-hidden="true">
+                    <span className="text-xs font-bold text-white">N</span>
                 </div>
             )}
 
-            <div
-                className={`max-w-[80%] rounded-2xl px-5 py-4 ${sender === 'Nova'
-                        ? 'bg-slate-100 text-slate-800 rounded-bl-md border border-slate-200'
-                        : 'bg-emerald-500 text-white rounded-br-md'
-                    }`}
-                onClick={shouldAnimate && !isComplete ? skipAnimation : undefined}
-                style={{ cursor: shouldAnimate && !isComplete ? 'pointer' : 'default' }}
-                title={shouldAnimate && !isComplete ? (language === 'es' ? 'Clic para mostrar todo' : 'Click to show all') : undefined}
-            >
-                {/* Larger text (18px) with better line height for elderly users */}
-                <p
-                    className="text-lg leading-relaxed whitespace-pre-wrap"
-                    style={{ fontSize: '1.125rem', lineHeight: '1.7' }}
+            <div className={`flex max-w-[85%] flex-col ${isNova ? 'items-start' : 'items-end'}`}>
+                <div
+                    className={`rounded-2xl px-4 py-3 ${isNova
+                        ? 'rounded-bl-md border border-slate-200 bg-slate-100 text-slate-900'
+                        : failed
+                            ? 'rounded-br-md border-2 border-dashed border-red-300 bg-red-50 text-slate-900'
+                            : 'rounded-br-md bg-primary text-white'
+                        }`}
+                    onClick={animating ? skipAnimation : undefined}
+                    style={{ cursor: animating ? 'pointer' : 'default' }}
                 >
-                    {textToShow}
-                    {/* Cursor parpadeante mientras escribe */}
-                    {shouldAnimate && !isComplete && (
-                        <span className="inline-block w-0.5 h-5 bg-slate-400 ml-1 animate-pulse" />
-                    )}
-                </p>
-                {/* Skip animation hint */}
-                {shouldAnimate && !isComplete && (
-                    <div className="mt-1 text-xs text-slate-400 flex items-center gap-1">
-                        <span>{language === 'es' ? 'Toca para ver todo' : 'Tap to see all'}</span>
-                    </div>
-                )}
-                {timestamp && isComplete && (
-                    <p className={`text-xs mt-2 ${sender === 'Nova' ? 'text-slate-500' : 'text-white/70'}`}>
-                        {new Date(timestamp).toLocaleTimeString(language === 'es' ? 'es-ES' : 'en-US', {
-                            hour: '2-digit',
-                            minute: '2-digit'
-                        })}
+                    {/* sr-only: quién habla, para lectores de pantalla */}
+                    <span className="sr-only">{isNova ? 'Nova: ' : (es ? 'Tú: ' : 'You: ')}</span>
+                    {/* Texto grande (18px) para personas mayores */}
+                    <p className="whitespace-pre-wrap break-words text-lg leading-relaxed">
+                        {textToShow}
+                        {animating && <span className="ml-1 inline-block h-5 w-0.5 animate-pulse bg-slate-400" aria-hidden="true" />}
                     </p>
+                    {animating && (
+                        <p className="mt-1 text-xs text-slate-600">{es ? 'Toca para ver todo' : 'Tap to see all'}</p>
+                    )}
+                    {timestamp && !animating && !failed && (
+                        <p className={`mt-1 text-xs ${isNova ? 'text-slate-600' : 'text-white/85'}`}>
+                            {new Date(timestamp).toLocaleTimeString(es ? 'es-MX' : 'en-US', { hour: '2-digit', minute: '2-digit' })}
+                        </p>
+                    )}
+                </div>
+
+                {failed && (
+                    <div className="mt-1 flex items-center gap-2 text-sm" role="alert">
+                        <span className="font-medium text-red-700">{es ? 'No se envió' : 'Not sent'}</span>
+                        {onRetry && (
+                            <button
+                                onClick={onRetry}
+                                className="min-h-[44px] rounded-lg px-3 font-semibold text-primary underline-offset-2 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                            >
+                                {es ? 'Reintentar' : 'Retry'}
+                            </button>
+                        )}
+                    </div>
                 )}
             </div>
 
-            {/* Patient avatar */}
-            {sender !== 'Nova' && (
-                <div className="flex-shrink-0 w-8 h-8 rounded-full bg-gradient-to-br from-cyan-600 to-cyan-700 flex items-center justify-center shadow-sm">
-                    <span className="text-white text-xs font-bold">
-                        {patientName ? patientName.charAt(0).toUpperCase() : 'P'}
+            {!isNova && (
+                <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-brand-sea" aria-hidden="true">
+                    <span className="text-xs font-bold text-white">
+                        {patientName ? patientName.charAt(0).toUpperCase() : (es ? 'T' : 'Y')}
                     </span>
                 </div>
             )}

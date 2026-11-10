@@ -3,7 +3,7 @@
  *
  * This ensures patient interviews are ALWAYS visible to doctors,
  * even if the patient doesn't click "Send to Doctor" in the modal.
- * The modal becomes an optional step to add/correct patient details.
+ * The patient's date of birth is collected on the welcome screen, so no extra step is needed.
  */
 
 import { supabase } from '../lib/supabase';
@@ -20,12 +20,13 @@ export async function autoSaveConsultation(params: {
   userEmail?: string;
   sessionId: string;
   patientName: string;
+  patientDob?: string;
   transcript: TranscriptMessage[];
   summary: string;
   language: Language;
   sessionDuration: number;
 }): Promise<{ success: boolean; error?: string }> {
-  const { userId, userEmail, sessionId, patientName, transcript, summary, language, sessionDuration } = params;
+  const { userId, userEmail, sessionId, patientName, patientDob, transcript, summary, language, sessionDuration } = params;
 
   try {
     // Check if already saved (e.g., patient already clicked "Send to Doctor")
@@ -48,9 +49,11 @@ export async function autoSaveConsultation(params: {
         user_id: userId,
         session_id: sessionId,
         patient_name: patientName,
+        patient_dob: patientDob || null,
         patient_email: userEmail || null,
         language,
-        transcript,
+        // "failed" is a UI-only flag (message that never reached Nova)
+        transcript: transcript.map(({ failed: _failed, ...msg }) => msg),
         summary,
         motivation_score: motivationScore,
         empathy_score: empathyScore,

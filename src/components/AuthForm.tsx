@@ -1,164 +1,197 @@
 import React, { useState } from 'react';
-import { useAuth, UserRole } from '../contexts/AuthContext';
-import { UserIcon } from './icons';
+import { useAuth } from '../contexts/AuthContext';
+import type { Language } from '../types';
+import { getInitialLanguage, saveLanguage } from '../utils/languagePreference';
+import { LanguageToggle } from './WelcomeScreen';
+import BrandBackdrop from './BrandBackdrop';
+
+/** Supabase responde en inglés; aquí se traduce a algo que el paciente entienda. */
+function friendlyAuthError(message: string, es: boolean): string {
+  const m = message.toLowerCase();
+  if (m.includes('invalid login credentials')) return es ? 'Correo o contraseña incorrectos.' : 'Incorrect email or password.';
+  if (m.includes('email not confirmed')) {
+    return es ? 'Primero confirma tu correo: te enviamos un enlace cuando te registraste.' : 'Please confirm your email first: we sent you a link when you signed up.';
+  }
+  if (m.includes('already registered') || m.includes('already exists')) {
+    return es ? 'Ya existe una cuenta con este correo. Inicia sesión.' : 'An account with this email already exists. Please sign in.';
+  }
+  if (m.includes('at least 6') || m.includes('password should')) {
+    return es ? 'La contraseña debe tener al menos 6 caracteres.' : 'The password must be at least 6 characters.';
+  }
+  if (m.includes('rate limit') || m.includes('security purposes') || m.includes('too many')) {
+    return es ? 'Demasiados intentos. Espera un minuto e inténtalo de nuevo.' : 'Too many attempts. Wait a minute and try again.';
+  }
+  if (m.includes('failed to fetch') || m.includes('network')) {
+    return es ? 'No hay conexión a internet. Revisa tu conexión.' : 'No internet connection. Please check your connection.';
+  }
+  if (m.includes('invalid email') || m.includes('valid email')) return es ? 'Revisa que el correo esté bien escrito.' : 'Check that the email is spelled correctly.';
+  return es ? 'No pudimos completar la acción. Inténtalo de nuevo.' : 'We could not complete that. Please try again.';
+}
 
 const AuthForm: React.FC = () => {
   const { signIn, signUp } = useAuth();
+  const [language, setLanguage] = useState<Language>(getInitialLanguage);
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [role, setRole] = useState<UserRole>('patient');
+  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const es = language === 'es';
+
+  const changeLanguage = (lang: Language) => {
+    setLanguage(lang);
+    saveLanguage(lang);
+    setError('');
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setSuccess('');
     setLoading(true);
-
     try {
       if (isLogin) {
-        await signIn(email, password);
+        await signIn(email.trim(), password);
       } else {
-        await signUp(email, password, role);
-        setSuccess('Registration successful! Please check your email to confirm your account.');
+        // El registro público es solo para pacientes; las cuentas de médico las da el administrador
+        await signUp(email.trim(), password, 'patient');
+        setSuccess(es
+          ? 'Cuenta creada. Revisa tu correo y toca el enlace para confirmarla; después podrás entrar.'
+          : 'Account created. Check your email and tap the link to confirm it; then you can sign in.');
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Authentication error');
+      setError(friendlyAuthError(err instanceof Error ? err.message : '', es));
     } finally {
       setLoading(false);
     }
   };
 
+  const inputClass =
+    'mt-1 w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-lg text-slate-900 transition-colors focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/30';
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-teal-50 via-white to-cyan-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-8">
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-r from-teal-600 to-cyan-700 rounded-full mb-4">
-            <UserIcon className="w-8 h-8 text-white" />
-          </div>
-          <h1 className="text-3xl font-bold text-slate-800 mb-2">Cabo Health Nova</h1>
-          <p className="text-slate-600">
-            {isLogin ? 'Sign in to continue' : 'Create your account'}
+    <main className="relative isolate flex min-h-dvh items-center justify-center overflow-hidden bg-brand-cream p-4">
+      <BrandBackdrop density="full" className="-z-10" />
+      <div className="relative w-full max-w-md">
+        <div className="mb-4 flex justify-end">
+          <LanguageToggle language={language} onChange={changeLanguage} />
+        </div>
+
+        <div className="text-center">
+          <h1 className="bg-gradient-to-b from-brand-navy to-brand-deep bg-clip-text font-display text-5xl font-semibold tracking-tight text-transparent sm:text-6xl">
+            Cabo Health
+          </h1>
+          <div className="mx-auto mt-3 h-px w-24 origin-center animate-rule-in bg-gradient-to-r from-transparent via-brand-bronze to-transparent" aria-hidden="true" />
+          <p className="mt-3 text-xs font-medium uppercase tracking-[0.2em] text-brand-sea sm:tracking-[0.35em]">
+            {es ? 'Entrevista previa a tu consulta' : 'Pre-appointment interview'}
           </p>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          {/* Role Selection - Only show when registering */}
-          {!isLogin && (
+        <div className="mt-6 rounded-2xl border border-slate-200/70 bg-white p-6 shadow-lg shadow-brand-deep/5 sm:p-8">
+          <p className="text-lg leading-relaxed text-slate-700">
+            {es
+              ? 'Responde unas preguntas sobre tu salud antes de tu cita. Tu médico recibirá un resumen.'
+              : 'Answer a few questions about your health before your appointment. Your doctor will receive a summary.'}
+          </p>
+
+          <h2 className="mt-5 text-xl font-semibold text-slate-900">
+            {isLogin ? (es ? 'Entrar' : 'Sign in') : (es ? 'Crear tu cuenta' : 'Create your account')}
+          </h2>
+
+          <form onSubmit={handleSubmit} className="mt-4 space-y-4">
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-3">
-                Account Type
+              <label htmlFor="email" className="block text-sm font-medium text-slate-800">
+                {es ? 'Correo electrónico' : 'Email'}
               </label>
-              <div className="grid grid-cols-2 gap-3">
+              <input
+                type="email"
+                id="email"
+                autoComplete="email"
+                inputMode="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+                className={inputClass}
+                placeholder={es ? 'tucorreo@ejemplo.com' : 'you@example.com'}
+              />
+            </div>
+
+            <div>
+              <label htmlFor="password" className="block text-sm font-medium text-slate-800">
+                {es ? 'Contraseña' : 'Password'}
+              </label>
+              <div className="relative mt-1">
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  id="password"
+                  autoComplete={isLogin ? 'current-password' : 'new-password'}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  minLength={6}
+                  className={`${inputClass.replace('mt-1 ', '')} pr-24`}
+                  aria-describedby={!isLogin ? 'password-hint' : undefined}
+                />
                 <button
                   type="button"
-                  onClick={() => setRole('patient')}
-                  className={`p-4 rounded-lg border-2 transition-all ${
-                    role === 'patient'
-                      ? 'border-teal-600 bg-teal-50 shadow-md'
-                      : 'border-slate-200 hover:border-slate-300'
-                  }`}
+                  onClick={() => setShowPassword(v => !v)}
+                  className="absolute right-2 top-1/2 min-h-[40px] -translate-y-1/2 rounded-lg px-3 text-sm font-semibold text-primary transition-colors hover:bg-primary-soft focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                  aria-pressed={showPassword}
                 >
-                  <div className="text-3xl mb-2">👤</div>
-                  <div className="font-semibold text-slate-800">Patient</div>
-                  <div className="text-xs text-slate-500 mt-1">
-                    For medical consultations
-                  </div>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setRole('doctor')}
-                  className={`p-4 rounded-lg border-2 transition-all ${
-                    role === 'doctor'
-                      ? 'border-cyan-700 bg-cyan-50 shadow-md'
-                      : 'border-slate-200 hover:border-slate-300'
-                  }`}
-                >
-                  <div className="text-3xl mb-2">👨‍⚕️</div>
-                  <div className="font-semibold text-slate-800">Doctor</div>
-                  <div className="text-xs text-slate-500 mt-1">
-                    View received consultations
-                  </div>
+                  {showPassword ? (es ? 'Ocultar' : 'Hide') : (es ? 'Mostrar' : 'Show')}
                 </button>
               </div>
+              {!isLogin && (
+                <p id="password-hint" className="mt-1 text-sm text-slate-600">
+                  {es ? 'Al menos 6 caracteres.' : 'At least 6 characters.'}
+                </p>
+              )}
             </div>
-          )}
 
-          <div>
-            <label htmlFor="email" className="block text-sm font-medium text-slate-700 mb-1">
-              Email
-            </label>
-            <input
-              type="email"
-              id="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-              className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 outline-none transition"
-              placeholder="you@email.com"
-            />
+            {error && (
+              <p className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-base text-red-800" role="alert">
+                {error}
+              </p>
+            )}
+            {success && (
+              <p className="rounded-xl border border-primary-border bg-primary-soft px-4 py-3 text-base text-slate-900" role="status">
+                {success}
+              </p>
+            )}
+
+            <button
+              type="submit"
+              disabled={loading}
+              className="min-h-[52px] w-full rounded-xl bg-primary px-4 text-lg font-semibold text-white transition-colors hover:bg-primary-hover focus:outline-none focus-visible:ring-4 focus-visible:ring-primary/40 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {loading
+                ? (es ? 'Un momento…' : 'One moment…')
+                : isLogin ? (es ? 'Entrar' : 'Sign in') : (es ? 'Crear cuenta' : 'Create account')}
+            </button>
+          </form>
+
+          <div className="mt-6 border-t border-slate-200 pt-4 text-center">
+            <p className="text-base text-slate-700">
+              {isLogin ? (es ? '¿Es tu primera vez?' : 'First time here?') : (es ? '¿Ya tienes cuenta?' : 'Already have an account?')}
+            </p>
+            <button
+              onClick={() => {
+                setIsLogin(!isLogin);
+                setError('');
+                setSuccess('');
+              }}
+              className="mt-1 min-h-[44px] rounded-lg px-4 font-semibold text-primary transition-colors hover:bg-primary-soft focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+            >
+              {isLogin ? (es ? 'Crear una cuenta' : 'Create an account') : (es ? 'Entrar' : 'Sign in')}
+            </button>
           </div>
-
-          <div>
-            <label htmlFor="password" className="block text-sm font-medium text-slate-700 mb-1">
-              Password
-            </label>
-            <input
-              type="password"
-              id="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              minLength={6}
-              className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 outline-none transition"
-              placeholder="••••••••"
-            />
-          </div>
-
-          {error && (
-            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
-              {error}
-            </div>
-          )}
-
-          {success && (
-            <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-lg text-sm">
-              {success}
-            </div>
-          )}
-
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full py-3 px-4 bg-gradient-to-r from-teal-600 to-teal-700 text-white font-semibold rounded-lg hover:from-teal-700 hover:to-teal-800 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-offset-2 transition disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {loading ? 'Processing...' : (isLogin ? 'Sign In' : 'Sign Up')}
-          </button>
-        </form>
-
-        <div className="mt-6 text-center">
-          <button
-            onClick={() => {
-              setIsLogin(!isLogin);
-              setError('');
-              setSuccess('');
-              setRole('patient'); // Reset to patient when switching
-            }}
-            className="text-teal-600 hover:text-teal-700 font-medium transition"
-          >
-            {isLogin ? "Don't have an account? Sign Up" : 'Already have an account? Sign In'}
-          </button>
         </div>
 
-        <div className="mt-6 pt-6 border-t border-slate-200 text-center text-sm text-slate-500">
-          <p>Conversational AI Medical Assistant</p>
-          <p className="mt-1">Next-Gen Clinical AI by Ivan Guaderrama</p>
-        </div>
+        <p className="mt-4 text-center text-sm text-brand-sea">Next-Gen Clinical AI · Ivan Guaderrama</p>
       </div>
-    </div>
+    </main>
   );
 };
 

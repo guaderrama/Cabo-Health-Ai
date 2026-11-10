@@ -4,9 +4,11 @@ import { CaboHealthLogo } from './icons';
 interface ListeningVisualizerProps {
   isListening: boolean;
   audioFrequency: number;
+  /** Tailwind size classes for the outer circle; inner layers scale with it. */
+  sizeClassName?: string;
 }
 
-const ListeningVisualizer: React.FC<ListeningVisualizerProps> = ({ isListening, audioFrequency }) => {
+const ListeningVisualizer: React.FC<ListeningVisualizerProps> = ({ isListening, audioFrequency, sizeClassName = 'w-80 h-80' }) => {
   // Detectar preferencia de animaciones reducidas
   const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
 
@@ -32,17 +34,15 @@ const ListeningVisualizer: React.FC<ListeningVisualizerProps> = ({ isListening, 
 
   return (
     <div
-      className="relative w-80 h-80 flex items-center justify-center"
+      className={`relative ${sizeClassName} flex flex-shrink-0 items-center justify-center`}
       style={{ willChange: 'transform' }}
-      role="status"
-      aria-live="polite"
-      aria-label={isListening ? "Escuchando audio activamente" : "Visualizador de audio en espera"}
+      aria-hidden="true"
     >
 
       {/* Outer Glow (Pulsing) - Colores Cabo Health */}
       {!prefersReducedMotion && (
         <div
-          className={`absolute w-full h-full rounded-full bg-gradient-to-r from-teal-500/20 via-cyan-500/20 to-cyan-400/20 ${
+          className={`absolute w-full h-full rounded-full bg-gradient-to-r from-brand-deep/20 via-brand-sea/20 to-brand-mist/20 ${
             isListening ? 'animate-pulse-glow' : ''
           }`}
           style={{
@@ -57,7 +57,7 @@ const ListeningVisualizer: React.FC<ListeningVisualizerProps> = ({ isListening, 
       {/* Flowing Waves - Layer 1 (Outermost) - Colores Cabo Health */}
       {!prefersReducedMotion && (
         <div
-          className={`absolute w-full h-full rounded-full bg-gradient-to-br from-teal-500 via-cyan-500 to-transparent opacity-20 ${
+          className={`absolute w-full h-full rounded-full bg-gradient-to-br from-brand-deep via-brand-sea to-transparent opacity-20 ${
             isListening ? 'animate-wave-1' : ''
           }`}
           style={{
@@ -72,7 +72,7 @@ const ListeningVisualizer: React.FC<ListeningVisualizerProps> = ({ isListening, 
       {/* Flowing Waves - Layer 2 - Colores Cabo Health */}
       {!prefersReducedMotion && (
         <div
-          className={`absolute w-[90%] h-[90%] rounded-full bg-gradient-to-br from-teal-500 via-cyan-400 to-transparent opacity-25 ${
+          className={`absolute w-[90%] h-[90%] rounded-full bg-gradient-to-br from-brand-deep via-brand-mist to-transparent opacity-25 ${
             isListening ? 'animate-wave-2' : ''
           }`}
           style={{
@@ -87,7 +87,7 @@ const ListeningVisualizer: React.FC<ListeningVisualizerProps> = ({ isListening, 
 
       {/* Flowing Waves - Layer 3 - Colores Cabo Health */}
       <div
-        className={`absolute w-[80%] h-[80%] rounded-full bg-gradient-to-br from-cyan-400 via-cyan-400 to-transparent ${
+        className={`absolute w-[80%] h-[80%] rounded-full bg-gradient-to-br from-brand-mist via-brand-mist to-transparent ${
           prefersReducedMotion ? 'opacity-20' : 'opacity-30'
         } ${isListening && !prefersReducedMotion ? 'animate-wave-3' : ''}`}
         style={{
@@ -103,15 +103,15 @@ const ListeningVisualizer: React.FC<ListeningVisualizerProps> = ({ isListening, 
       {isListening && !prefersReducedMotion && (
         <>
           <div
-            className="absolute w-full h-full rounded-full border-2 border-teal-400/40 animate-ripple"
+            className="absolute w-full h-full rounded-full border-2 border-brand-mist/40 animate-ripple"
             style={{ animationDelay: '0s', willChange: 'transform, opacity' }}
           />
           <div
-            className="absolute w-full h-full rounded-full border-2 border-teal-400/40 animate-ripple"
+            className="absolute w-full h-full rounded-full border-2 border-brand-mist/40 animate-ripple"
             style={{ animationDelay: '1s', willChange: 'transform, opacity' }}
           />
           <div
-            className="absolute w-full h-full rounded-full border-2 border-cyan-400/40 animate-ripple"
+            className="absolute w-full h-full rounded-full border-2 border-brand-mist/40 animate-ripple"
             style={{ animationDelay: '2s', willChange: 'transform, opacity' }}
           />
         </>
@@ -119,7 +119,7 @@ const ListeningVisualizer: React.FC<ListeningVisualizerProps> = ({ isListening, 
 
       {/* Inner Glow (Dynamic) - Colores Cabo Health */}
       <div
-        className="absolute w-64 h-64 rounded-full bg-gradient-to-br from-teal-500/30 via-cyan-500/30 to-cyan-400/30"
+        className="absolute w-[80%] h-[80%] rounded-full bg-gradient-to-br from-brand-deep/30 via-brand-sea/30 to-brand-mist/30"
         style={{
           filter: prefersReducedMotion ? 'blur(10px)' : `blur(${30 * blurIntensity}px)`,
           opacity: isListening ? glowIntensity : 0.2,
@@ -131,7 +131,7 @@ const ListeningVisualizer: React.FC<ListeningVisualizerProps> = ({ isListening, 
 
       {/* Central Orb - Medical Orb Luminoso */}
       <div
-        className="relative w-56 h-56 rounded-full bg-gradient-to-br from-white via-cyan-50 to-teal-50 border-2 border-teal-200/40 shadow-2xl backdrop-blur-sm flex items-center justify-center overflow-hidden"
+        className="relative w-[70%] h-[70%] rounded-full bg-gradient-to-br from-white via-brand-ice to-brand-ice border-2 border-brand-mist/40 shadow-2xl backdrop-blur-sm flex items-center justify-center overflow-hidden"
         style={{
           transform: `scale(${isListening ? scale : 1})`,
           transition: 'transform 0.1s ease-out',
@@ -146,7 +146,7 @@ const ListeningVisualizer: React.FC<ListeningVisualizerProps> = ({ isListening, 
         {/* Rotating gradient background (subtle) - Colores Cabo Health */}
         {!prefersReducedMotion && (
           <div
-            className={`absolute inset-0 rounded-full bg-gradient-to-br from-teal-500/5 via-cyan-500/5 to-cyan-400/5 ${
+            className={`absolute inset-0 rounded-full bg-gradient-to-br from-brand-deep/5 via-brand-sea/5 to-brand-mist/5 ${
               isListening ? 'animate-wave-1' : ''
             }`}
             style={{ filter: `blur(${20 * blurIntensity}px)`, willChange: 'transform' }}
@@ -155,7 +155,7 @@ const ListeningVisualizer: React.FC<ListeningVisualizerProps> = ({ isListening, 
 
         {/* Logo con gradiente Cabo Health */}
         <div
-          className="relative z-10 w-40 h-auto transition-all duration-300"
+          className="relative z-10 w-[70%] h-auto transition-all duration-300"
           style={{
             filter: prefersReducedMotion
               ? 'drop-shadow(0 0 10px rgba(43, 93, 58, 0.5))'
@@ -182,7 +182,7 @@ const ListeningVisualizer: React.FC<ListeningVisualizerProps> = ({ isListening, 
       {/* Shimmer effect overlay (only when listening) */}
       {isListening && !prefersReducedMotion && (
         <div
-          className="absolute w-64 h-64 rounded-full pointer-events-none"
+          className="absolute w-[80%] h-[80%] rounded-full pointer-events-none"
           style={{
             background: 'radial-gradient(circle at 30% 30%, rgba(255, 255, 255, 0.1) 0%, transparent 60%)',
             opacity: glowIntensity * 0.5,

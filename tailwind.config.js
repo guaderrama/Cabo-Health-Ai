@@ -22,9 +22,22 @@ module.exports = {
 				ring: 'hsl(var(--ring))',
 				background: 'hsl(var(--background))',
 				foreground: 'hsl(var(--foreground))',
+				// Paleta de cabohealth.org. Blanco sobre primary pasa WCAG AA con holgura (9.2:1).
 				primary: {
-					DEFAULT: '#0F766E',
-					foreground: 'hsl(var(--primary-foreground))',
+					DEFAULT: '#0A4D68',
+					hover: '#082A3C',
+					soft: '#E8F4F8',
+					border: '#B9D3DC',
+					foreground: '#FFFFFF',
+				},
+				brand: {
+					deep: '#0A4D68', // azul petróleo (botones, enlaces)
+					navy: '#082A3C', // inicio del degradado del logotipo
+					sea: '#4F7785', // texto secundario de marca (4.7:1 sobre crema)
+					mist: '#88B0BC', // brumas y partículas
+					bronze: '#B8956A', // acento decorativo; no usar para texto
+					cream: '#FAFAF7', // fondo de la app
+					ice: '#F0F7FA', // fondo superior del hero
 				},
 				secondary: {
 					DEFAULT: '#155E75',
@@ -50,6 +63,10 @@ module.exports = {
 					DEFAULT: 'hsl(var(--card))',
 					foreground: 'hsl(var(--card-foreground))',
 				},
+			},
+			fontFamily: {
+				// Títulos con la serif de la marca; el texto corrido queda en la sans del sistema
+				display: ['"Cormorant Garamond"', 'Georgia', 'serif'],
 			},
 			borderRadius: {
 				lg: 'var(--radius)',
@@ -96,6 +113,15 @@ module.exports = {
 					'0%, 100%': { opacity: '0.3', transform: 'scale(1)' },
 					'50%': { opacity: '0.6', transform: 'scale(1.1)' },
 				},
+				'orb-drift': {
+					'0%, 100%': { transform: 'translate3d(0, 0, 0) scale(1)' },
+					'33%': { transform: 'translate3d(4%, -3%, 0) scale(1.06)' },
+					'66%': { transform: 'translate3d(-3%, 3%, 0) scale(0.96)' },
+				},
+				'rule-in': {
+					from: { transform: 'scaleX(0)', opacity: '0' },
+					to: { transform: 'scaleX(1)', opacity: '1' },
+				},
 			},
 			animation: {
 				'accordion-down': 'accordion-down 0.2s ease-out',
@@ -107,6 +133,10 @@ module.exports = {
 				'wave-2': 'wave-2 10s ease-in-out infinite',
 				'wave-3': 'wave-3 12s ease-in-out infinite',
 				'pulse-glow': 'pulse-glow 3s ease-in-out infinite',
+				'orb-drift-a': 'orb-drift 26s ease-in-out infinite',
+				'orb-drift-b': 'orb-drift 32s ease-in-out infinite reverse',
+				'orb-drift-c': 'orb-drift 22s ease-in-out infinite',
+				'rule-in': 'rule-in 0.9s ease-out both',
 			},
 		},
 	},

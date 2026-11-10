@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef, useCallback, Suspense, lazy } from 'react';
 import { GoogleGenAI, Modality, LiveServerMessage, ThinkingLevel } from '@google/genai';
 import { type AppState, type Language, type TranscriptMessage, type RecoverableSession, type InterviewModule, type InterviewMode } from './types';
-import { UI_TEXTS, SUMMARY_PROMPT, getModuleInstructions, getNextModule, MODULE_CONFIGS } from './constants';
+import { SUMMARY_PROMPT, getModuleInstructions, getNextModule, MODULE_CONFIGS } from './constants';
 import { encode, decode, decodeAudioData, concatenateUint8Arrays } from './utils/audioUtils';
 import { sanitizeHtml } from './utils/sanitizeHtml';
 import { isGeminiBillingError, getGeminiBillingMessage, isOpenAIBillingError, getOpenAIBillingMessage } from './utils/billingErrors';
@@ -13,11 +13,14 @@ import { useAuth } from './contexts/AuthContext';
 import AuthForm from './components/AuthForm';
 import Header from './components/Header';
 import ControlPanel from './components/ControlPanel';
-import ModeSelector from './components/ModeSelector';
+import WelcomeScreen from './components/WelcomeScreen';
 import TextChatPanel from './components/TextChatPanel';
 import TranscriptionPanel from './components/TranscriptionPanel';
-import ProgressIndicator from './components/ProgressIndicator';
+import FinishScreen from './components/FinishScreen';
 import ErrorBoundary from './components/ErrorBoundary';
+import { supabase } from './lib/supabase';
+import { getInitialLanguage, saveLanguage } from './utils/languagePreference';
+import { loadPatientProfile, savePatientProfile } from './utils/patientProfile';
 import { playWelcomeSound } from './services/audioService';
 import { logger } from './lib/logger';
 import { useTopicTracking } from './hooks/useTopicTracking';
@@ -27,7 +30,6 @@ import { resetMetrics, logNovaResponse, logTimeout, logError, logReconnect } fro
 const SessionRecoveryModal = lazy(() => import('./components/SessionRecoveryModal'));
 const MicrophoneDiagnostic = lazy(() => import('./components/MicrophoneDiagnostic'));
 const DoctorDashboard = lazy(() => import('./components/DoctorDashboard'));
-const SummaryPanel = lazy(() => import('./components/SummaryPanel'));
 import {
   saveSessionCheckpoint,
   findRecoverableSessions,
@@ -79,9 +81,28 @@ const withTimeout = <T,>(promise: Promise<T>, ms: number): Promise<T> => {
 // Intervalo de actualización de frecuencia (throttle para reducir re-renders)
 const FREQUENCY_UPDATE_INTERVAL = 100; // 100ms = 10 updates/segundo en lugar de 60
 
+// Mensaje con el que arranca el chat de TEXTO (también se usa para rehacer el historial al recuperar)
+const getTextActivationMessage = (lang: Language) => lang === 'es'
+  ? '[Sesión de TEXTO iniciada - Por favor saluda al paciente y comienza la entrevista completa]'
+  : '[TEXT session started - Please greet the patient and begin the complete interview]';
+
+// Temas cubiertos en modo TEXTO, para que una entrevista recuperada no empiece en 0
+const topicsStorageKey = (sessionId: string) => `cabo_health_topics_${sessionId}`;
+
+/** Contexto para que Nova (voz) retome una conversación interrumpida sin volver a saludar. */
+const buildVoiceResumeMessage = (transcript: TranscriptMessage[], lang: Language): string => {
+  const lines = transcript
+    .slice(-16)
+    .map(m => `${m.sender === 'Nova' ? 'Nova' : (lang === 'es' ? 'Paciente' : 'Patient')}: ${m.text.slice(0, 400)}`)
+    .join('\n');
+  return lang === 'es'
+    ? `[La conversación se interrumpió y el paciente regresó. Esto es lo último que platicaron:\n${lines}\nContinúa la entrevista desde ahí: NO saludes de nuevo ni repitas preguntas ya respondidas. Retoma con la siguiente pregunta pendiente.]`
+    : `[The conversation was interrupted and the patient is back. This is the last part of what you discussed:\n${lines}\nContinue the interview from there: do NOT greet again or repeat questions already answered. Resume with the next pending question.]`;
+};
+
 const App: React.FC = () => {
   const { user, userRole, loading } = useAuth();
-  const [language, setLanguage] = useState<Language>('en');
+  const [language] = useState<Language>(getInitialLanguage);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
 
   // Detectar cambios en el estado de conexión
@@ -104,7 +125,7 @@ const App: React.FC = () => {
       <div className="min-h-screen bg-slate-50 flex items-center justify-center">
         <div className="text-center">
           <div className="w-16 h-16 border-4 border-teal-500/30 border-t-teal-600 rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-slate-600">Cargando...</p>
+          <p className="text-slate-600">{language === 'es' ? 'Cargando…' : 'Loading…'}</p>
         </div>
       </div>
     );
@@ -135,15 +156,19 @@ const App: React.FC = () => {
 const MainApp: React.FC = () => {
   const { user } = useAuth();
   const [appState, setAppState] = useState<AppState>('IDLE');
-  const [language, setLanguage] = useState<Language>('en');
-  const [patientName, setPatientName] = useState('');
+  const [language, setLanguage] = useState<Language>(getInitialLanguage);
+  // Nombre y fecha de nacimiento se piden una vez y se recuerdan en la cuenta
+  const [patientName, setPatientName] = useState(() => loadPatientProfile(user).fullName);
+  const [patientDob, setPatientDob] = useState(() => loadPatientProfile(user).dateOfBirth);
   const [interviewMode, setInterviewMode] = useState<InterviewMode | null>(null);
   const [transcript, setTranscript] = useState<TranscriptMessage[]>([]);
   const [summary, setSummary] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
   const [avgFrequency, setAvgFrequency] = useState(0);
-  const [apiKeyError, setApiKeyError] = useState<string | null>(null);
-  const [summaryGenerationFailed, setSummaryGenerationFailed] = useState(false); // Para mostrar botón "Regenerar Resumen"
+  const [summaryGenerationFailed, setSummaryGenerationFailed] = useState(false); // Para mostrar botón "Intentar de nuevo"
+  // La entrevista terminó (se muestra la pantalla final) y si fue demasiado corta para enviarse
+  const [interviewEnded, setInterviewEnded] = useState(false);
+  const [endedTooShort, setEndedTooShort] = useState(false);
   const [sessionId, setSessionId] = useState<string>('');
   const [sessionStartTime, setSessionStartTime] = useState<number>(0);
 
@@ -218,20 +243,20 @@ const MainApp: React.FC = () => {
     }
   }, [welcomeSoundEnabled]);
 
-  // ============================================================
-  // PROTECCIÓN: beforeunload - Advertir al cerrar pestaña durante entrevista
-  // ============================================================
+  // Recordar el idioma elegido (y marcarlo en <html lang>)
   useEffect(() => {
-    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
-      if (appState === 'LISTENING' || appState === 'PROCESSING') {
-        e.preventDefault();
-        e.returnValue = '';
-      }
-    };
+    saveLanguage(language);
+  }, [language]);
 
-    window.addEventListener('beforeunload', handleBeforeUnload);
-    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
-  }, [appState]);
+  // Si la cuenta trae nombre/fecha guardados y aún no se escribió nada, usarlos
+  useEffect(() => {
+    const profile = loadPatientProfile(user);
+    setPatientName(prev => prev || profile.fullName);
+    setPatientDob(prev => prev || profile.dateOfBirth);
+  }, [user]);
+
+  // Sin llave de Gemini solo se desactiva la voz; escribir sigue funcionando (va por Edge Function)
+  const voiceAvailable = !!import.meta.env.VITE_GEMINI_API_KEY?.trim();
 
   // ============================================================
   // AUTO-GUARDADO: Guardar transcript periódicamente en pending_summaries
@@ -370,16 +395,6 @@ const MainApp: React.FC = () => {
     }
   }, [isTransitioningModule, appState, currentModule]);
 
-  useEffect(() => {
-    // Vite solo expone variables con prefijo VITE_
-    const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
-    if (!apiKey || apiKey.trim() === '') {
-      setApiKeyError(UI_TEXTS[language]?.errorApiKey ?? 'API key error');
-    } else {
-      setApiKeyError(null);
-    }
-  }, [language]);
-
   // Buscar sesiones recuperables al montar el componente
   useEffect(() => {
     const checkForRecoverableSessions = async () => {
@@ -400,6 +415,7 @@ const MainApp: React.FC = () => {
     const saveCheckpoint = async () => {
       if (
         (appState === 'LISTENING' || appState === 'ERROR') &&
+        !interviewEnded &&
         user?.id &&
         sessionId &&
         shouldSaveCheckpoint(transcript.length, lastSavedMessageCount)
@@ -415,7 +431,11 @@ const MainApp: React.FC = () => {
           transcript,
           currentInputTranscription.current,
           currentOutputTranscription.current,
-          sessionStartTime
+          sessionStartTime,
+          // Partes de la entrevista por voz, para poder retomarla en la parte correcta
+          currentModule,
+          completedModules,
+          moduleTranscripts
         );
 
         setIsSavingCheckpoint(false);
@@ -430,7 +450,17 @@ const MainApp: React.FC = () => {
     };
 
     saveCheckpoint();
-  }, [transcript.length, appState, user?.id, sessionId, patientName, language, sessionStartTime, lastSavedMessageCount]);
+  }, [transcript.length, appState, interviewEnded, user?.id, sessionId, patientName, language, sessionStartTime, lastSavedMessageCount, currentModule, completedModules, moduleTranscripts]);
+
+  // Modo TEXTO: guardar los temas cubiertos para que una entrevista recuperada conserve su progreso
+  useEffect(() => {
+    if (interviewMode !== 'TEXT' || !sessionId || topicTracking.coveredTopics.size === 0) return;
+    try {
+      localStorage.setItem(topicsStorageKey(sessionId), JSON.stringify([...topicTracking.coveredTopics]));
+    } catch {
+      // no crítico
+    }
+  }, [interviewMode, sessionId, topicTracking]);
 
   // Detector de silencio prolongado - SOLO para modo VOZ, no TEXTO
   useEffect(() => {
@@ -462,8 +492,8 @@ const MainApp: React.FC = () => {
           silenceStartTime = Date.now();
         } else if (Date.now() - silenceStartTime > SILENCE_DURATION && !silenceWarningShown) {
           const warningMsg = language === 'es'
-            ? 'No detectamos audio desde hace 1 minuto. ¿Está funcionando tu micrófono? Puedes ejecutar un diagnóstico.'
-            : 'No audio detected for 1 minute. Is your microphone working? You can run a diagnostic.';
+            ? 'No escuchamos tu voz desde hace un rato. ¿Está funcionando tu micrófono?'
+            : "We haven't heard your voice for a while. Is your microphone working?";
 
           setError(warningMsg);
           setSilenceWarningShown(true);
@@ -501,8 +531,8 @@ const MainApp: React.FC = () => {
         logger.warn('⏰ Nova no ha respondido en 10 segundos');
         logTimeout();
         setError(language === 'es'
-          ? '⏳ Nova está tardando en responder...'
-          : '⏳ Nova is taking a while to respond...');
+          ? 'Nova está tardando un poco en responder…'
+          : 'Nova is taking a little while to respond…');
       }
     }, NOVA_RESPONSE_TIMEOUT);
 
@@ -512,8 +542,8 @@ const MainApp: React.FC = () => {
         logger.error('❌ Nova timeout crítico - 20 segundos sin respuesta');
         logError('Nova timeout crítico - 20s sin respuesta');
         setError(language === 'es'
-          ? '⚠️ Nova no responde. Puedes usar "Reintentar Conexión"'
-          : '⚠️ Nova is not responding. Try "Retry Connection"');
+          ? 'Nova no está respondiendo. Espera un momento o repite tu respuesta.'
+          : 'Nova is not responding. Wait a moment or repeat your answer.');
       }
     }, NOVA_RESPONSE_TIMEOUT * 2);
 
@@ -531,8 +561,8 @@ const MainApp: React.FC = () => {
 
       if (connectionLostDuringSession && appState === 'ERROR') {
         setError(language === 'es'
-          ? '✅ Conexión restaurada. Tu progreso está guardado. Puedes intentar continuar.'
-          : '✅ Connection restored. Your progress is saved. You can try to continue.');
+          ? 'Volvió la conexión. Tu conversación está guardada: toca Reintentar para continuar.'
+          : 'You are back online. Your conversation is saved: tap Try again to continue.');
         setConnectionLostDuringSession(false);
       }
     };
@@ -541,12 +571,17 @@ const MainApp: React.FC = () => {
       logger.debug('⚠️ Conexión perdida');
       setIsOnline(false);
 
-      if (appState === 'LISTENING' || appState === 'CONNECTING') {
+      // En modo TEXTO no se interrumpe nada: el aviso del encabezado basta y los mensajes
+      // que no salgan se marcan para reenviar. En VOZ la conexión en vivo se corta.
+      if (interviewModeRef.current === 'VOICE' && (appState === 'LISTENING' || appState === 'CONNECTING')) {
         setConnectionLostDuringSession(true);
         setError(language === 'es'
-          ? '⚠️ Se perdió la conexión a internet.\n\n📋 No te preocupes:\n• Tu progreso está guardado automáticamente\n• La sesión se pausará hasta que vuelva la conexión\n• Verifica tu conexión e intenta continuar'
-          : '⚠️ Internet connection lost.\n\n📋 Don\'t worry:\n• Your progress is automatically saved\n• The session will pause until connection returns\n• Check your connection and try to continue');
+          ? 'Se perdió la conexión a internet. Tu conversación está guardada; cuando vuelva la conexión, toca Reintentar.'
+          : 'The internet connection was lost. Your conversation is saved; when you are back online, tap Try again.');
         setAppState('ERROR');
+        // cleanupAudio se declara más abajo; no va en las dependencias porque aún no existe
+        // al renderizar, pero cuando corre este evento ya está definida
+        cleanupAudio();
       }
     };
 
@@ -562,7 +597,8 @@ const MainApp: React.FC = () => {
   // Protección contra recarga accidental durante sesión activa
   useEffect(() => {
     const handleBeforeUnload = (e: BeforeUnloadEvent): string | undefined => {
-      if ((appState === 'LISTENING' || appState === 'PROCESSING') && transcript.length > 0) {
+      // Solo durante la conversación: al generar el resumen la entrevista ya está guardada para el médico
+      if (appState === 'LISTENING' && transcript.length > 0) {
         // Guardar checkpoint de emergencia (fire-and-forget, beforeunload es síncrono)
         if (user?.id && sessionId) {
           saveSessionCheckpoint(
@@ -612,35 +648,20 @@ const MainApp: React.FC = () => {
     setShowMicrophoneDiagnostic(false);
   };
 
-  // Handler para seleccionar modo de entrevista
-  const handleSelectMode = useCallback((mode: InterviewMode) => {
-    setInterviewMode(mode);
-    logger.debug(`Modo de entrevista seleccionado: ${mode}`);
-  }, []);
+  // Cada arranque de chat lleva un número; si la persona vuelve atrás mientras conecta,
+  // la respuesta que llegue tarde se ignora
+  const textStartTokenRef = useRef(0);
 
-  // Handler para enviar mensajes en modo TEXTO (GPT-6.1 Terra, no Live API)
-  const handleSendTextMessage = useCallback(async (text: string) => {
-    if (!chatSessionRef.current || !text.trim()) return;
-
-    // Agregar mensaje del usuario al transcript
-    const userMessage: TranscriptMessage = {
-      id: generateUniqueId(),
-      sender: 'You',
-      text: text.trim(),
-      lang: language,
-      timestamp: new Date().toISOString(),
-    };
-    setTranscript(prev => [...prev, userMessage]);
+  /** Envía a Nova un mensaje del paciente que ya está en pantalla y agrega la respuesta. */
+  const deliverTextMessage = useCallback(async (messageId: string, text: string) => {
+    if (!chatSessionRef.current) return;
     setWaitingForNova(true);
-
-    // Enviar a GPT-6.1 Terra (HTTP request, no WebSocket)
+    setError(null);
     try {
-      const responseText = await chatSessionRef.current.sendMessage(text.trim());
-
+      const responseText = await chatSessionRef.current.sendMessage(text);
       if (responseText.trim()) {
         // Procesar marcadores de temas y obtener texto limpio
         const cleanedText = processTopicMarker(responseText.trim());
-
         const novaMessage: TranscriptMessage = {
           id: generateUniqueId(),
           sender: 'Nova',
@@ -651,73 +672,83 @@ const MainApp: React.FC = () => {
         setTranscript(prev => [...prev, novaMessage]);
         logNovaResponse(0);
       }
-
-      logger.debug('📤 Mensaje TEXT enviado y respuesta recibida');
     } catch (e) {
       logger.error('Error enviando mensaje de texto:', e);
+      // El mensaje queda en pantalla marcado "No se envió" con su botón Reintentar
+      setTranscript(prev => prev.map(m => (m.id === messageId ? { ...m, failed: true } : m)));
       if (isOpenAIBillingError(String((e as Error)?.message ?? e))) {
-        setError(getOpenAIBillingMessage(language));
-      } else {
         setError(language === 'es'
-          ? 'Error al enviar mensaje. Intenta de nuevo.'
-          : 'Error sending message. Try again.');
+          ? 'Nova no está disponible en este momento. Tu conversación está guardada; inténtalo de nuevo más tarde.'
+          : 'Nova is not available right now. Your conversation is saved; please try again later.');
       }
     } finally {
       setWaitingForNova(false);
     }
-  }, [language]);
+  }, [language, processTopicMarker]);
 
-  // Handler para iniciar sesión en modo TEXTO (GPT-6.1 Terra vía Edge Function, no Live API)
-  // Esto es MUCHO más simple y estable que usar Live API para texto
+  // Modo TEXTO: GPT-6.1 Terra vía Edge Function (HTTP), no Live API
+  const handleSendTextMessage = useCallback(async (text: string) => {
+    if (!chatSessionRef.current || !text.trim()) return;
+    const userMessage: TranscriptMessage = {
+      id: generateUniqueId(),
+      sender: 'You',
+      text: text.trim(),
+      lang: language,
+      timestamp: new Date().toISOString(),
+    };
+    setTranscript(prev => [...prev, userMessage]);
+    await deliverTextMessage(userMessage.id, userMessage.text);
+  }, [language, deliverTextMessage]);
+
+  // Reenviar un mensaje que no llegó. Se mueve al final para que el orden en pantalla
+  // coincida con el historial que recibe Nova.
+  const handleRetryTextMessage = useCallback(async (messageId: string) => {
+    const failedMessage = transcriptRef.current.find(m => m.id === messageId);
+    if (!failedMessage || waitingForNova) return;
+    const resent: TranscriptMessage = { ...failedMessage, failed: false, timestamp: new Date().toISOString() };
+    setTranscript(prev => [...prev.filter(m => m.id !== messageId), resent]);
+    await deliverTextMessage(resent.id, resent.text);
+  }, [deliverTextMessage, waitingForNova]);
+
   const handleStartTextSession = useCallback(async () => {
+    const token = ++textStartTokenRef.current;
     setAppState('CONNECTING');
     setError(null);
     setWaitingForNova(false);
+    setInterviewEnded(false);
+    setEndedTooShort(false);
+    setSummaryGenerationFailed(false);
 
     // Resetear para nueva sesión
     reconnectAttemptsRef.current = 0;
     setTranscript([]);
     setSummary('');
-    const newSessionId = `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    // El prefijo "text_" permite saber el modo al recuperar una entrevista interrumpida
+    const newSessionId = `text_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
     setSessionId(newSessionId);
-    setSessionStartTime(Date.now());
+    const startedAt = Date.now();
+    setSessionStartTime(startedAt);
     resetMetrics();
     setCurrentModule('MODULE_1');
     setCompletedModules([]);
     setModuleTranscripts(createEmptyModuleTranscripts());
-    resetTopicTracking(); // Resetear tracking de temas para nueva sesión
-
+    resetTopicTracking();
     setLastSavedMessageCount(0);
     setLastCheckpointTime(null);
 
     try {
-      // TEXT mode uses COMPLETE instructions (no modules): a single continuous session.
-      // The Edge Function adds SYSTEM_INSTRUCTIONS[language] on the server.
-      logger.debug('🔧 Configurando sesion de TEXTO:', {
-        mode: 'TEXT - Sesión continua sin módulos',
-        model: 'gpt-6.1-terra',
-        api: 'Edge Function chat-openai'
-      });
+      // TEXT usa las instrucciones completas (sin módulos): una sola sesión continua.
+      // La Edge Function agrega SYSTEM_INSTRUCTIONS[language] en el servidor.
+      const chatSession = new TerraChatSession(language);
+      const greetingText = await chatSession.sendMessage(getTextActivationMessage(language));
+      if (token !== textStartTokenRef.current) return; // La persona salió mientras conectaba
 
-      chatSessionRef.current = new TerraChatSession(language);
-
-      // Enviar mensaje de activación - siempre saluda (sesión única)
-      const activationMessage = language === 'es'
-        ? '[Sesión de TEXTO iniciada - Por favor saluda al paciente y comienza la entrevista completa]'
-        : '[TEXT session started - Please greet the patient and begin the complete interview]';
-
-      setWaitingForNova(true);
-
-      const greetingText = await chatSessionRef.current.sendMessage(activationMessage);
-
+      chatSessionRef.current = chatSession;
       if (greetingText.trim()) {
-        // Procesar marcadores de temas del saludo inicial
-        const cleanedGreeting = processTopicMarker(greetingText.trim());
-
         const novaMessage: TranscriptMessage = {
           id: generateUniqueId(),
           sender: 'Nova',
-          text: cleanedGreeting, // Texto sin marcador [[TEMAS:...]]
+          text: processTopicMarker(greetingText.trim()), // Texto sin marcador [[TEMAS:...]]
           lang: language,
           timestamp: new Date().toISOString(),
         };
@@ -726,23 +757,31 @@ const MainApp: React.FC = () => {
       }
 
       setAppState('LISTENING');
-      sessionStartTimeRef.current = Date.now();
-      setWaitingForNova(false);
+      sessionStartTimeRef.current = startedAt;
       logger.debug('✅ Sesión TEXT (GPT-6.1 Terra) iniciada correctamente');
-
     } catch (e: any) {
+      if (token !== textStartTokenRef.current) return;
       logger.error('Error iniciando sesion TEXT:', e);
-      if (isOpenAIBillingError(String(e?.message ?? e))) {
-        setError(getOpenAIBillingMessage(language));
-      } else {
-        setError(language === 'es'
-          ? 'No se pudo conectar. Verifica tu conexion.'
-          : 'Could not connect. Check your connection.');
-      }
+      setError(isOpenAIBillingError(String(e?.message ?? e))
+        ? (language === 'es'
+          ? 'Nova no está disponible en este momento. Inténtalo de nuevo más tarde.'
+          : 'Nova is not available right now. Please try again later.')
+        : (language === 'es'
+          ? 'Revisa tu conexión a internet e inténtalo de nuevo.'
+          : 'Check your internet connection and try again.'));
       setAppState('ERROR');
-      setWaitingForNova(false);
     }
-  }, [currentModule, language]);
+  }, [language, processTopicMarker, resetTopicTracking]);
+
+  // Elegir modo en la bienvenida: escribir arranca el chat de inmediato; hablar muestra
+  // primero las indicaciones (el micrófono necesita que la persona toque "Empezar")
+  const handleSelectMode = useCallback((mode: InterviewMode) => {
+    savePatientProfile(user, { fullName: patientName.trim(), dateOfBirth: patientDob });
+    setInterviewMode(mode);
+    setError(null);
+    logger.debug(`Modo de entrevista seleccionado: ${mode}`);
+    if (mode === 'TEXT') handleStartTextSession();
+  }, [user, patientName, patientDob, handleStartTextSession]);
 
   const cleanupAudio = useCallback(() => {
     // Cancelar interval de limpieza periódica de buffers
@@ -804,36 +843,69 @@ const MainApp: React.FC = () => {
   }, []);
 
   // Manejar recuperación de sesión
+  // Para retomar una entrevista por voz con el contexto de lo ya conversado
+  const resumeVoiceRef = useRef<TranscriptMessage[] | null>(null);
+
   const handleRecoverSession = useCallback((session: RecoverableSession) => {
     const checkpoint = session.checkpoint;
 
-    // Validar checkpoint antes de recuperar
     if (!validateCheckpoint(checkpoint)) {
       logger.error('Checkpoint inválido, no se puede recuperar');
       setShowRecoveryModal(false);
       return;
     }
 
-    // Restaurar estado de la sesión
+    const mode: InterviewMode = checkpoint.session_id.startsWith('text_') ? 'TEXT' : 'VOICE';
+    // Contar solo el tiempo que estuvo conversando, no el rato que estuvo fuera
+    const activeMs = Math.max(0, checkpoint.last_checkpoint_time - checkpoint.session_start_time);
+    const resumedStart = Date.now() - activeMs;
+
     setSessionId(checkpoint.session_id);
-    setPatientName(checkpoint.patient_name);
+    if (checkpoint.patient_name) setPatientName(checkpoint.patient_name);
     setLanguage(checkpoint.language);
-    setTranscript(checkpoint.transcript);
-    setSessionStartTime(checkpoint.session_start_time);
+    setSessionStartTime(resumedStart);
+    sessionStartTimeRef.current = resumedStart;
     setLastSavedMessageCount(checkpoint.message_count);
-    currentInputTranscription.current = checkpoint.current_input_transcription || '';
-    currentOutputTranscription.current = checkpoint.current_output_transcription || '';
-
+    currentInputTranscription.current = '';
+    currentOutputTranscription.current = '';
+    setInterviewEnded(false);
+    setEndedTooShort(false);
+    setSummaryGenerationFailed(false);
+    setError(null);
     setShowRecoveryModal(false);
+    setRecoverableSessions([]);
 
-    // Iniciar nueva sesión de audio con el contexto recuperado
-    // El usuario deberá hacer clic en "Iniciar Sesión" manualmente
-    setAppState('IDLE');
-  }, []);
+    if (mode === 'TEXT') {
+      // Si lo último fue del paciente, Nova no alcanzó a responder: se ofrece reenviarlo
+      const restored = checkpoint.transcript.map(m => ({ ...m }));
+      const last = restored[restored.length - 1];
+      if (last && last.sender === 'You') last.failed = true;
+      setTranscript(restored);
+      chatSessionRef.current = TerraChatSession.fromTranscript(checkpoint.language, getTextActivationMessage(checkpoint.language), restored);
+      try {
+        const savedTopics = localStorage.getItem(topicsStorageKey(checkpoint.session_id));
+        if (savedTopics) loadTopicTracking(JSON.parse(savedTopics) as number[]);
+        else resetTopicTracking();
+      } catch {
+        resetTopicTracking();
+      }
+      setInterviewMode('TEXT');
+      setAppState('LISTENING');
+    } else {
+      setCurrentModule(checkpoint.current_module ?? 'MODULE_1');
+      setCompletedModules(checkpoint.completed_modules ?? []);
+      setModuleTranscripts(checkpoint.module_transcripts ?? createEmptyModuleTranscripts());
+      setTranscript(checkpoint.transcript);
+      setSessionResumptionHandle(null);
+      resumeVoiceRef.current = checkpoint.transcript;
+      setInterviewMode('VOICE');
+      // El micrófono necesita un toque de la persona: se muestra "Continuar conversación"
+      setAppState('IDLE');
+    }
+  }, [loadTopicTracking, resetTopicTracking]);
 
-  // Manejar descarte de sesiones recuperables
+  // "Empezar una nueva": ya no se ofrecerá continuar las entrevistas interrumpidas
   const handleDismissRecovery = useCallback(async () => {
-    // Limpiar checkpoints de todas las sesiones recuperables
     if (user?.id && recoverableSessions.length > 0) {
       for (const session of recoverableSessions) {
         await clearCheckpoint(session.checkpoint.session_id, user.id);
@@ -843,7 +915,6 @@ const MainApp: React.FC = () => {
     setShowRecoveryModal(false);
     setRecoverableSessions([]);
   }, [recoverableSessions, user?.id]);
-
 
   const handleEndSession = useCallback(async () => {
     // Double-check lock para prevenir race conditions con múltiples llamadas
@@ -857,6 +928,11 @@ const MainApp: React.FC = () => {
     }
     appStateRef.current = 'PROCESSING';
     setAppState('PROCESSING');
+    // A partir de aquí se muestra la pantalla final
+    setInterviewEnded(true);
+    setEndedTooShort(false);
+    setSummaryGenerationFailed(false);
+    setError(null);
 
     if (sessionPromiseRef.current) {
       try {
@@ -917,9 +993,7 @@ const MainApp: React.FC = () => {
     if (fullTranscriptText.trim().length < 50) {
       // Transcripción muy corta - establecer ERROR, no COMPLETED
       // Esto previene que el usuario intente enviar un resumen vacío/de error al doctor
-      setError(language === 'es'
-        ? 'La conversación fue demasiado breve para generar un resumen clínico.'
-        : 'The conversation was too brief to generate a clinical summary.');
+      setEndedTooShort(true);
       setSummary('');
       setAppState('ERROR');
       endSessionLockRef.current = false; // Liberar lock antes de return temprano
@@ -1069,6 +1143,7 @@ const MainApp: React.FC = () => {
             userEmail: user.email,
             sessionId,
             patientName,
+            patientDob,
             transcript: finalTranscript,
             summary: sanitizedSummary,
             language,
@@ -1084,11 +1159,14 @@ const MainApp: React.FC = () => {
           // Ignorar error al limpiar
         }
 
-        // Limpiar checkpoint y datos de módulos
+        // Limpiar checkpoint, datos de módulos y temas guardados
         if (user?.id && sessionId) {
           await clearCheckpoint(sessionId, user.id);
           clearModuleData(sessionId);
         }
+        try {
+          localStorage.removeItem(topicsStorageKey(sessionId));
+        } catch { /* ignorar */ }
 
         logger.debug(`✅ Resumen generado exitosamente${attempt > 0 ? ` (intento ${attempt + 1})` : ''}`);
         break;
@@ -1119,48 +1197,18 @@ const MainApp: React.FC = () => {
         await failSummary(sessionId, errorMessage);
       }
 
-      // Manejo de errores específicos
-      const savedNote = language === 'es'
-        ? 'Tu entrevista está guardada: después de recargar créditos usa "Regenerar Resumen".'
-        : 'Your interview is saved: after topping up credits use "Regenerate Summary".';
-      if (terraOutOfCredits) {
-        // OpenAI es el proveedor principal: con saldo ahí basta, aunque el respaldo de Gemini también falle
-        setError(`${getOpenAIBillingMessage(language)}\n\n${savedNote}`);
-      } else if (isGeminiBillingError(errorMessage)) {
-        setError(`${getGeminiBillingMessage(language)}\n\n${savedNote}`);
-      } else if (errorMessage.includes('VITE_GEMINI_API_KEY') || errorMessage.includes('401') || errorMessage.includes('403')) {
-        setError(language === 'es'
-          ? `Error de configuración: ${errorMessage}. Verifica tu archivo .env`
-          : `Configuration error: ${errorMessage}. Check your .env file`);
-        setApiKeyError(UI_TEXTS[language]?.errorApiKey ?? 'API key error');
-      } else if (errorMessage.includes('Timeout') || errorMessage.includes('timeout')) {
-        setError(language === 'es'
-          ? 'La generación del resumen tardó demasiado. Tu entrevista está guardada, puedes intentar de nuevo.'
-          : 'Summary generation took too long. Your interview is saved, you can try again.');
-      } else if (errorMessage.includes('429') || errorMessage.includes('rate') || errorMessage.includes('quota')) {
-        setError(language === 'es'
-          ? 'Demasiadas solicitudes a la API. Espera 1 minuto e intenta de nuevo.'
-          : 'Too many API requests. Wait 1 minute and try again.');
-      } else if (errorMessage.includes('network') || errorMessage.includes('fetch') || errorMessage.includes('Failed to fetch')) {
-        setError(language === 'es'
-          ? 'Error de conexión a internet. Tu entrevista está guardada, verifica tu conexión e intenta de nuevo.'
-          : 'Internet connection error. Your interview is saved, check your connection and try again.');
-      } else if (errorMessage.includes('vacío') || errorMessage.includes('empty') || errorMessage.includes('corto')) {
-        setError(language === 'es'
-          ? 'El resumen generado fue inválido. Por favor, intenta de nuevo.'
-          : 'Generated summary was invalid. Please try again.');
-      } else {
-        setError(language === 'es'
-          ? `Error generando resumen: ${errorMessage.substring(0, 150)}. Tu entrevista está guardada, puedes intentar de nuevo.`
-          : `Error generating summary: ${errorMessage.substring(0, 150)}. Your interview is saved, you can try again.`);
-      }
+      // El paciente ve un mensaje simple en la pantalla final (su entrevista ya está con el médico).
+      // El detalle técnico queda en los logs para el equipo.
+      if (terraOutOfCredits) logger.error('Resumen: OpenAI sin saldo.', getOpenAIBillingMessage('es'));
+      else if (isGeminiBillingError(errorMessage)) logger.error('Resumen: Gemini sin saldo.', getGeminiBillingMessage('es'));
+      setError(null);
       setSummaryGenerationFailed(true);
       setAppState('ERROR');
     }
 
     // Liberar el lock al finalizar (éxito o error)
     endSessionLockRef.current = false;
-  }, [transcript, language, cleanupAudio, user?.id, sessionId, completedModules, moduleTranscripts, currentModule]);
+  }, [transcript, language, cleanupAudio, user?.id, user?.email, sessionId, completedModules, moduleTranscripts, currentModule, patientName, patientDob]);
 
   /**
    * Maneja la transición entre módulos de la entrevista
@@ -1253,8 +1301,11 @@ const MainApp: React.FC = () => {
     // Reconexión automática desde onclose: aunque no haya handle, NO es sesión nueva.
     // Sin esto se borraba el transcript y se reiniciaba el contador de intentos (bucle infinito)
     const isAutoReconnect = isReconnectingRef.current;
+    // Retomar una conversación guardada (sesión recuperada o "Reintentar" tras un error)
+    const resumeTranscript = resumeVoiceRef.current;
+    const isResume = !!resumeTranscript && resumeTranscript.length > 0;
 
-    if (!currentHandle && !isModuleTransition && !isAutoReconnect) {
+    if (!currentHandle && !isModuleTransition && !isAutoReconnect && !isResume) {
       // Sesión completamente nueva
       reconnectAttemptsRef.current = 0;
       setTranscript([]);
@@ -1266,8 +1317,8 @@ const MainApp: React.FC = () => {
       setCurrentModule('MODULE_1');
       setCompletedModules([]);
       setModuleTranscripts(createEmptyModuleTranscripts());
-    } else if (!currentHandle && isModuleTransition && !isAutoReconnect) {
-      // Transición entre módulos - mantener sessionId y datos de módulos anteriores
+    } else if (!currentHandle && (isModuleTransition || isResume) && !isAutoReconnect) {
+      // Transición entre módulos o conversación retomada - mantener sessionId y datos anteriores
       reconnectAttemptsRef.current = 0;
       // transcript ya fue limpiado en handleModuleTransition
       // NO resetear sessionId, sessionStartTime, ni moduleTranscripts
@@ -1440,6 +1491,7 @@ const MainApp: React.FC = () => {
         callbacks: {
           onopen: () => {
             setAppState('LISTENING');
+            resumeVoiceRef.current = null; // El contexto se manda una sola vez
             sessionStartTimeRef.current = Date.now(); // Marcar inicio para grace period
             source.connect(analyser);
             analyser.connect(workletNode);
@@ -1457,7 +1509,15 @@ const MainApp: React.FC = () => {
                   const moduleConfig = MODULE_CONFIGS[currentModule];
                   let activationMessage: string;
 
-                  if (moduleConfig.hasGreeting) {
+                  if (isResume && resumeTranscript) {
+                    // Conversación retomada: Nova recibe lo último que se dijo y sigue sin saludar
+                    activationMessage = buildVoiceResumeMessage(resumeTranscript, language);
+                  } else if (currentHandle || isAutoReconnect) {
+                    // Reconexión tras un corte: no volver a saludar
+                    activationMessage = language === 'es'
+                      ? '[Reconexión tras un corte - Continúa la entrevista donde se quedaron, SIN saludar de nuevo]'
+                      : '[Reconnected after a drop - Continue the interview where you left off, WITHOUT greeting again]';
+                  } else if (moduleConfig.hasGreeting) {
                     // Módulo 1: Saludo inicial
                     activationMessage = language === 'es'
                       ? '[Sesión iniciada - Por favor saluda al paciente]'
@@ -1699,38 +1759,27 @@ const MainApp: React.FC = () => {
             logger.error('Live session connection error:', e);
             const errorMessage = e.message || String(e);
 
-            // Detectar errores específicos y proporcionar pasos de solución
-            let userErrorMessage = '';
-
-            // Créditos agotados (va primero: su mensaje contiene "api" y caería en el check de API key)
+            // Mensajes para el paciente; el detalle técnico queda en los logs
+            const es = language === 'es';
+            let userErrorMessage: string;
             if (isGeminiBillingError(errorMessage)) {
-              userErrorMessage = getGeminiBillingMessage(language);
-            }
-            // Error de API key o API inválida (incluyendo falsos positivos de "leaked key")
-            // Ver: https://github.com/googleapis/python-genai/issues/1710
-            else if (errorMessage.includes('API') || errorMessage.includes('api') || errorMessage.includes('Invalid') || errorMessage.includes('invalid') || errorMessage.includes('key') || errorMessage.includes('401') || errorMessage.includes('403') || errorMessage.includes('authentication') || errorMessage.includes('unauthorized') || errorMessage.includes('leaked')) {
-              userErrorMessage = language === 'es'
-                ? `❌ Error de autenticación con Gemini API\n\n📋 Pasos para arreglar:\n1. Genera una NUEVA API key en Google AI Studio\n2. Actualiza VITE_GEMINI_API_KEY en tu archivo .env o en Vercel\n3. Reinicia el servidor de desarrollo (pnpm dev)\n4. Recarga esta página\n\n⚠️ Nota: El modelo de audio nativo puede rechazar keys válidas incorrectamente.\nSi el problema persiste, contacta a soporte de Google AI.\n\nError: ${errorMessage.substring(0, 150)}`
-                : `❌ Gemini API authentication error\n\n📋 Steps to fix:\n1. Generate a NEW API key in Google AI Studio\n2. Update VITE_GEMINI_API_KEY in your .env file or Vercel\n3. Restart the development server (pnpm dev)\n4. Reload this page\n\n⚠️ Note: The native audio model may incorrectly reject valid keys.\nIf the problem persists, contact Google AI support.\n\nError: ${errorMessage.substring(0, 150)}`;
-              setApiKeyError(UI_TEXTS[language]?.errorApiKey ?? 'API key error');
-            }
-            // Error de rate limit
-            else if (errorMessage.includes('429') || errorMessage.includes('quota') || errorMessage.includes('limit')) {
-              userErrorMessage = language === 'es'
-                ? `⏰ Límite de uso de API alcanzado\n\n📋 Pasos:\n1. Espera unos minutos antes de reintentar\n2. Verifica tu cuota en Google AI Studio\n3. Considera actualizar tu plan de API\n\n💡 Las sesiones guardadas se pueden recuperar después`
-                : `⏰ API usage limit reached\n\n📋 Steps:\n1. Wait a few minutes before retrying\n2. Check your quota in Google AI Studio\n3. Consider upgrading your API plan\n\n💡 Saved sessions can be recovered later`;
-            }
-            // Error de red
-            else if (errorMessage.includes('network') || errorMessage.includes('timeout') || errorMessage.includes('fetch')) {
-              userErrorMessage = language === 'es'
-                ? `🌐 Error de conexión de red\n\n📋 Pasos:\n1. Verifica tu conexión a internet\n2. Intenta recargar la página\n3. Revisa si Google AI está accesible\n4. Usa el botón "Reintentar Conexión" abajo\n\n💡 Tu progreso está guardado automáticamente`
-                : `🌐 Network connection error\n\n📋 Steps:\n1. Check your internet connection\n2. Try reloading the page\n3. Check if Google AI is accessible\n4. Use the "Retry Connection" button below\n\n💡 Your progress is automatically saved`;
-            }
-            // Error genérico
-            else {
-              userErrorMessage = language === 'es'
-                ? `❌ ${UI_TEXTS[language].errorConnection}\n\n📋 Pasos:\n1. Usa el botón "Reintentar Conexión" abajo\n2. Si persiste, recarga la página\n3. Verifica tu conexión a internet\n4. Revisa la consola del navegador para más detalles\n\nError técnico: ${errorMessage.substring(0, 100)}`
-                : `❌ ${UI_TEXTS[language].errorConnection}\n\n📋 Steps:\n1. Use the "Retry Connection" button below\n2. If it persists, reload the page\n3. Check your internet connection\n4. Check browser console for more details\n\nTechnical error: ${errorMessage.substring(0, 100)}`;
+              logger.error('Voz: Gemini sin saldo.', getGeminiBillingMessage('es'));
+              userErrorMessage = es
+                ? 'La conversación por voz no está disponible en este momento. Puedes responder por escrito.'
+                : 'Voice conversation is not available right now. You can answer in writing.';
+            } else if (/\b(401|403)\b|api key|apikey|unauthori[sz]ed|authentication|leaked/i.test(errorMessage)) {
+              logger.error('Voz: la llave de Gemini fue rechazada (revisar VITE_GEMINI_API_KEY).', errorMessage);
+              userErrorMessage = es
+                ? 'La conversación por voz no está disponible en este momento. Puedes responder por escrito.'
+                : 'Voice conversation is not available right now. You can answer in writing.';
+            } else if (/429|quota|rate limit/i.test(errorMessage)) {
+              userErrorMessage = es
+                ? 'Hay mucha demanda en este momento. Espera un par de minutos y toca Reintentar.'
+                : 'There is high demand right now. Wait a couple of minutes and tap Try again.';
+            } else {
+              userErrorMessage = es
+                ? 'Se perdió la conexión con Nova. Revisa tu internet y toca Reintentar.'
+                : 'The connection with Nova was lost. Check your internet and tap Try again.';
             }
 
             setError(userErrorMessage);
@@ -1772,8 +1821,8 @@ const MainApp: React.FC = () => {
 
               // Mostrar mensaje de reconexión al usuario
               setError(language === 'es'
-                ? `🔄 Reconectando automáticamente... (intento ${reconnectAttemptsRef.current}/${maxReconnectAttempts})`
-                : `🔄 Automatically reconnecting... (attempt ${reconnectAttemptsRef.current}/${maxReconnectAttempts})`);
+                ? 'Se cortó la conexión. Reconectando…'
+                : 'The connection dropped. Reconnecting…');
 
               // Reintentar conexión después de 1 segundo
               setTimeout(() => {
@@ -1791,10 +1840,12 @@ const MainApp: React.FC = () => {
             } else if (appStateRef.current === 'LISTENING' || (isBillingClose && appStateRef.current === 'CONNECTING')) {
               // Excedimos intentos (o no hay créditos) - mostrar error final
               const errorMsg = isBillingClose
-                ? getGeminiBillingMessage(language)
+                ? (language === 'es'
+                  ? 'La conversación por voz no está disponible en este momento.'
+                  : 'Voice conversation is not available right now.')
                 : language === 'es'
-                  ? 'La conexión se cerró inesperadamente. Tu progreso está guardado. Puedes usar "Reintentar Conexión" para continuar.'
-                  : 'Connection closed unexpectedly. Your progress is saved. You can use "Retry Connection" to continue.';
+                  ? 'Se cortó la conexión con Nova. Toca Reintentar para continuar.'
+                  : 'The connection with Nova dropped. Tap Try again to continue.';
 
               setError(errorMsg);
               setAppState('ERROR');
@@ -1822,38 +1873,33 @@ const MainApp: React.FC = () => {
 
     } catch (err) {
       logger.error('Failed to start session:', err);
-      let userMessage = UI_TEXTS[language].errorMicGeneric;
+      const es = language === 'es';
+      let userMessage = es
+        ? 'No pudimos usar el micrófono. Revisa que esté conectado y que el navegador tenga permiso.'
+        : 'We could not use the microphone. Check that it is connected and that the browser has permission.';
 
       if (err instanceof Error) {
-        // Error de contexto seguro (HTTPS requerido)
         if (err.message === 'SECURE_CONTEXT_REQUIRED') {
-          userMessage = language === 'es'
-            ? `🔒 Se requiere conexión segura (HTTPS)\n\n📋 Pasos para arreglar:\n1. En desarrollo: Usa https://localhost en lugar de http://\n2. O habilita vite con SSL: pnpm dev --https\n3. En producción: Despliega con HTTPS habilitado\n\n💡 ${UI_TEXTS[language].errorHttpsRequired}`
-            : `🔒 Secure connection required (HTTPS)\n\n📋 Steps to fix:\n1. In development: Use https://localhost instead of http://\n2. Or enable vite with SSL: pnpm dev --https\n3. In production: Deploy with HTTPS enabled\n\n💡 ${UI_TEXTS[language].errorHttpsRequired}`;
-        }
-        // Error de permisos de micrófono
-        else if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
-          userMessage = language === 'es'
-            ? `🎤 Permiso de micrófono denegado\n\n📋 Pasos para arreglar:\n1. Haz clic en el ícono de candado/información en la barra de direcciones\n2. Busca "Permisos" o "Micrófono"\n3. Cambia a "Permitir"\n4. Recarga la página y vuelve a intentar\n\n💡 También puedes ejecutar un diagnóstico con el botón abajo`
-            : `🎤 Microphone permission denied\n\n📋 Steps to fix:\n1. Click the lock/info icon in the address bar\n2. Look for "Permissions" or "Microphone"\n3. Change to "Allow"\n4. Reload the page and try again\n\n💡 You can also run a diagnostic with the button below`;
-        }
-        // Error de micrófono no encontrado
-        else if (err.name === 'NotFoundError') {
-          userMessage = language === 'es'
-            ? `🔌 Micrófono no encontrado\n\n📋 Pasos para arreglar:\n1. Conecta un micrófono o auriculares con micrófono\n2. Verifica que esté enchufado correctamente\n3. En Windows: Revisa "Configuración > Sistema > Sonido"\n4. En Mac: Revisa "Preferencias > Sonido > Entrada"\n5. Recarga la página después de conectar\n\n💡 Ejecuta un diagnóstico con el botón abajo para más detalles`
-            : `🔌 Microphone not found\n\n📋 Steps to fix:\n1. Connect a microphone or headphones with microphone\n2. Verify it's plugged in correctly\n3. On Windows: Check "Settings > System > Sound"\n4. On Mac: Check "Preferences > Sound > Input"\n5. Reload the page after connecting\n\n💡 Run a diagnostic with the button below for more details`;
-        }
-        // Error de micrófono en uso
-        else if (err.name === 'NotReadableError' || err.message.includes('in use')) {
-          userMessage = language === 'es'
-            ? `⚠️ Micrófono en uso por otra aplicación\n\n📋 Pasos para arreglar:\n1. Cierra otras aplicaciones que usen el micrófono (Zoom, Teams, etc.)\n2. Cierra otras pestañas del navegador que puedan usar el micrófono\n3. Reinicia el navegador si es necesario\n4. Vuelve a intentar\n\n💡 Solo una aplicación puede usar el micrófono a la vez`
-            : `⚠️ Microphone in use by another application\n\n📋 Steps to fix:\n1. Close other applications using the microphone (Zoom, Teams, etc.)\n2. Close other browser tabs that might be using the microphone\n3. Restart the browser if necessary\n4. Try again\n\n💡 Only one application can use the microphone at a time`;
-        }
-        // Error genérico con detalles
-        else {
-          userMessage = language === 'es'
-            ? `❌ ${UI_TEXTS[language]?.errorMicGeneric ?? 'Microphone error'}\n\n📋 Pasos para solucionar:\n1. Verifica que tu micrófono esté conectado y funcionando\n2. Da permisos de micrófono a este sitio\n3. Ejecuta el diagnóstico con el botón abajo\n4. Revisa la consola del navegador para más detalles\n\nError técnico: ${err.message.substring(0, 80)}`
-            : `❌ ${UI_TEXTS[language]?.errorMicGeneric ?? 'Microphone error'}\n\n📋 Steps to solve:\n1. Verify your microphone is connected and working\n2. Grant microphone permissions to this site\n3. Run the diagnostic with the button below\n4. Check browser console for more details\n\nTechnical error: ${err.message.substring(0, 80)}`;
+          logger.error('Voz: se necesita HTTPS para usar el micrófono.');
+          userMessage = es
+            ? 'La conversación por voz no está disponible en esta página. Puedes responder por escrito.'
+            : 'Voice conversation is not available on this page. You can answer in writing.';
+        } else if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+          userMessage = es
+            ? 'Tu navegador bloqueó el micrófono. Toca el candado junto a la dirección de la página, permite el micrófono y vuelve a intentarlo.'
+            : 'Your browser blocked the microphone. Tap the lock next to the page address, allow the microphone and try again.';
+        } else if (err.name === 'NotFoundError') {
+          userMessage = es
+            ? 'No encontramos un micrófono. Conecta uno (o unos audífonos con micrófono) y vuelve a intentarlo.'
+            : 'We could not find a microphone. Connect one (or headphones with a mic) and try again.';
+        } else if (err.name === 'NotReadableError' || err.message.includes('in use')) {
+          userMessage = es
+            ? 'Otra aplicación está usando el micrófono (por ejemplo, una videollamada). Ciérrala y vuelve a intentarlo.'
+            : 'Another app is using the microphone (for example, a video call). Close it and try again.';
+        } else if (err.message.includes('VITE_GEMINI_API_KEY')) {
+          userMessage = es
+            ? 'La conversación por voz no está disponible en este momento. Puedes responder por escrito.'
+            : 'Voice conversation is not available right now. You can answer in writing.';
         }
       }
 
@@ -1879,18 +1925,25 @@ const MainApp: React.FC = () => {
     return undefined;
   }, [shouldAutoStart, appState, handleStartSession]);
 
-  // FIX: Completed the truncated function and added state resets.
+  // Volver a la bienvenida para una entrevista nueva (el nombre y la fecha se conservan)
   const handleNewSession = useCallback(() => {
     cleanupAudio();
     if (sessionPromiseRef.current) {
       sessionPromiseRef.current.then(session => session.close()).catch(err => logger.error('Error closing session:', err));
       sessionPromiseRef.current = null;
     }
+    textStartTokenRef.current++; // Ignorar un chat que estuviera conectando
+    chatSessionRef.current = null;
+    resumeVoiceRef.current = null;
     setAppState('IDLE');
     setTranscript([]);
     setSummary('');
     setError(null);
-    setPatientName('');
+    setWaitingForNova(false);
+    setInterviewEnded(false);
+    setEndedTooShort(false);
+    setSummaryGenerationFailed(false);
+    resetTopicTracking();
     // Limpiar handle de resumption para nueva sesión
     setSessionResumptionHandle(null);
     reconnectAttemptsRef.current = 0;
@@ -1900,8 +1953,31 @@ const MainApp: React.FC = () => {
     setModuleTranscripts(createEmptyModuleTranscripts());
     setNovaAskedTransition(false);
     setShouldAutoStart(false); // Resetear estado de auto-start
-    setInterviewMode(null); // Resetear modo de entrevista para mostrar selector
-  }, [cleanupAudio]);
+    setInterviewMode(null); // Resetear modo de entrevista para mostrar la bienvenida
+  }, [cleanupAudio, resetTopicTracking]);
+
+  // Salir sin enviar: casi no hubo conversación, así que no debe llegarle al médico
+  const handleDiscardSession = useCallback(async () => {
+    const discardedSessionId = sessionId;
+    handleNewSession();
+    if (!user?.id || !discardedSessionId) return;
+    try {
+      await clearCheckpoint(discardedSessionId, user.id);
+      clearModuleData(discardedSessionId);
+      localStorage.removeItem(topicsStorageKey(discardedSessionId));
+      await supabase.from('pending_summaries').delete().eq('session_id', discardedSessionId).eq('user_id', user.id);
+    } catch (e) {
+      logger.warn('No se pudo limpiar la sesión descartada:', e);
+    }
+  }, [sessionId, user?.id, handleNewSession]);
+
+  // "Prefiero escribir" desde la pantalla de voz (solo antes de empezar a conversar)
+  const handleSwitchToText = useCallback(() => {
+    cleanupAudio();
+    resumeVoiceRef.current = null;
+    setInterviewMode('TEXT');
+    handleStartTextSession();
+  }, [cleanupAudio, handleStartTextSession]);
 
   const handleRetryConnection = useCallback(() => {
     // Limpiar error y volver a estado IDLE manteniendo el progreso
@@ -1914,18 +1990,17 @@ const MainApp: React.FC = () => {
     setAppState('IDLE');
     // Resetear intentos para permitir nuevos reintentos manuales
     reconnectAttemptsRef.current = 0;
-    // NO limpiar transcript, patientName, sessionId, ni sessionResumptionHandle para mantener progreso
+    // NO limpiar transcript, patientName, sessionId, ni sessionResumptionHandle para mantener progreso.
+    // Si no hay handle de Gemini, Nova recibirá lo último que se dijo para seguir sin saludar.
+    if (transcriptRef.current.length > 0 && !sessionResumptionHandleRef.current) {
+      resumeVoiceRef.current = transcriptRef.current;
+    }
   }, [cleanupAudio]);
 
   // Función para reintentar la generación del resumen sin perder el transcript
   const handleRetryGenerateSummary = useCallback(async () => {
     // Verificar que hay transcript para procesar
-    if (transcript.length === 0) {
-      setError(language === 'es'
-        ? 'No hay conversación para generar resumen.'
-        : 'No conversation to generate summary.');
-      return;
-    }
+    if (transcript.length === 0) return;
 
     logger.debug('🔄 Reintentando generación de resumen con transcript existente...');
     setAppState('PROCESSING');
@@ -2024,6 +2099,7 @@ const MainApp: React.FC = () => {
               userEmail: user.email,
               sessionId,
               patientName,
+              patientDob,
               transcript,
               summary: sanitizedSummary,
               language,
@@ -2056,68 +2132,41 @@ const MainApp: React.FC = () => {
     }
 
     if (!summaryGenerated && lastError) {
-      const errorMessage = lastError.message;
-
-      if (terraOutOfCredits) {
-        setError(getOpenAIBillingMessage(language));
-      } else if (isGeminiBillingError(errorMessage)) {
-        setError(getGeminiBillingMessage(language));
-      } else if (errorMessage.includes('Timeout') || errorMessage.includes('timeout')) {
-        setError(language === 'es'
-          ? 'La generación tardó demasiado. Por favor, intenta de nuevo.'
-          : 'Generation took too long. Please try again.');
-      } else if (errorMessage.includes('429') || errorMessage.includes('rate') || errorMessage.includes('quota')) {
-        setError(language === 'es'
-          ? 'Demasiadas solicitudes. Espera 1 minuto e intenta de nuevo.'
-          : 'Too many requests. Wait 1 minute and try again.');
-      } else if (errorMessage.includes('network') || errorMessage.includes('fetch')) {
-        setError(language === 'es'
-          ? 'Error de conexión. Verifica tu internet e intenta de nuevo.'
-          : 'Connection error. Check your internet and try again.');
-      } else {
-        setError(language === 'es'
-          ? `Error: ${errorMessage.substring(0, 100)}. Intenta de nuevo.`
-          : `Error: ${errorMessage.substring(0, 100)}. Try again.`);
-      }
+      // La pantalla final explica al paciente que su entrevista ya está con el médico
+      if (terraOutOfCredits) logger.error('Resumen: OpenAI sin saldo.', getOpenAIBillingMessage('es'));
+      else if (isGeminiBillingError(lastError.message)) logger.error('Resumen: Gemini sin saldo.', getGeminiBillingMessage('es'));
+      setError(null);
       setSummaryGenerationFailed(true);
       setAppState('ERROR');
     }
-  }, [transcript, language, user?.id, sessionId]);
+  }, [transcript, language, user?.id, user?.email, sessionId, patientName, patientDob]);
 
-  useEffect(() => {
-    const handleKeyPress = (e: KeyboardEvent) => {
-      // Ctrl/Cmd + Enter to start session when idle and name is present
-      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter' && appState === 'IDLE' && patientName.trim()) {
-        e.preventDefault();
-        handleStartSession();
-      }
-      // Ctrl/Cmd + E to end session when listening
-      if ((e.ctrlKey || e.metaKey) && e.key === 'e' && appState === 'LISTENING') {
-        e.preventDefault();
-        handleEndSession();
-      }
-    };
+  const showFinish = interviewEnded && (appState === 'PROCESSING' || appState === 'COMPLETED' || appState === 'ERROR');
+  const interviewInProgress = (appState === 'LISTENING' || appState === 'CONNECTING') && transcript.length > 0;
+  // En modo texto el chat ocupa la pantalla y solo se desplazan los mensajes
+  const fullHeightChat = interviewMode === 'TEXT' && !showFinish;
+  const patientMessageCount = transcript.filter(m => m.sender === 'You' && !m.failed).length;
 
-    window.addEventListener('keydown', handleKeyPress);
-    return () => window.removeEventListener('keydown', handleKeyPress);
-  }, [appState, patientName, handleStartSession, handleEndSession]);
+  const overlayFallback = (
+    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-900/50">
+      <div className="h-12 w-12 animate-spin rounded-full border-b-2 border-white" />
+    </div>
+  );
 
-
-  // FIX: Added the missing return statement to render the component's UI.
   return (
-    <div className="bg-slate-50 min-h-screen text-slate-800 font-sans">
+    <div className={`flex flex-col bg-brand-cream text-slate-800 ${fullHeightChat ? 'h-dvh overflow-hidden' : 'min-h-dvh'}`}>
       <Header
         language={language}
         welcomeSoundEnabled={welcomeSoundEnabled}
         onToggleWelcomeSound={handleToggleWelcomeSound}
         isOnline={isOnline}
         userRole="patient"
+        interviewInProgress={interviewInProgress}
       />
 
-      {/* Modal de recuperación de sesión */}
       {showRecoveryModal && recoverableSessions.length > 0 && (
         <ErrorBoundary>
-          <Suspense fallback={<div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white"></div></div>}>
+          <Suspense fallback={overlayFallback}>
             <SessionRecoveryModal
               sessions={recoverableSessions}
               onRecover={handleRecoverSession}
@@ -2128,182 +2177,90 @@ const MainApp: React.FC = () => {
         </ErrorBoundary>
       )}
 
-      {/* Diagnóstico de micrófono */}
       {showMicrophoneDiagnostic && (
         <ErrorBoundary>
-          <Suspense fallback={<div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white"></div></div>}>
-            <MicrophoneDiagnostic
-              language={language}
-              onClose={handleCloseMicrophoneDiagnostic}
-            />
+          <Suspense fallback={overlayFallback}>
+            <MicrophoneDiagnostic language={language} onClose={handleCloseMicrophoneDiagnostic} />
           </Suspense>
         </ErrorBoundary>
       )}
 
-      <main id="main-content" className="container mx-auto px-4 sm:px-6 pt-28 pb-12" role="main">
-        {apiKeyError ? (
-          <div className="text-center bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative" role="alert">
-            <strong className="font-bold">Error: </strong>
-            <span className="block sm:inline">{apiKeyError}</span>
-          </div>
-        ) : (
-          <div className="space-y-6 max-w-7xl mx-auto">
-            {/* Indicador de progreso - Solo visible durante sesión activa */}
-            {appState === 'LISTENING' && (
-              <ProgressIndicator
-                messageCount={transcript.filter(m => m.sender === 'Nova').length}
-                sessionStartTime={sessionStartTime}
-                lastCheckpointTime={lastCheckpointTime}
-                isSaving={isSavingCheckpoint}
+      <main
+        id="main-content"
+        className={fullHeightChat ? 'flex min-h-0 flex-1 flex-col sm:px-6 sm:py-4' : 'flex-1'}
+      >
+        <ErrorBoundary>
+          {showFinish ? (
+            <FinishScreen
+              language={language}
+              appState={appState}
+              patientName={patientName}
+              transcript={transcript}
+              summaryFailed={summaryGenerationFailed}
+              tooShort={endedTooShort}
+              onRetrySummary={handleRetryGenerateSummary}
+              onNewInterview={handleNewSession}
+            />
+          ) : !interviewMode ? (
+            <WelcomeScreen
+              language={language}
+              onLanguageChange={handleLanguageChange}
+              patientName={patientName}
+              onPatientNameChange={setPatientName}
+              patientDob={patientDob}
+              onPatientDobChange={setPatientDob}
+              onSelectMode={handleSelectMode}
+              voiceAvailable={voiceAvailable}
+            />
+          ) : interviewMode === 'TEXT' ? (
+            <div className="mx-auto flex min-h-0 w-full max-w-3xl flex-1 flex-col">
+              <TextChatPanel
                 language={language}
+                transcript={transcript}
+                onSendMessage={handleSendTextMessage}
+                onRetryMessage={handleRetryTextMessage}
+                onEndSession={handleEndSession}
+                onDiscardSession={handleDiscardSession}
+                onStartSession={handleStartTextSession}
+                onBackToWelcome={handleNewSession}
+                appState={appState}
+                isProcessing={waitingForNova}
+                error={error}
+                onDismissError={() => setError(null)}
+                patientName={patientName}
+                sessionStartTime={sessionStartTime}
+                topicTracking={topicTracking}
+                topicsComplete={topicsComplete}
               />
-            )}
-
-            {/* Selector de modo - solo se muestra cuando no hay modo seleccionado */}
-            {!interviewMode && appState === 'IDLE' && (
-              <div className="grid grid-cols-1 lg:grid-cols-2 lg:grid-rows-2 gap-4 lg:gap-6">
-                <div className="lg:row-span-2 animate-fade-in-scale">
-                  <ErrorBoundary>
-                    <ModeSelector
-                      language={language}
-                      onSelectMode={handleSelectMode}
-                      patientName={patientName}
-                      onPatientNameChange={setPatientName}
-                      onLanguageChange={handleLanguageChange}
-                    />
-                  </ErrorBoundary>
-                </div>
-                <div className="lg:row-span-1 animate-fade-in-up animate-delay-100">
-                  <ErrorBoundary>
-                    <TranscriptionPanel
-                      transcript={transcript}
-                      appState={appState}
-                      language={language}
-                    />
-                  </ErrorBoundary>
-                </div>
-                <div className="lg:row-span-1 animate-fade-in-up animate-delay-200">
-                  <ErrorBoundary>
-                    <SummaryPanel
-                      summary={summary}
-                      appState={appState}
-                      language={language}
-                      patientName={patientName}
-                      onNewSession={handleNewSession}
-                      transcript={transcript}
-                      sessionId={sessionId}
-                      sessionDuration={sessionStartTime > 0 ? Math.floor((Date.now() - sessionStartTime) / 1000) : 0}
-                    />
-                  </ErrorBoundary>
-                </div>
-              </div>
-            )}
-
-            {/* Modo VOZ - ControlPanel con audio bidireccional */}
-            {interviewMode === 'VOICE' && (
-              <div className="grid grid-cols-1 lg:grid-cols-2 lg:grid-rows-2 gap-4 lg:gap-6">
-                <div className="lg:row-span-2 animate-fade-in-scale">
-                  <ErrorBoundary>
-                    <ControlPanel
-                      appState={appState}
-                      language={language}
-                      onLanguageChange={handleLanguageChange}
-                      onStartSession={handleStartSession}
-                      onEndSession={handleEndSession}
-                      audioFrequency={avgFrequency}
-                      error={error}
-                      patientName={patientName}
-                      onPatientNameChange={setPatientName}
-                      onOpenDiagnostic={handleOpenMicrophoneDiagnostic}
-                      onRetry={handleRetryConnection}
-                      onRetryGenerateSummary={handleRetryGenerateSummary}
-                      summaryGenerationFailed={summaryGenerationFailed}
-                      waitingForNova={waitingForNova}
-                      // Module system props
-                      currentModule={currentModule}
-                      completedModules={completedModules}
-                      onModuleTransition={handleModuleTransition}
-                      isTransitioningModule={isTransitioningModule}
-                    />
-                  </ErrorBoundary>
-                </div>
-                <div className="lg:row-span-1 animate-fade-in-up animate-delay-100">
-                  <ErrorBoundary>
-                    <TranscriptionPanel
-                      transcript={transcript}
-                      appState={appState}
-                      language={language}
-                    />
-                  </ErrorBoundary>
-                </div>
-                <div className="lg:row-span-1 animate-fade-in-up animate-delay-200">
-                  <ErrorBoundary>
-                    <SummaryPanel
-                      summary={summary}
-                      appState={appState}
-                      language={language}
-                      patientName={patientName}
-                      onNewSession={handleNewSession}
-                      transcript={transcript}
-                      sessionId={sessionId}
-                      sessionDuration={sessionStartTime > 0 ? Math.floor((Date.now() - sessionStartTime) / 1000) : 0}
-                    />
-                  </ErrorBoundary>
-                </div>
-              </div>
-            )}
-
-            {/* Modo TEXTO - TextChatPanel con dictado */}
-            {interviewMode === 'TEXT' && (
-              <div className="grid grid-cols-1 lg:grid-cols-2 lg:grid-rows-2 gap-4 lg:gap-6">
-                <div className="lg:row-span-2 animate-fade-in-scale">
-                  <ErrorBoundary>
-                    <TextChatPanel
-                      language={language}
-                      transcript={transcript}
-                      onSendMessage={handleSendTextMessage}
-                      onEndSession={handleEndSession}
-                      onStartSession={handleStartTextSession}
-                      onBackToModeSelect={() => setInterviewMode(null)}
-                      appState={appState}
-                      isProcessing={waitingForNova}
-                      error={error}
-                      patientName={patientName}
-                      onRetry={handleRetryConnection}
-                      topicTracking={topicTracking}
-                      topicsComplete={topicsComplete}
-                      onRetryGenerateSummary={handleRetryGenerateSummary}
-                      summaryGenerationFailed={summaryGenerationFailed}
-                    />
-                  </ErrorBoundary>
-                </div>
-                <div className="lg:row-span-1 animate-fade-in-up animate-delay-100">
-                  <ErrorBoundary>
-                    <TranscriptionPanel
-                      transcript={transcript}
-                      appState={appState}
-                      language={language}
-                    />
-                  </ErrorBoundary>
-                </div>
-                <div className="lg:row-span-1 animate-fade-in-up animate-delay-200">
-                  <ErrorBoundary>
-                    <SummaryPanel
-                      summary={summary}
-                      appState={appState}
-                      language={language}
-                      patientName={patientName}
-                      onNewSession={handleNewSession}
-                      transcript={transcript}
-                      sessionId={sessionId}
-                      sessionDuration={sessionStartTime > 0 ? Math.floor((Date.now() - sessionStartTime) / 1000) : 0}
-                    />
-                  </ErrorBoundary>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
+            </div>
+          ) : (
+            <div className="mx-auto grid w-full max-w-6xl gap-4 px-4 py-4 sm:px-6 lg:grid-cols-2 lg:gap-6 lg:py-8">
+              <ControlPanel
+                appState={appState}
+                language={language}
+                onStartSession={handleStartSession}
+                onEndSession={handleEndSession}
+                onDiscardSession={handleDiscardSession}
+                audioFrequency={avgFrequency}
+                error={error}
+                onOpenDiagnostic={handleOpenMicrophoneDiagnostic}
+                onRetry={handleRetryConnection}
+                waitingForNova={waitingForNova}
+                currentModule={currentModule}
+                completedModules={completedModules}
+                isTransitioningModule={isTransitioningModule}
+                hasConversation={transcript.length > 0}
+                patientMessageCount={patientMessageCount}
+                sessionStartTime={sessionStartTime}
+                onSwitchToText={handleSwitchToText}
+                onBackToWelcome={handleNewSession}
+              />
+              {(transcript.length > 0 || appState === 'LISTENING') && (
+                <TranscriptionPanel transcript={transcript} appState={appState} language={language} patientName={patientName} />
+              )}
+            </div>
+          )}
+        </ErrorBoundary>
       </main>
     </div>
   );

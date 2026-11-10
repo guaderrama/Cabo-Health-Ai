@@ -6,7 +6,7 @@
  * stateless, so this class keeps the history and sends it with every message.
  */
 
-import type { Language } from '../types';
+import type { Language, TranscriptMessage } from '../types';
 import { invokeOpenAIFunction } from './openaiFunction';
 
 interface ChatTurn {
@@ -20,6 +20,21 @@ export class TerraChatSession {
 
   constructor(language: Language) {
     this.language = language;
+  }
+
+  /**
+   * Rebuilds the history from a saved transcript so a recovered interview
+   * continues where it stopped. Failed messages never reached Nova, so they are skipped.
+   */
+  static fromTranscript(language: Language, activationMessage: string, transcript: TranscriptMessage[]): TerraChatSession {
+    const session = new TerraChatSession(language);
+    session.history = [
+      { role: 'user', content: activationMessage },
+      ...transcript
+        .filter(msg => !msg.failed && msg.text.trim())
+        .map<ChatTurn>(msg => ({ role: msg.sender === 'Nova' ? 'assistant' : 'user', content: msg.text })),
+    ];
+    return session;
   }
 
   /** Returns Nova's reply. On failure the history is unchanged, so the message can be sent again. */

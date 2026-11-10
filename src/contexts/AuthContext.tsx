@@ -16,6 +16,14 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+/**
+ * El rol solo se lee de app_metadata, que únicamente puede asignar un administrador
+ * (igual que las reglas RLS de la base). user_metadata lo puede escribir cualquier usuario.
+ */
+function getRole(user: User): UserRole {
+  return user.app_metadata?.role === 'doctor' ? 'doctor' : 'patient';
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
@@ -31,11 +39,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setSession(session);
         setUser(session?.user || null);
 
-        // Extraer rol: app_metadata (seguro, admin-only) con fallback a user_metadata
-        if (session?.user) {
-          const role = (session.user.app_metadata?.role || session.user.user_metadata?.role || 'patient') as UserRole;
-          setUserRole(role);
-        }
+        if (session?.user) setUserRole(getRole(session.user));
       } finally {
         setLoading(false);
       }
@@ -49,12 +53,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setUser(session?.user || null);
 
         // Actualizar rol cuando cambia la sesión
-        if (session?.user) {
-          const role = (session.user.app_metadata?.role || session.user.user_metadata?.role || 'patient') as UserRole;
-          setUserRole(role);
-        } else {
-          setUserRole(null);
-        }
+        setUserRole(session?.user ? getRole(session.user) : null);
       }
     );
 

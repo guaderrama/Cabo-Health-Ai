@@ -33,6 +33,7 @@ export interface TranscriptMessage {
   lang: Language;
   audioUrl?: string; // URL del audio almacenado en Supabase Storage
   timestamp?: string; // Timestamp del mensaje
+  failed?: boolean; // Modo TEXTO: el mensaje del paciente no llegó a Nova y se puede reenviar
 }
 
 export interface SessionCheckpoint {

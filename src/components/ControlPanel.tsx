@@ -1,426 +1,286 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { type AppState, type Language, type InterviewModule } from '../types';
-import { UI_TEXTS, MODULE_CONFIGS } from '../constants';
+import { MODULE_CONFIGS } from '../constants';
 import ListeningVisualizer from './ListeningVisualizer';
-import { MicrophoneIcon, StopIcon } from './icons';
+import { MicrophoneIcon } from './icons';
 import ConfirmationModal from './ConfirmationModal';
 
 interface ControlPanelProps {
   appState: AppState;
   language: Language;
-  onLanguageChange: (lang: Language) => void;
   onStartSession: () => void;
   onEndSession: () => void;
+  /** Salir sin enviar cuando casi no hubo conversación. */
+  onDiscardSession: () => void;
   audioFrequency: number;
   error: string | null;
-  patientName: string;
-  onPatientNameChange: (name: string) => void;
   onOpenDiagnostic?: () => void;
   onRetry?: () => void;
-  waitingForNova?: boolean; // Indica si estamos esperando respuesta de Nova
-  // Module system props
+  waitingForNova?: boolean;
   currentModule?: InterviewModule;
   completedModules?: InterviewModule[];
-  onModuleTransition?: () => void;
   isTransitioningModule?: boolean;
-  // Summary regeneration props
-  onRetryGenerateSummary?: () => void;
-  summaryGenerationFailed?: boolean;
+  /** Hay conversación guardada (sesión recuperada o reconexión). */
+  hasConversation: boolean;
+  patientMessageCount: number;
+  sessionStartTime: number;
+  onSwitchToText: () => void;
+  onBackToWelcome: () => void;
 }
+
+type EndVariant = 'too_short' | 'incomplete' | 'ready';
 
 const ControlPanel: React.FC<ControlPanelProps> = ({
   appState,
   language,
-  onLanguageChange,
   onStartSession,
   onEndSession,
+  onDiscardSession,
   audioFrequency,
   error,
-  patientName,
-  onPatientNameChange,
   onOpenDiagnostic,
   onRetry,
   waitingForNova,
-  // Module system props
   currentModule = 'MODULE_1',
   completedModules = [],
-  onModuleTransition,
   isTransitioningModule = false,
-  // Summary regeneration props
-  onRetryGenerateSummary,
-  summaryGenerationFailed = false,
+  hasConversation,
+  patientMessageCount,
+  sessionStartTime,
+  onSwitchToText,
+  onBackToWelcome,
 }) => {
-  const texts = UI_TEXTS[language];
+  const es = language === 'es';
   const isIdle = appState === 'IDLE';
   const isConnecting = appState === 'CONNECTING';
   const isListening = appState === 'LISTENING';
-  const isProcessing = appState === 'PROCESSING';
-  const isBusy = isConnecting || isProcessing;
-  const isNameMissing = !patientName.trim();
-
-  const nameInputRef = useRef<HTMLInputElement>(null);
-
-  const [sessionStartTime, setSessionStartTime] = useState<number | null>(null);
-  const [elapsed, setElapsed] = useState(0);
-  const [showEndConfirmation, setShowEndConfirmation] = useState(false);
-
-  // Auto-focus en campo de nombre cuando está en IDLE
-  useEffect(() => {
-    if (isIdle && nameInputRef.current) {
-      nameInputRef.current.focus();
-    }
-  }, [isIdle]);
+  const isError = appState === 'ERROR';
+  const [endVariant, setEndVariant] = useState<EndVariant | null>(null);
+  const [elapsedMs, setElapsedMs] = useState(0);
 
   useEffect(() => {
-    if (isListening && !sessionStartTime) {
-      setSessionStartTime(Date.now());
-    }
-    if (!isListening && sessionStartTime) {
-      setSessionStartTime(null);
-      setElapsed(0);
-    }
+    if (!isListening || !sessionStartTime) return undefined;
+    const tick = () => setElapsedMs(Date.now() - sessionStartTime);
+    tick();
+    const interval = setInterval(tick, 15000);
+    return () => clearInterval(interval);
   }, [isListening, sessionStartTime]);
 
-  useEffect(() => {
-    if (!sessionStartTime) return;
-    
-    const interval = setInterval(() => {
-      setElapsed(Math.floor((Date.now() - sessionStartTime) / 1000));
-    }, 1000);
-    
-    return () => clearInterval(interval);
-  }, [sessionStartTime]);
+  const moduleNumber = Number(currentModule.replace('MODULE_', ''));
+  const moduleName = MODULE_CONFIGS[currentModule][es ? 'nameEs' : 'name'];
+  const isMicError = !!error && /micr[oó]fono|microphone/i.test(error);
 
-  const handleEndSessionClick = () => {
-    setShowEndConfirmation(true);
+  const openEndDialog = () => {
+    if (patientMessageCount < 2) setEndVariant('too_short');
+    else if (currentModule !== 'MODULE_3') setEndVariant('incomplete');
+    else setEndVariant('ready');
   };
 
-  const handleConfirmEnd = () => {
-    setShowEndConfirmation(false);
-    onEndSession();
+  const confirmEnd = () => {
+    const variant = endVariant;
+    setEndVariant(null);
+    if (variant === 'too_short') onDiscardSession();
+    else onEndSession();
   };
 
-  const handleCancelEnd = () => {
-    setShowEndConfirmation(false);
+  const endDialog: Record<EndVariant, { title: string; message: string; confirm: string; danger: boolean }> = {
+    too_short: {
+      title: es ? '¿Salir sin enviar?' : 'Leave without sending?',
+      message: es
+        ? 'Todavía no hay suficiente información para tu médico. Si sales ahora, esta conversación no se enviará.'
+        : 'There is not enough information for your doctor yet. If you leave now, this conversation will not be sent.',
+      confirm: es ? 'Salir sin enviar' : 'Leave without sending',
+      danger: true,
+    },
+    incomplete: {
+      title: es ? '¿Terminar antes?' : 'Finish early?',
+      message: es
+        ? `Van en la parte ${moduleNumber} de 3. Si terminas ahora, tu médico recibirá una entrevista incompleta.`
+        : `You are on part ${moduleNumber} of 3. If you finish now, your doctor will receive an incomplete interview.`,
+      confirm: es ? 'Terminar de todos modos' : 'Finish anyway',
+      danger: false,
+    },
+    ready: {
+      title: es ? '¿Enviar a tu médico?' : 'Send to your doctor?',
+      message: es
+        ? 'Tu médico recibirá esta conversación y un resumen preparado por Nova.'
+        : 'Your doctor will receive this conversation and a summary prepared by Nova.',
+      confirm: es ? 'Enviar a mi médico' : 'Send to my doctor',
+      danger: false,
+    },
   };
 
-  const handleNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const name = e.target.value;
-    // Basic validation: limit length and allow specific characters.
-    const sanitizedName = name.replace(/[^a-zA-ZÀ-ÿ\s'-]/g, '').slice(0, 100);
-    onPatientNameChange(sanitizedName);
-  };
-
-  const getStatusText = () => {
-    switch (appState) {
-      case 'IDLE': return isNameMissing ? texts.enterFullName : texts.idle;
-      case 'CONNECTING': return texts.connecting;
-      case 'LISTENING': return texts.listening;
-      case 'PROCESSING': return texts.processing;
-      case 'COMPLETED': return texts.completed;
-      case 'ERROR': return texts.error;
-      default: return '';
-    }
-  };
-
-  const ActionButton: React.FC = () => {
-    if (isBusy) {
-      return (
-        <div className="flex flex-col items-center">
-          <button
-            className="w-28 h-28 rounded-full bg-slate-400 text-white flex flex-col items-center justify-center transition-all duration-300 shadow-lg cursor-not-allowed"
-            disabled
-            aria-busy="true"
-            title={isProcessing
-              ? (language === 'es' ? 'Procesando conversación...' : 'Processing conversation...')
-              : (language === 'es' ? 'Conectando con el servidor...' : 'Connecting to server...')
-            }
-          >
-            <div className="w-8 h-8 border-4 border-white/50 border-t-white rounded-full animate-spin mb-2"></div>
-            <span className="text-sm font-semibold">{isProcessing ? texts.processingButton : texts.connecting}</span>
-          </button>
-          {isConnecting && (
-            <p className="text-xs text-slate-500 mt-3 max-w-xs text-center">
-              {language === 'es'
-                ? 'Si tu navegador solicita permisos, por favor acéptalos para continuar'
-                : 'If your browser requests permissions, please accept them to continue'}
-            </p>
-          )}
-        </div>
-      );
-    }
-
-    if (isListening) {
-      return (
-        <button
-          onClick={handleEndSessionClick}
-          className="w-28 h-28 rounded-full bg-red-600 hover:bg-red-700 text-white flex flex-col items-center justify-center transition-all duration-300 shadow-lg active:scale-95"
-          aria-label={texts.endSession}
-          title={language === 'es'
-            ? 'Finalizar la sesión y generar resumen clínico'
-            : 'End session and generate clinical summary'}
-        >
-          <StopIcon className="w-8 h-8 mb-1" />
-          <span className="text-sm font-semibold">{texts.endSession}</span>
-        </button>
-      );
-    }
-
-    return (
-      <button
-        onClick={onStartSession}
-        disabled={isNameMissing || isBusy}
-        className="w-28 h-28 rounded-full bg-teal-600 hover:bg-teal-700 text-white flex flex-col items-center justify-center transition-all duration-300 shadow-lg disabled:bg-slate-400 disabled:cursor-not-allowed active:scale-95"
-        aria-label={texts.startSession}
-        title={isNameMissing
-          ? (language === 'es' ? 'Ingresa el nombre del paciente para comenzar' : 'Enter patient name to start')
-          : (language === 'es' ? 'Iniciar conversación con Nova' : 'Start conversation with Nova')
-        }
-      >
-        <MicrophoneIcon className="w-8 h-8 mb-1" />
-        <span className="text-sm font-semibold">{texts.startSession}</span>
-      </button>
-    );
-  };
-  
-  const disableLangButtons = isConnecting || isListening || isProcessing;
-
-  const MicLevelIndicator: React.FC = () => {
-    const level = Math.min(audioFrequency / 100, 1); // Normalize to 0-1
-    return (
-        <div className="w-full max-w-xs h-2 bg-slate-200 rounded-full mt-2">
-            <div 
-                className="h-full bg-green-500 rounded-full transition-all duration-100"
-                style={{ width: `${level * 100}%`}}
-            />
-        </div>
-    );
-  };
+  const primaryButton =
+    'inline-flex min-h-[56px] w-full items-center justify-center gap-3 rounded-2xl bg-primary px-6 text-lg font-bold text-white shadow-md transition-colors hover:bg-primary-hover focus:outline-none focus-visible:ring-4 focus-visible:ring-primary/40 disabled:bg-slate-400';
+  const secondaryButton =
+    'min-h-[44px] rounded-xl px-4 font-semibold text-slate-700 transition-colors hover:bg-slate-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary';
 
   return (
-    <div className="bg-white rounded-xl shadow-lg p-6 flex flex-col items-center justify-center h-full min-h-[500px] md:min-h-[600px] lg:min-h-0">
-      <ListeningVisualizer isListening={isListening} audioFrequency={audioFrequency} />
-      {isListening && (
-        <div className="w-full max-w-xs">
-          <p className="text-xs text-slate-500 text-center mb-1">
-            {language === 'es' ? '🎤 Nivel de Audio' : '🎤 Audio Level'}
-          </p>
-          <MicLevelIndicator />
-        </div>
-      )}
+    <section
+      className="flex h-full flex-col items-center rounded-2xl border border-slate-200 bg-white px-5 py-6 shadow-sm"
+      aria-label={es ? 'Conversación por voz con Nova' : 'Voice conversation with Nova'}
+    >
+      <h1 className="sr-only">{es ? 'Hablar con Nova' : 'Talk with Nova'}</h1>
 
-      {/* Indicador de espera de Nova */}
-      {waitingForNova && isListening && (
-        <div className="flex items-center gap-2 text-yellow-600 text-sm animate-pulse mt-2">
-          <span>●</span>
-          <span>{language === 'es' ? 'Esperando a Nova...' : 'Waiting for Nova...'}</span>
-        </div>
-      )}
-
-      {/* Module Progress Indicator */}
-      {(isListening || isTransitioningModule) && (
-        <div className="w-full max-w-xs mt-4 bg-gradient-to-r from-teal-50 to-cyan-50 border border-teal-200 rounded-xl p-3">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-semibold text-teal-700 uppercase tracking-wide">
-              {language === 'es' ? 'Modulo' : 'Module'} {currentModule.replace('MODULE_', '')} {language === 'es' ? 'de' : 'of'} 3
-            </span>
-            <span className="text-xs text-teal-600">
-              {MODULE_CONFIGS[currentModule][language === 'es' ? 'nameEs' : 'name']}
-            </span>
-          </div>
-
-          {/* Progress bar */}
-          <div className="flex gap-1 mb-2">
-            {(['MODULE_1', 'MODULE_2', 'MODULE_3'] as InterviewModule[]).map((mod) => (
-              <div
-                key={mod}
-                className={`h-2 flex-1 rounded-full transition-all duration-300 ${
-                  completedModules.includes(mod)
-                    ? 'bg-green-500'
-                    : mod === currentModule
-                    ? 'bg-teal-500'
-                    : 'bg-slate-200'
-                }`}
-              />
+      {/* Antes de empezar */}
+      {isIdle && !hasConversation && (
+        <div className="w-full max-w-sm">
+          <h2 className="font-display text-4xl font-semibold leading-tight text-brand-navy">{es ? 'Antes de empezar' : 'Before you start'}</h2>
+          <div className="mt-2 h-px w-16 bg-gradient-to-r from-brand-bronze to-transparent" aria-hidden="true" />
+          <ul className="mt-4 space-y-3 text-base text-slate-700">
+            {[
+              { icon: 'M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z M17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2', text: es ? 'Busca un lugar tranquilo, sin ruido de fondo.' : 'Find a quiet place without background noise.' },
+              { icon: 'M19 11a7 7 0 01-14 0m7 7v3m-4 0h8M12 15a3 3 0 003-3V5a3 3 0 10-6 0v7a3 3 0 003 3z', text: es ? 'Tu navegador te pedirá permiso para usar el micrófono: toca "Permitir".' : 'Your browser will ask to use the microphone: tap "Allow".' },
+              { icon: 'M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z', text: es ? 'Habla con naturalidad. Nova te escucha y te responde en voz alta.' : 'Speak naturally. Nova listens and answers out loud.' },
+              { icon: 'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z', text: es ? 'Son 3 partes, entre 20 y 30 minutos en total.' : 'There are 3 parts, 20 to 30 minutes in total.' },
+            ].map((tip) => (
+              <li key={tip.text} className="flex items-start gap-3">
+                <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full border border-primary-border/70 bg-white text-primary" aria-hidden="true">
+                  <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={tip.icon} />
+                  </svg>
+                </span>
+                <span className="pt-1.5">{tip.text}</span>
+              </li>
             ))}
+          </ul>
+          <button onClick={onStartSession} className={`${primaryButton} mt-6`}>
+            <MicrophoneIcon className="h-6 w-6" />
+            {es ? 'Empezar a hablar' : 'Start talking'}
+          </button>
+          <div className="mt-3 flex flex-wrap justify-center gap-2">
+            <button onClick={onSwitchToText} className={secondaryButton}>{es ? 'Prefiero escribir' : 'I prefer to write'}</button>
+            <button onClick={onBackToWelcome} className={secondaryButton}>{es ? 'Volver' : 'Back'}</button>
+          </div>
+        </div>
+      )}
+
+      {/* Continuar una conversación guardada */}
+      {isIdle && hasConversation && (
+        <div className="w-full max-w-sm text-center">
+          <h2 className="font-display text-4xl font-semibold leading-tight text-brand-navy">{es ? 'Continuemos' : "Let's continue"}</h2>
+          <p className="mt-2 text-base text-slate-700">
+            {es ? 'Tu conversación está guardada. Nova seguirá donde se quedaron.' : 'Your conversation is saved. Nova will pick up where you left off.'}
+          </p>
+          <button onClick={onStartSession} className={`${primaryButton} mt-6`}>
+            <MicrophoneIcon className="h-6 w-6" />
+            {es ? 'Continuar conversación' : 'Continue conversation'}
+          </button>
+        </div>
+      )}
+
+      {(isConnecting || isListening) && (
+        <>
+          <ListeningVisualizer isListening={isListening} audioFrequency={audioFrequency} sizeClassName="w-48 h-48 sm:w-64 sm:h-64" />
+
+          <div className="mt-4 text-center" role="status" aria-live="polite">
+            <p className="text-lg font-semibold text-slate-900">
+              {isConnecting
+                ? (es ? 'Conectando con Nova…' : 'Connecting to Nova…')
+                : isTransitioningModule
+                  ? (es ? 'Preparando la siguiente parte…' : 'Getting the next part ready…')
+                  : waitingForNova
+                    ? (es ? 'Nova está pensando…' : 'Nova is thinking…')
+                    : (es ? 'Nova te escucha. Habla con naturalidad.' : 'Nova is listening. Speak naturally.')}
+            </p>
+            {isConnecting && (
+              <p className="mt-1 text-sm text-slate-600">
+                {es ? 'Si tu navegador pide permiso para el micrófono, toca "Permitir".' : 'If your browser asks for microphone access, tap "Allow".'}
+              </p>
+            )}
           </div>
 
-          {/* Nota: La transición de módulos ahora es automática por voz.
-              Nova pregunta "¿Continuamos?" y el usuario responde "Sí".
-              El botón fue eliminado para simplificar la experiencia de ancianos. */}
+          {isListening && (
+            <div className="mt-5 w-full max-w-xs space-y-4">
+              <div>
+                <p className="mb-1 text-center text-sm text-slate-600">{es ? 'Nivel de tu voz' : 'Your voice level'}</p>
+                <div className="h-2 overflow-hidden rounded-full bg-slate-200" aria-hidden="true">
+                  <div className="h-full rounded-full bg-primary transition-[width]" style={{ width: `${Math.min(audioFrequency / 100, 1) * 100}%` }} />
+                </div>
+              </div>
 
-          {/* Final module - show end session hint */}
-          {isListening && currentModule === 'MODULE_3' && (
-            <p className="text-xs text-center text-teal-600 mt-2">
-              {language === 'es'
-                ? 'Ultimo modulo - Presiona "Finalizar" cuando termines'
-                : 'Last module - Press "End Session" when done'}
-            </p>
+              <div className="rounded-xl border border-primary-border bg-primary-soft p-3">
+                <div className="flex items-baseline justify-between gap-2 text-sm">
+                  <span className="font-semibold text-slate-900">{es ? `Parte ${moduleNumber} de 3` : `Part ${moduleNumber} of 3`}</span>
+                  <span className="tabular-nums text-slate-700">{Math.floor(elapsedMs / 60000)} min</span>
+                </div>
+                <p className="text-sm text-slate-700">{moduleName}</p>
+                <div className="mt-2 flex gap-1" aria-hidden="true">
+                  {(['MODULE_1', 'MODULE_2', 'MODULE_3'] as InterviewModule[]).map((mod) => (
+                    <div
+                      key={mod}
+                      className={`h-1.5 flex-1 rounded-full ${
+                        completedModules.includes(mod) ? 'bg-primary' : mod === currentModule ? 'bg-primary/50' : 'bg-slate-200'
+                      }`}
+                    />
+                  ))}
+                </div>
+              </div>
+
+              <button
+                onClick={openEndDialog}
+                className="min-h-[48px] w-full rounded-xl border-2 border-slate-300 bg-white px-4 font-semibold text-slate-800 transition-colors hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+              >
+                {currentModule === 'MODULE_3' ? (es ? 'Terminar y enviar a mi médico' : 'Finish and send to my doctor') : (es ? 'Terminar' : 'Finish')}
+              </button>
+            </div>
+          )}
+        </>
+      )}
+
+      {/* Avisos mientras la conversación sigue (p. ej. "Nova está tardando") */}
+      {isListening && error && (
+        <div className="mt-4 w-full max-w-sm rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-center text-sm text-amber-900" role="status">
+          <p>{error}</p>
+          {isMicError && onOpenDiagnostic && (
+            <button onClick={onOpenDiagnostic} className="mt-1 min-h-[40px] font-semibold underline">
+              {es ? 'Revisar mi micrófono' : 'Check my microphone'}
+            </button>
           )}
         </div>
       )}
 
-      {/* Transitioning Module Overlay */}
-      {isTransitioningModule && (
-        <div className="w-full max-w-xs mt-2 text-center">
-          <div className="flex items-center justify-center gap-2 text-teal-600">
-            <div className="w-5 h-5 border-2 border-teal-300 border-t-teal-600 rounded-full animate-spin"></div>
-            <span className="text-sm font-medium">
-              {language === 'es' ? 'Preparando siguiente modulo...' : 'Preparing next module...'}
-            </span>
+      {isError && (
+        <div className="w-full max-w-sm rounded-2xl border border-red-200 bg-red-50 p-5" role="alert">
+          <h2 className="text-lg font-semibold text-red-900">{es ? 'Algo salió mal' : 'Something went wrong'}</h2>
+          <p className="mt-1 whitespace-pre-line text-base text-red-900">{error}</p>
+          {hasConversation && (
+            <p className="mt-2 text-sm text-slate-700">{es ? 'Tu conversación está guardada.' : 'Your conversation is saved.'}</p>
+          )}
+          <div className="mt-4 flex flex-col gap-2">
+            {onRetry && (
+              <button onClick={onRetry} className={primaryButton}>
+                {es ? 'Reintentar' : 'Try again'}
+              </button>
+            )}
+            {isMicError && onOpenDiagnostic && (
+              <button onClick={onOpenDiagnostic} className={`${secondaryButton} border border-slate-300 bg-white`}>
+                {es ? 'Revisar mi micrófono' : 'Check my microphone'}
+              </button>
+            )}
+            {!hasConversation && (
+              <button onClick={onSwitchToText} className={secondaryButton}>
+                {es ? 'Prefiero escribir' : 'I prefer to write'}
+              </button>
+            )}
           </div>
         </div>
       )}
 
-      <div className="mt-6 text-center h-12" role="status" aria-live="polite" aria-atomic="true">
-        <p className="text-slate-700 font-medium">{getStatusText()}</p>
-        {isListening && (
-          <p className="text-sm text-slate-500 font-mono mt-1" aria-label={`${language === 'es' ? 'Tiempo transcurrido' : 'Elapsed time'}: ${Math.floor(elapsed / 60)} ${language === 'es' ? 'minutos' : 'minutes'} ${elapsed % 60} ${language === 'es' ? 'segundos' : 'seconds'}`}>
-            {String(Math.floor(elapsed / 60)).padStart(2, '0')}:{String(elapsed % 60).padStart(2, '0')}
-          </p>
-        )}
-      </div>
-
-      {error && (
-        <div className="w-full max-w-md mt-4 bg-red-50 border border-red-200 rounded-xl p-4" role="alert" aria-live="assertive">
-          <div className="flex items-start gap-3">
-            <div className="flex-shrink-0 w-10 h-10 bg-red-100 rounded-full flex items-center justify-center">
-              <svg className="w-5 h-5 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-              </svg>
-            </div>
-            <div className="flex-1">
-              <h4 className="text-sm font-semibold text-red-800 mb-1">
-                {language === 'es' ? 'Error' : 'Error'}
-              </h4>
-              <p className="text-sm text-red-700">{error}</p>
-              <div className="flex flex-wrap gap-2 mt-3">
-                {(error.includes('micrófono') || error.includes('microphone')) && onOpenDiagnostic && (
-                  <button
-                    onClick={onOpenDiagnostic}
-                    className="px-3 py-1.5 text-xs font-medium text-red-700 bg-red-100 hover:bg-red-200 rounded-lg transition-colors"
-                    title={language === 'es'
-                      ? 'Verificar permisos y funcionamiento del micrófono'
-                      : 'Check microphone permissions and functionality'}
-                  >
-                    {language === 'es' ? '🔧 Diagnóstico' : '🔧 Diagnostic'}
-                  </button>
-                )}
-                {appState === 'ERROR' && onRetry && !summaryGenerationFailed && (
-                  <button
-                    onClick={onRetry}
-                    className="px-3 py-1.5 text-xs font-medium text-white bg-red-600 hover:bg-red-700 rounded-lg transition-colors active:scale-95"
-                    title={language === 'es'
-                      ? 'Intentar conectar nuevamente con el servidor'
-                      : 'Attempt to reconnect to the server'}
-                  >
-                    {language === 'es' ? '🔄 Reintentar' : '🔄 Retry'}
-                  </button>
-                )}
-                {appState === 'ERROR' && summaryGenerationFailed && onRetryGenerateSummary && (
-                  <button
-                    onClick={onRetryGenerateSummary}
-                    className="px-4 py-2 text-sm font-semibold text-white bg-green-600 hover:bg-green-700 rounded-lg transition-colors active:scale-95 shadow-md"
-                    title={language === 'es'
-                      ? 'Volver a intentar generar el resumen clínico con la conversación existente'
-                      : 'Retry generating the clinical summary with the existing conversation'}
-                  >
-                    {language === 'es' ? '🔄 Regenerar Resumen' : '🔄 Regenerate Summary'}
-                  </button>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
+      {endVariant && (
+        <ConfirmationModal
+          isOpen
+          title={endDialog[endVariant].title}
+          message={endDialog[endVariant].message}
+          confirmText={endDialog[endVariant].confirm}
+          cancelText={es ? 'Seguir conversando' : 'Keep talking'}
+          onConfirm={confirmEnd}
+          onCancel={() => setEndVariant(null)}
+          language={language}
+          isDangerous={endDialog[endVariant].danger}
+        />
       )}
-      
-      {isIdle && (
-        <div className="w-full max-w-sm my-6 bg-teal-50 border-2 border-teal-200 rounded-xl p-4">
-           <label htmlFor="patient-name" className="block text-sm font-medium text-teal-700 mb-2 text-center">
-             {language === 'es' ? '👤 Tu Nombre' : '👤 Your Name'}
-           </label>
-           <input
-             ref={nameInputRef}
-             id="patient-name"
-             type="text"
-             value={patientName}
-             onChange={handleNameChange}
-             placeholder={texts.fullNameLabel}
-             className="w-full px-4 py-3 border-2 border-teal-300 rounded-lg text-center bg-white focus:ring-2 focus:ring-teal-500 focus:border-teal-500 transition text-lg font-medium"
-             aria-required="true"
-             maxLength={100}
-           />
-           <p className="text-xs text-teal-600 text-center mt-2">
-             {language === 'es' ? 'Ingresa el nombre para comenzar la sesión' : 'Enter name to start the session'}
-           </p>
-        </div>
-      )}
-
-      {!isIdle && patientName && (
-        <div className="my-6 h-[58px] flex items-center justify-center">
-          <div className="bg-teal-50 border border-teal-200 px-6 py-3 rounded-xl flex items-center gap-3 shadow-sm">
-            <svg className="w-5 h-5 text-teal-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-            </svg>
-            <div>
-              <p className="text-xs text-teal-600 font-medium uppercase tracking-wide">
-                {language === 'es' ? 'Paciente' : 'Patient'}
-              </p>
-              <p className="text-sm font-bold text-teal-900">
-                {patientName}
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
-      {!isIdle && !patientName && <div className="my-6 h-[58px]"></div>}
-
-      <div className="my-2 flex space-x-4" role="radiogroup" aria-label={language === 'es' ? 'Selección de idioma' : 'Language selection'}>
-        <button
-          onClick={() => onLanguageChange('es')}
-          disabled={disableLangButtons}
-          className={`px-6 py-2 rounded-full font-semibold transition-colors ${
-            language === 'es' ? 'bg-teal-600 text-white' : 'bg-slate-200 text-slate-700 hover:bg-slate-300'
-          } disabled:opacity-50 disabled:cursor-not-allowed`}
-          title={language === 'es' ? 'Idioma Español (actual)' : 'Change to Spanish'}
-          role="radio"
-          aria-checked={language === 'es'}
-        >
-          {texts?.spanish ?? 'Español'}
-        </button>
-        <button
-          onClick={() => onLanguageChange('en')}
-          disabled={disableLangButtons}
-          className={`px-6 py-2 rounded-full font-semibold transition-colors ${
-            language === 'en' ? 'bg-teal-600 text-white' : 'bg-slate-200 text-slate-700 hover:bg-slate-300'
-          } disabled:opacity-50 disabled:cursor-not-allowed`}
-          title={language === 'es' ? 'Cambiar a Inglés' : 'English Language (current)'}
-          role="radio"
-          aria-checked={language === 'en'}
-        >
-          {texts?.english ?? 'English'}
-        </button>
-      </div>
-      
-      <div className="mt-6">
-        <ActionButton />
-      </div>
-
-      {/* Modal de confirmación para finalizar sesión */}
-      <ConfirmationModal
-        isOpen={showEndConfirmation}
-        title={language === 'es' ? '¿Finalizar Sesión?' : 'End Session?'}
-        message={language === 'es'
-          ? 'Al finalizar la sesión, Nova generará el resumen clínico completo basado en la conversación. Podrás revisarlo y enviarlo al médico.'
-          : 'When you end the session, Nova will generate a complete clinical summary based on the conversation. You will be able to review it and send it to the doctor.'}
-        confirmText={language === 'es' ? 'Finalizar Sesión' : 'End Session'}
-        cancelText={language === 'es' ? 'Continuar Conversación' : 'Continue Conversation'}
-        onConfirm={handleConfirmEnd}
-        onCancel={handleCancelEnd}
-        language={language}
-        isDangerous={false}
-      />
-    </div>
+    </section>
   );
 };
 
