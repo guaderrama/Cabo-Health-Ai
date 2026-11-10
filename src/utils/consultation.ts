@@ -54,6 +54,8 @@ export function extractScoresFromSummary(summary: string): ExtractedScores {
     /Overall\s*readiness[:\s]*(\d+(?:\.\d+)?)/i,
     // Fallback: "Readiness" label followed by score in dashboard widget
     /Readiness\s*(\d+(?:\.\d+)?)\s*\/\s*10/i,
+    // Con palabras en medio ("Readiness general estimado 7/10"); sin cruzar otra "/10"
+    /Readiness[^\d/]{0,25}?(\d+(?:\.\d+)?)\s*\/\s*10/i,
   ]);
 
   // Importance patterns (ES + EN)
@@ -62,6 +64,8 @@ export function extractScoresFromSummary(summary: string): ExtractedScores {
     /Importance\s*(?:of\s*change)?[:\s]*(\d+(?:\.\d+)?)\s*\/?\s*10/i,
     /Importance\s*(\d+(?:\.\d+)?)\s*\/\s*10/i,
     /Importancia\s*(\d+(?:\.\d+)?)\s*\/\s*10/i,
+    // "Importancia estimada 8/10"
+    /Importan(?:cia|ce)[^\d/]{0,25}?(\d+(?:\.\d+)?)\s*\/\s*10/i,
   ]);
 
   // Confidence patterns (ES + EN)
@@ -70,6 +74,8 @@ export function extractScoresFromSummary(summary: string): ExtractedScores {
     /Confidence\s*(?:in\s*changing)?[:\s]*(\d+(?:\.\d+)?)\s*\/?\s*10/i,
     /Confidence\s*(\d+(?:\.\d+)?)\s*\/\s*10/i,
     /Confianza\s*(\d+(?:\.\d+)?)\s*\/\s*10/i,
+    // "Confianza estimada 6/10"
+    /Confi(?:anza|dence)[^\d/]{0,25}?(\d+(?:\.\d+)?)\s*\/\s*10/i,
   ]);
 
   // Motivation score: average of readiness and importance, or just readiness.
