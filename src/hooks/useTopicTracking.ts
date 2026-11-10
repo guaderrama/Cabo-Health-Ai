@@ -15,7 +15,7 @@ interface UseTopicTrackingReturn {
   tracking: TopicTracking;
   processNovaMessage: (text: string) => string;
   resetTracking: () => void;
-  loadTracking: (coveredTopics: number[]) => void;
+  loadTracking: (coveredTopics: number[], currentTopic?: number | null) => void;
   getProgress: () => { covered: number; total: number; percentage: number };
   isComplete: boolean;
   essentialsCovered: number;
@@ -30,6 +30,7 @@ export const useTopicTracking = (): UseTopicTrackingReturn => {
     coveredTopics: new Set<number>(),
     currentTopic: null,
     lastUpdated: '',
+    novaStopped: false,
   });
 
   // Ref para evitar re-renders innecesarios
@@ -80,8 +81,9 @@ export const useTopicTracking = (): UseTopicTrackingReturn => {
 
         const newTracking: TopicTracking = {
           coveredTopics: newCovered,
-          currentTopic: marker.p,
+          currentTopic: marker.p ?? null,
           lastUpdated: new Date().toISOString(),
+          novaStopped: marker.p === null,
         };
 
         logger.debug('📊 Tracking actualizado:', {
@@ -105,18 +107,20 @@ export const useTopicTracking = (): UseTopicTrackingReturn => {
       coveredTopics: new Set<number>(),
       currentTopic: null,
       lastUpdated: '',
+      novaStopped: false,
     });
     logger.debug('📊 Tracking reseteado');
   }, []);
 
   /**
-   * Carga temas cubiertos desde un checkpoint guardado
+   * Carga el progreso guardado (temas cubiertos y el tema que Nova estaba preguntando)
    */
-  const loadTracking = useCallback((coveredTopics: number[]) => {
+  const loadTracking = useCallback((coveredTopics: number[], currentTopic: number | null = null) => {
     setTracking({
       coveredTopics: new Set(coveredTopics),
-      currentTopic: null,
+      currentTopic,
       lastUpdated: new Date().toISOString(),
+      novaStopped: false,
     });
     logger.debug('📊 Tracking cargado desde checkpoint:', coveredTopics);
   }, []);

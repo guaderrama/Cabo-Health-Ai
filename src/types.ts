@@ -96,6 +96,8 @@ export interface TopicTracking {
   coveredTopics: Set<number>;
   currentTopic: number | null;
   lastUpdated: string;
+  /** Nova mandó su última marca con "p": null, es decir, dejó de preguntar (cierre, salida anticipada o urgencia). */
+  novaStopped: boolean;
 }
 
 // Topic names for display

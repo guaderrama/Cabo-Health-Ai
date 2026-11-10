@@ -96,9 +96,9 @@ const ConsultationHistory: React.FC<ConsultationHistoryProps> = ({ language, onC
     if (!matchesSearch) return false;
 
     if (filterMotivation === 'all') return true;
-    if (filterMotivation === 'high') return (c.motivation_score || 0) >= 7;
-    if (filterMotivation === 'medium') return (c.motivation_score || 0) >= 4 && (c.motivation_score || 0) < 7;
-    if (filterMotivation === 'low') return (c.motivation_score || 0) < 4;
+    if (filterMotivation === 'high') return c.motivation_score != null && c.motivation_score >= 7;
+    if (filterMotivation === 'medium') return c.motivation_score != null && c.motivation_score >= 4 && c.motivation_score < 7;
+    if (filterMotivation === 'low') return c.motivation_score != null && c.motivation_score < 4;
 
     return true;
   }), [consultations, searchQuery, filterMotivation]);

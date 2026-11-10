@@ -5,6 +5,7 @@ import { SendIcon, MicrophoneIcon, StopIcon, SpeakerIcon } from './icons';
 import ConfirmationModal from './ConfirmationModal';
 import TypingMessage from './TypingMessage';
 import { MIN_TOPICS_REQUIRED } from '../hooks/useTopicTracking';
+import { stripMarkdown } from '../utils/richText';
 
 interface TextChatPanelProps {
   language: Language;
@@ -96,9 +97,16 @@ const TextChatPanel: React.FC<TextChatPanelProps> = ({
   const currentTopicName = topicTracking?.currentTopic ? TOPIC_NAMES[language][topicTracking.currentTopic] : null;
   const progress = Math.min(coveredCount / MIN_TOPICS_REQUIRED, 1);
   const patientMessages = transcript.filter(m => m.sender === 'You' && !m.failed).length;
-  const novaFinished = topicsComplete || transcript.some(msg =>
+  const lastMessage = transcript[transcript.length - 1];
+  const lastIsNova = lastMessage?.sender === 'Nova';
+  const closingSaid = transcript.some(msg =>
     msg.sender === 'Nova' && INTERVIEW_COMPLETE_PATTERNS.some(p => msg.text.toLowerCase().includes(p))
   );
+  // Nova dejó de preguntar en su último mensaje ("p": null en la marca de temas)
+  const novaStopped = lastIsNova && !!topicTracking?.novaStopped;
+  // Terminó de verdad: dijo su frase de cierre, o ya cubrió los temas y dejó de preguntar.
+  // Cubrir 15 temas no basta: Nova puede seguir preguntando y el aviso la contradiría.
+  const novaFinished = closingSaid || (topicsComplete && novaStopped);
   const minutes = Math.floor(elapsedMs / 60000);
 
   // Reloj de la entrevista (usa el inicio real de la sesión, también al recuperarla)
@@ -154,7 +162,7 @@ const TextChatPanel: React.FC<TextChatPanelProps> = ({
     if (!ttsEnabled || !ttsSupported) return;
     const lastMessage = transcript[transcript.length - 1];
     if (lastMessage?.sender === 'Nova') {
-      const utterance = new SpeechSynthesisUtterance(lastMessage.text);
+      const utterance = new SpeechSynthesisUtterance(stripMarkdown(lastMessage.text));
       utterance.lang = es ? 'es-MX' : 'en-US';
       utterance.rate = 0.9;
       window.speechSynthesis.cancel();

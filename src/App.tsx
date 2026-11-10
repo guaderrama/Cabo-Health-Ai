@@ -20,7 +20,7 @@ import FinishScreen from './components/FinishScreen';
 import ErrorBoundary from './components/ErrorBoundary';
 import { supabase } from './lib/supabase';
 import { getInitialLanguage, saveLanguage } from './utils/languagePreference';
-import { loadPatientProfile, savePatientProfile } from './utils/patientProfile';
+import { loadPatientProfile, savePatientProfile, ageFromDateOfBirth } from './utils/patientProfile';
 import { playWelcomeSound } from './services/audioService';
 import { logger } from './lib/logger';
 import { useTopicTracking } from './hooks/useTopicTracking';
@@ -81,10 +81,21 @@ const withTimeout = <T,>(promise: Promise<T>, ms: number): Promise<T> => {
 // Intervalo de actualización de frecuencia (throttle para reducir re-renders)
 const FREQUENCY_UPDATE_INTERVAL = 100; // 100ms = 10 updates/segundo en lugar de 60
 
-// Mensaje con el que arranca el chat de TEXTO (también se usa para rehacer el historial al recuperar)
-const getTextActivationMessage = (lang: Language) => lang === 'es'
-  ? '[Sesión de TEXTO iniciada - Por favor saluda al paciente y comienza la entrevista completa]'
-  : '[TEXT session started - Please greet the patient and begin the complete interview]';
+// Mensaje con el que arranca el chat de TEXTO (también se usa para rehacer el historial al recuperar).
+// Lleva la edad, que ya tenemos por la fecha de nacimiento, para que Nova no la pregunte.
+// El nombre no se envía a la IA.
+const getTextActivationMessage = (lang: Language, age: number | null = null) => lang === 'es'
+  ? `[Sesión de TEXTO iniciada - Por favor saluda al paciente y comienza la entrevista completa${age !== null ? `. El paciente tiene ${age} años; no le preguntes su edad` : ''}]`
+  : `[TEXT session started - Please greet the patient and begin the complete interview${age !== null ? `. The patient is ${age} years old; do not ask their age` : ''}]`;
+
+// La duración real va al inicio del texto del resumen (antes decía "Duración: no disponible")
+const withDurationHeader = (transcriptText: string, seconds: number, lang: Language) => {
+  if (seconds <= 0) return transcriptText;
+  const minutes = Math.max(1, Math.round(seconds / 60));
+  return lang === 'es'
+    ? `[Duración de la entrevista: ${minutes} minutos]\n${transcriptText}`
+    : `[Interview duration: ${minutes} minutes]\n${transcriptText}`;
+};
 
 // Temas cubiertos en modo TEXTO, para que una entrevista recuperada no empiece en 0
 const topicsStorageKey = (sessionId: string) => `cabo_health_topics_${sessionId}`;
@@ -456,7 +467,10 @@ const MainApp: React.FC = () => {
   useEffect(() => {
     if (interviewMode !== 'TEXT' || !sessionId || topicTracking.coveredTopics.size === 0) return;
     try {
-      localStorage.setItem(topicsStorageKey(sessionId), JSON.stringify([...topicTracking.coveredTopics]));
+      localStorage.setItem(topicsStorageKey(sessionId), JSON.stringify({
+        c: [...topicTracking.coveredTopics],
+        p: topicTracking.currentTopic,
+      }));
     } catch {
       // no crítico
     }
@@ -740,7 +754,7 @@ const MainApp: React.FC = () => {
       // TEXT usa las instrucciones completas (sin módulos): una sola sesión continua.
       // La Edge Function agrega SYSTEM_INSTRUCTIONS[language] en el servidor.
       const chatSession = new TerraChatSession(language);
-      const greetingText = await chatSession.sendMessage(getTextActivationMessage(language));
+      const greetingText = await chatSession.sendMessage(getTextActivationMessage(language, ageFromDateOfBirth(patientDob)));
       if (token !== textStartTokenRef.current) return; // La persona salió mientras conectaba
 
       chatSessionRef.current = chatSession;
@@ -771,7 +785,7 @@ const MainApp: React.FC = () => {
           : 'Check your internet connection and try again.'));
       setAppState('ERROR');
     }
-  }, [language, processTopicMarker, resetTopicTracking]);
+  }, [language, processTopicMarker, resetTopicTracking, patientDob]);
 
   // Elegir modo en la bienvenida: escribir arranca el chat de inmediato; hablar muestra
   // primero las indicaciones (el micrófono necesita que la persona toque "Empezar")
@@ -884,7 +898,9 @@ const MainApp: React.FC = () => {
       chatSessionRef.current = TerraChatSession.fromTranscript(checkpoint.language, getTextActivationMessage(checkpoint.language), restored);
       try {
         const savedTopics = localStorage.getItem(topicsStorageKey(checkpoint.session_id));
-        if (savedTopics) loadTopicTracking(JSON.parse(savedTopics) as number[]);
+        const parsed = savedTopics ? JSON.parse(savedTopics) as number[] | { c: number[]; p: number | null } : null;
+        if (Array.isArray(parsed)) loadTopicTracking(parsed); // formato anterior: solo temas cubiertos
+        else if (parsed) loadTopicTracking(parsed.c, parsed.p);
         else resetTopicTracking();
       } catch {
         resetTopicTracking();
@@ -1009,6 +1025,7 @@ const MainApp: React.FC = () => {
     const sessionDuration = sessionStartTimeRef.current
       ? Math.floor((Date.now() - sessionStartTimeRef.current) / 1000)
       : 0;
+    const summaryInput = withDurationHeader(fullTranscriptText, sessionDuration, language);
 
     if (user?.id) {
       const saveResult = await savePendingSummaryWithRetry(
@@ -1073,7 +1090,7 @@ const MainApp: React.FC = () => {
         let summaryText = '';
         if (!skipTerra) {
           try {
-            summaryText = await generateSummaryWithTerra(fullTranscriptText, language);
+            summaryText = await generateSummaryWithTerra(summaryInput, language);
           } catch (terraError) {
             logger.warn('GPT-6.1 Terra falló, usando Gemini como respaldo:', terraError);
             const terraMessage = terraError instanceof Error ? terraError.message : String(terraError);
@@ -1089,7 +1106,7 @@ const MainApp: React.FC = () => {
             response = await withTimeout(
               ai.models.generateContent({
                 model: 'gemini-3.1-pro-preview',
-                contents: SUMMARY_PROMPT[language](fullTranscriptText),
+                contents: SUMMARY_PROMPT[language](summaryInput),
                 config: {
                   thinkingConfig: {
                     thinkingLevel: ThinkingLevel.HIGH, // Máxima calidad de razonamiento
@@ -1106,7 +1123,7 @@ const MainApp: React.FC = () => {
             response = await withTimeout(
               ai.models.generateContent({
                 model: 'gemini-3-flash-preview',
-                contents: SUMMARY_PROMPT[language](fullTranscriptText),
+                contents: SUMMARY_PROMPT[language](summaryInput),
                 config: {
                   thinkingConfig: {
                     thinkingBudget: 0 // Sin thinking = máxima velocidad
@@ -2019,6 +2036,11 @@ const MainApp: React.FC = () => {
       setAppState('ERROR');
       return;
     }
+    const summaryInput = withDurationHeader(
+      fullTranscriptText,
+      sessionStartTimeRef.current ? Math.floor((Date.now() - sessionStartTimeRef.current) / 1000) : 0,
+      language
+    );
 
     // Configuración de reintentos
     const MAX_SUMMARY_RETRIES = 3;
@@ -2045,7 +2067,7 @@ const MainApp: React.FC = () => {
         let summaryText = '';
         if (!skipTerra) {
           try {
-            summaryText = await generateSummaryWithTerra(fullTranscriptText, language);
+            summaryText = await generateSummaryWithTerra(summaryInput, language);
           } catch (terraError) {
             logger.warn('GPT-6.1 Terra falló, usando Gemini como respaldo:', terraError);
             const terraMessage = terraError instanceof Error ? terraError.message : String(terraError);
@@ -2060,7 +2082,7 @@ const MainApp: React.FC = () => {
           const response = await withTimeout(
             ai.models.generateContent({
               model: 'gemini-3.1-pro-preview',
-              contents: SUMMARY_PROMPT[language](fullTranscriptText),
+              contents: SUMMARY_PROMPT[language](summaryInput),
             }),
             SUMMARY_TIMEOUT
           );

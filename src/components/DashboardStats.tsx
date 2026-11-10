@@ -19,13 +19,13 @@ const DashboardStats: React.FC<DashboardStatsProps> = ({ consultations, language
     // Calcular motivación promedio
     const motivationScores = consultations
       .map(c => c.motivation_score)
-      .filter((score): score is number => score !== undefined);
+      .filter((score): score is number => score != null); // null = no evaluada
     const avgMotivation = motivationScores.length > 0
       ? motivationScores.reduce((sum, score) => sum + score, 0) / motivationScores.length
       : 0;
 
     // Pacientes en riesgo (motivación <4)
-    const atRisk = consultations.filter(c => (c.motivation_score || 0) < 4).length;
+    const atRisk = consultations.filter(c => c.motivation_score != null && c.motivation_score < 4).length;
 
     // Consultas esta semana
     const oneWeekAgo = new Date();

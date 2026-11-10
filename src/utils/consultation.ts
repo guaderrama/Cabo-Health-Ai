@@ -7,7 +7,7 @@ export interface MotivationLevel {
 }
 
 export interface ExtractedScores {
-  motivationScore: number;
+  motivationScore: number | null;
   empathyScore: number | null;
   readiness: number | null;
   importance: number | null;
@@ -72,10 +72,11 @@ export function extractScoresFromSummary(summary: string): ExtractedScores {
     /Confianza\s*(\d+(?:\.\d+)?)\s*\/\s*10/i,
   ]);
 
-  // Motivation score: average of readiness and importance, or just readiness
+  // Motivation score: average of readiness and importance, or just readiness.
+  // Si el resumen no la pudo evaluar queda vacía (null): un 5.0 inventado se veía como dato real.
   const motivationScore = readiness !== null
     ? (importance !== null ? (readiness + importance) / 2 : readiness)
-    : 5.0; // default only if nothing found
+    : null;
 
   return {
     motivationScore,
@@ -113,7 +114,7 @@ export const formatDuration = (seconds?: number): string => {
 /**
  * Returns motivation level styling based on score
  */
-export const getMotivationLevel = (score?: number): MotivationLevel => {
+export const getMotivationLevel = (score?: number | null): MotivationLevel => {
   if (!score) return { level: 'unknown', color: 'bg-gray-200', textColor: 'text-gray-600' };
   if (score >= 7) return { level: 'high', color: 'bg-green-500', textColor: 'text-green-700' };
   if (score >= 4) return { level: 'medium', color: 'bg-yellow-500', textColor: 'text-yellow-700' };

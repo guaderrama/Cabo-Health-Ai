@@ -3,6 +3,7 @@ import { type AppState, type Language, type TranscriptMessage } from '../types';
 import ConsultationHistory from './ConsultationHistory';
 import ConfirmationModal from './ConfirmationModal';
 import BrandBackdrop from './BrandBackdrop';
+import { renderRichText } from '../utils/richText';
 
 interface FinishScreenProps {
   language: Language;
@@ -159,7 +160,7 @@ const FinishScreen: React.FC<FinishScreenProps> = ({
             {visibleMessages.map((msg) => (
               <li key={msg.id} className="text-base leading-relaxed text-slate-800">
                 <span className="font-semibold text-slate-900">{msg.sender === 'Nova' ? 'Nova' : (es ? 'Tú' : 'You')}: </span>
-                {msg.text}
+                <span className="whitespace-pre-wrap">{renderRichText(msg.text)}</span>
               </li>
             ))}
           </ol>

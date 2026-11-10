@@ -355,7 +355,8 @@ const DoctorDashboard: React.FC<DoctorDashboardProps> = ({ language }) => {
   };
 
   const getAlertBadge = (consultation: Consultation) => {
-    const motivationScore = consultation.motivation_score || 0;
+    // null = la motivación no se pudo evaluar; no debe contar como baja
+    const motivationScore = consultation.motivation_score ?? null;
     let criticalSystemsCount = 0;
 
     // Analizar summary para contar sistemas críticos
@@ -370,7 +371,7 @@ const DoctorDashboard: React.FC<DoctorDashboardProps> = ({ language }) => {
     }
 
     // Determinar badge
-    if (motivationScore < 3 && criticalSystemsCount >= 2) {
+    if (motivationScore !== null && motivationScore < 3 && criticalSystemsCount >= 2) {
       return {
         label: language === 'es' ? 'URGENTE' : 'URGENT',
         icon: '🔴',
@@ -388,7 +389,7 @@ const DoctorDashboard: React.FC<DoctorDashboardProps> = ({ language }) => {
         pulse: false
       };
     }
-    if (motivationScore >= 4 && motivationScore < 7) {
+    if (motivationScore !== null && motivationScore >= 4 && motivationScore < 7) {
       return {
         label: language === 'es' ? 'SEGUIMIENTO' : 'FOLLOW-UP',
         icon: '🟡',
@@ -397,7 +398,7 @@ const DoctorDashboard: React.FC<DoctorDashboardProps> = ({ language }) => {
         pulse: false
       };
     }
-    if (motivationScore >= 7) {
+    if (motivationScore !== null && motivationScore >= 7) {
       return {
         label: language === 'es' ? 'ESTABLE' : 'STABLE',
         icon: '🟢',
@@ -417,9 +418,9 @@ const DoctorDashboard: React.FC<DoctorDashboardProps> = ({ language }) => {
     if (!matchesSearch) return false;
 
     if (filterMotivation === 'all') return true;
-    if (filterMotivation === 'high') return (c.motivation_score || 0) >= 7;
-    if (filterMotivation === 'medium') return (c.motivation_score || 0) >= 4 && (c.motivation_score || 0) < 7;
-    if (filterMotivation === 'low') return (c.motivation_score || 0) < 4;
+    if (filterMotivation === 'high') return c.motivation_score != null && c.motivation_score >= 7;
+    if (filterMotivation === 'medium') return c.motivation_score != null && c.motivation_score >= 4 && c.motivation_score < 7;
+    if (filterMotivation === 'low') return c.motivation_score != null && c.motivation_score < 4;
 
     return true;
   }), [consultations, searchQuery, filterMotivation]);
@@ -608,13 +609,13 @@ const DoctorDashboard: React.FC<DoctorDashboardProps> = ({ language }) => {
                         📊 {language === 'es' ? 'Scores Motivacionales' : 'Motivational Scores'}
                       </h4>
                       <div className="flex justify-center gap-6">
-                        {consultation.motivation_score !== undefined && (
+                        {consultation.motivation_score != null && (
                           <MotivationGauge
                             score={consultation.motivation_score}
                             label={language === 'es' ? 'Motivación' : 'Motivation'}
                           />
                         )}
-                        {consultation.empathy_score !== undefined && (
+                        {consultation.empathy_score != null && (
                           <MotivationGauge
                             score={consultation.empathy_score}
                             label={language === 'es' ? 'Empatía' : 'Empathy'}

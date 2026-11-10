@@ -312,20 +312,37 @@ SUGGESTED FLOW:
 8. CLOSE with the closing protocol
 `;
 
+// Regla común a los 3 módulos de voz (la misma que tiene el chat de texto)
+const interviewOnlyRuleEs = `
+TU UNICO TRABAJO ES HACER LA ENTREVISTA:
+- NUNCA recomiendes llamar al 911, a emergencias ni ir a urgencias
+- NUNCA le digas al paciente que hable, consulte o acuda con su medico ni con otro especialista
+- NUNCA des diagnosticos, posibles causas, consejos ni indicaciones sobre medicamentos o tratamientos
+- Si el paciente pregunta algo medico, responde en una frase que quedara anotado para el resumen y continua con la siguiente pregunta de la entrevista
+`;
+
+const interviewOnlyRuleEn = `
+YOUR ONLY JOB IS TO CONDUCT THE INTERVIEW:
+- NEVER recommend calling 911 or emergency services, or going to the emergency room
+- NEVER tell the patient to talk to, consult or see their doctor or any other specialist
+- NEVER give diagnoses, possible causes, advice or instructions about medications or treatments
+- If the patient asks a medical question, reply in one sentence that it will be noted for the summary and continue with the next interview question
+`;
+
 // Export module-specific instructions
 export const SYSTEM_INSTRUCTIONS_MODULE_1: Record<Language, string> = {
-  es: module1FrameEs,
-  en: module1FrameEn,
+  es: module1FrameEs + interviewOnlyRuleEs,
+  en: module1FrameEn + interviewOnlyRuleEn,
 };
 
 export const SYSTEM_INSTRUCTIONS_MODULE_2: Record<Language, string> = {
-  es: module2FrameEs,
-  en: module2FrameEn,
+  es: module2FrameEs + interviewOnlyRuleEs,
+  en: module2FrameEn + interviewOnlyRuleEn,
 };
 
 export const SYSTEM_INSTRUCTIONS_MODULE_3: Record<Language, string> = {
-  es: module3FrameEs,
-  en: module3FrameEn,
+  es: module3FrameEs + interviewOnlyRuleEs,
+  en: module3FrameEn + interviewOnlyRuleEn,
 };
 
 // Helper function to get instructions for a specific module

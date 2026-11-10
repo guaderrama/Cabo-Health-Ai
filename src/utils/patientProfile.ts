@@ -58,6 +58,16 @@ export function sanitizeName(value: string): string {
   return value.replace(/[^\p{L}\p{M}\s'.-]/gu, '').slice(0, 100);
 }
 
+/** Edad cumplida a partir de la fecha de nacimiento (YYYY-MM-DD), o null si no es válida. */
+export function ageFromDateOfBirth(value: string): number | null {
+  if (!isValidDateOfBirth(value)) return null;
+  const [y, m, d] = value.split('-').map(Number) as [number, number, number];
+  const now = new Date();
+  let age = now.getFullYear() - y;
+  if (now.getMonth() + 1 < m || (now.getMonth() + 1 === m && now.getDate() < d)) age--;
+  return age >= 0 && age < 130 ? age : null;
+}
+
 export function isValidDateOfBirth(value: string): boolean {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
   const date = new Date(`${value}T00:00:00`);

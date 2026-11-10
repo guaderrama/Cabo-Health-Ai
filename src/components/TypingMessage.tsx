@@ -1,6 +1,7 @@
 import React from 'react';
 import { useTypingAnimation } from '../hooks/useTypingAnimation';
 import { type Language } from '../types';
+import { renderRichText, stripMarkdown } from '../utils/richText';
 
 interface TypingMessageProps {
     text: string;
@@ -59,7 +60,8 @@ const TypingMessage: React.FC<TypingMessageProps> = ({
                     <span className="sr-only">{isNova ? 'Nova: ' : (es ? 'Tú: ' : 'You: ')}</span>
                     {/* Texto grande (18px) para personas mayores */}
                     <p className="whitespace-pre-wrap break-words text-lg leading-relaxed">
-                        {textToShow}
+                        {/* Mientras se escribe va sin formato; al terminar se muestran las negritas */}
+                        {animating ? stripMarkdown(textToShow) : renderRichText(text)}
                         {animating && <span className="ml-1 inline-block h-5 w-0.5 animate-pulse bg-slate-400" aria-hidden="true" />}
                     </p>
                     {animating && (
