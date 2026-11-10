@@ -4,7 +4,7 @@
  */
 
 const SUPABASE_URL = 'https://cozsoshuctvhvdbmkmwc.supabase.co';
-const SERVICE_ROLE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNvenNvc2h1Y3R2aHZkYm1rbXdjIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2MjA0MjY0MiwiZXhwIjoyMDc3NjE4NjQyfQ.8HAy0tbp6Teq8hFn0zeu6yku1TP_R03P3hoOMHItTOo';
+const SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 async function fixEmpathyScore() {
   console.log('🔧 Verificando si la columna empathy_score existe...\n');

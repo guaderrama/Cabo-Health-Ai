@@ -24,16 +24,16 @@ Cabo Health Nova implementa un enfoque de seguridad multicapa que protege tanto 
 # Requeridas para el frontend
 VITE_SUPABASE_URL=https://cozsoshuctvhvdbmkmwc.supabase.co
 VITE_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNvenNvc2h1Y3R2aHZkYm1rbXdjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MjIwNDI2NDIsImV4cCI6MjA3NzYxODY0Mn0.Q6ewFANuzCISYqVwAOpGsJsO9UgEbUsJEVbkMPz1dsA
-VITE_GEMINI_API_KEY=AIzaSyBsoNLTcxY-r33SFT4CXePqdEGjDVkwYN4
+VITE_GEMINI_API_KEY=<tu-gemini-api-key>
 ```
 
 #### Variables Backend (Supabase Edge Functions)
 ```bash
 # Variables de Edge Functions (sin prefijo VITE_)
-SERVICE_ROLE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNvenNvc2h1Y3R2aHZkYm1rbXdjIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2MjA0MjY0MiwiZXhwIjoyMDc3NjE4NjQyfQ.8HAy0tbp6Teq8hFn0zeu6yku1TP_R03P3hoOMHItTOo
-GEMINI_API_KEY=AIzaSyBsoNLTcxY-r33SFT4CXePqdEGjDVkwYN4
+SERVICE_ROLE_KEY=<tu-service-role-key> (nunca la escribas en el repositorio)
+GEMINI_API_KEY=<tu-gemini-api-key>
 DB_URL=https://cozsoshuctvhvdbmkmwc.supabase.co
-AI_KEY=AIzaSyBsoNLTcxY-r33SFT4CXePqdEGjDVkwYN4
+AI_KEY=<tu-gemini-api-key>
 ```
 
 #### Variables Opcionales
@@ -62,9 +62,9 @@ VITE_GEMINI_API_KEY=tu_api_key_aqui
 
 ```
 SERVICE_ROLE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
-GEMINI_API_KEY=AIzaSyBsoNLTcxY-r33SFT4CXePqdEGjDVkwYN4
+GEMINI_API_KEY=<tu-gemini-api-key>
 DB_URL=https://cozsoshuctvhvdbmkmwc.supabase.co
-AI_KEY=AIzaSyBsoNLTcxY-r33SFT4CXePqdEGjDVkwYN4
+AI_KEY=<tu-gemini-api-key>
 ```
 
 ⚠️ **Importante**: No usar prefijo `SUPABASE_` - está prohibido por Supabase

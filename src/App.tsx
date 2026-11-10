@@ -2,9 +2,12 @@
 import React, { useState, useEffect, useRef, useCallback, Suspense, lazy } from 'react';
 import { GoogleGenAI, Modality, LiveServerMessage, ThinkingLevel } from '@google/genai';
 import { type AppState, type Language, type TranscriptMessage, type RecoverableSession, type InterviewModule, type InterviewMode } from './types';
-import { UI_TEXTS, SUMMARY_PROMPT, getModuleInstructions, getNextModule, MODULE_CONFIGS, SYSTEM_INSTRUCTIONS } from './constants';
+import { UI_TEXTS, SUMMARY_PROMPT, getModuleInstructions, getNextModule, MODULE_CONFIGS } from './constants';
 import { encode, decode, decodeAudioData, concatenateUint8Arrays } from './utils/audioUtils';
 import { sanitizeHtml } from './utils/sanitizeHtml';
+import { isGeminiBillingError, getGeminiBillingMessage, isOpenAIBillingError, getOpenAIBillingMessage } from './utils/billingErrors';
+import { generateSummaryWithTerra } from './services/terraSummary';
+import { TerraChatSession } from './services/terraChat';
 import { uploadAudioFragmentWav } from './utils/audioStorage';
 import { useAuth } from './contexts/AuthContext';
 import AuthForm from './components/AuthForm';
@@ -175,7 +178,7 @@ const MainApp: React.FC = () => {
   const maxReconnectAttempts = 3;
   const isReconnectingRef = useRef(false); // Prevenir race condition en reconexiones múltiples
   const bufferCleanupIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null); // Limpieza periódica de buffers
-  const chatSessionRef = useRef<any>(null); // Sesión de chat para modo TEXT (API regular, no Live API)
+  const chatSessionRef = useRef<TerraChatSession | null>(null); // Chat de modo TEXT con GPT-6.1 Terra (Edge Function chat-openai)
 
   // Hook para tracking de temas en modo TEXT
   const {
@@ -318,6 +321,19 @@ const MainApp: React.FC = () => {
   useEffect(() => {
     appStateRef.current = appState;
   }, [appState]);
+
+  // Refs para los callbacks de Live API: se crean al conectar y si leyeran el state
+  // verían el transcript/sessionId de ese momento (vacío / sesión anterior)
+  const transcriptRef = useRef(transcript);
+  const sessionIdRef = useRef(sessionId);
+
+  useEffect(() => {
+    transcriptRef.current = transcript;
+  }, [transcript]);
+
+  useEffect(() => {
+    sessionIdRef.current = sessionId;
+  }, [sessionId]);
 
   // Sincronizar ref de interviewMode para evitar stale closures en callbacks
   useEffect(() => {
@@ -602,8 +618,7 @@ const MainApp: React.FC = () => {
     logger.debug(`Modo de entrevista seleccionado: ${mode}`);
   }, []);
 
-  // Handler para enviar mensaje de texto en modo TEXT
-  // Handler para enviar mensajes en modo TEXTO (usando Chat API, no Live API)
+  // Handler para enviar mensajes en modo TEXTO (GPT-6.1 Terra, no Live API)
   const handleSendTextMessage = useCallback(async (text: string) => {
     if (!chatSessionRef.current || !text.trim()) return;
 
@@ -618,15 +633,9 @@ const MainApp: React.FC = () => {
     setTranscript(prev => [...prev, userMessage]);
     setWaitingForNova(true);
 
-    // Enviar a Gemini usando Chat API (HTTP request, no WebSocket)
+    // Enviar a GPT-6.1 Terra (HTTP request, no WebSocket)
     try {
-      const response = await chatSessionRef.current.sendMessage({
-        message: text.trim()
-      });
-
-      // Extraer texto de la respuesta
-      const responseText = response.text ||
-        response.candidates?.[0]?.content?.parts?.[0]?.text || '';
+      const responseText = await chatSessionRef.current.sendMessage(text.trim());
 
       if (responseText.trim()) {
         // Procesar marcadores de temas y obtener texto limpio
@@ -646,15 +655,19 @@ const MainApp: React.FC = () => {
       logger.debug('📤 Mensaje TEXT enviado y respuesta recibida');
     } catch (e) {
       logger.error('Error enviando mensaje de texto:', e);
-      setError(language === 'es'
-        ? 'Error al enviar mensaje. Intenta de nuevo.'
-        : 'Error sending message. Try again.');
+      if (isOpenAIBillingError(String((e as Error)?.message ?? e))) {
+        setError(getOpenAIBillingMessage(language));
+      } else {
+        setError(language === 'es'
+          ? 'Error al enviar mensaje. Intenta de nuevo.'
+          : 'Error sending message. Try again.');
+      }
     } finally {
       setWaitingForNova(false);
     }
   }, [language]);
 
-  // Handler para iniciar sesión en modo TEXTO (usando Chat API, no Live API)
+  // Handler para iniciar sesión en modo TEXTO (GPT-6.1 Terra vía Edge Function, no Live API)
   // Esto es MUCHO más simple y estable que usar Live API para texto
   const handleStartTextSession = useCallback(async () => {
     setAppState('CONNECTING');
@@ -678,31 +691,15 @@ const MainApp: React.FC = () => {
     setLastCheckpointTime(null);
 
     try {
-      const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
-      if (!apiKey || apiKey.trim() === '') {
-        throw new Error('VITE_GEMINI_API_KEY no esta configurada');
-      }
-
-      const ai = new GoogleGenAI({ apiKey: apiKey as string });
-
-      // TEXT mode uses COMPLETE instructions (no modules)
-      // This is a single continuous session without transitions
-      const fullInstructions = SYSTEM_INSTRUCTIONS[language];
-
-      logger.debug('🔧 Configurando sesion de TEXTO con Chat API:', {
-        mode: 'TEXT (Chat API) - Sesión continua sin módulos',
-        model: 'gemini-3-flash-preview',
-        api: 'chats.create (NO Live API)'
+      // TEXT mode uses COMPLETE instructions (no modules): a single continuous session.
+      // The Edge Function adds SYSTEM_INSTRUCTIONS[language] on the server.
+      logger.debug('🔧 Configurando sesion de TEXTO:', {
+        mode: 'TEXT - Sesión continua sin módulos',
+        model: 'gpt-6.1-terra',
+        api: 'Edge Function chat-openai'
       });
 
-      // Crear sesión de chat usando Chat API (NO Live API)
-      // Esto es HTTP request/response, no WebSocket - mucho más estable
-      chatSessionRef.current = ai.chats.create({
-        model: 'gemini-3-flash-preview',
-        config: {
-          systemInstruction: fullInstructions
-        }
-      });
+      chatSessionRef.current = new TerraChatSession(language);
 
       // Enviar mensaje de activación - siempre saluda (sesión única)
       const activationMessage = language === 'es'
@@ -711,13 +708,7 @@ const MainApp: React.FC = () => {
 
       setWaitingForNova(true);
 
-      const response = await chatSessionRef.current.sendMessage({
-        message: activationMessage
-      });
-
-      // Extraer texto de la respuesta
-      const greetingText = response.text ||
-        response.candidates?.[0]?.content?.parts?.[0]?.text || '';
+      const greetingText = await chatSessionRef.current.sendMessage(activationMessage);
 
       if (greetingText.trim()) {
         // Procesar marcadores de temas del saludo inicial
@@ -737,13 +728,17 @@ const MainApp: React.FC = () => {
       setAppState('LISTENING');
       sessionStartTimeRef.current = Date.now();
       setWaitingForNova(false);
-      logger.debug('✅ Sesión TEXT (Chat API) iniciada correctamente');
+      logger.debug('✅ Sesión TEXT (GPT-6.1 Terra) iniciada correctamente');
 
     } catch (e: any) {
       logger.error('Error iniciando sesion TEXT:', e);
-      setError(language === 'es'
-        ? 'No se pudo conectar. Verifica tu conexion.'
-        : 'Could not connect. Check your connection.');
+      if (isOpenAIBillingError(String(e?.message ?? e))) {
+        setError(getOpenAIBillingMessage(language));
+      } else {
+        setError(language === 'es'
+          ? 'No se pudo conectar. Verifica tu conexion.'
+          : 'Could not connect. Check your connection.');
+      }
       setAppState('ERROR');
       setWaitingForNova(false);
     }
@@ -981,19 +976,11 @@ const MainApp: React.FC = () => {
     let lastError: Error | null = null;
     let summaryGenerated = false;
 
-    // Verificar API key una sola vez
+    // Gemini es solo el respaldo de Terra: sin su llave se intenta únicamente Terra
     const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
-    if (!apiKey || apiKey.trim() === '') {
-      setError(language === 'es'
-        ? 'VITE_GEMINI_API_KEY no está configurada en las variables de entorno'
-        : 'VITE_GEMINI_API_KEY is not configured in environment variables');
-      setSummaryGenerationFailed(true);
-      setAppState('ERROR');
-      endSessionLockRef.current = false;
-      return;
-    }
-
-    const ai = new GoogleGenAI({ apiKey: apiKey as string });
+    const ai = apiKey?.trim() ? new GoogleGenAI({ apiKey }) : null;
+    let skipTerra = false;
+    let terraOutOfCredits = false;
 
     for (let attempt = 0; attempt < MAX_SUMMARY_RETRIES; attempt++) {
       try {
@@ -1007,43 +994,59 @@ const MainApp: React.FC = () => {
           await updateSummaryStatus(sessionId, 'processing');
         }
 
-        // PASO 3: Usar Gemini 3 Flash con thinkingLevel: HIGH
-        // 3x más rápido que 2.5 Pro, mejor calidad en benchmarks
-        let response;
-        try {
-          response = await withTimeout(
-            ai.models.generateContent({
-              model: 'gemini-3.1-pro-preview',
-              contents: SUMMARY_PROMPT[language](fullTranscriptText),
-              config: {
-                thinkingConfig: {
-                  thinkingLevel: ThinkingLevel.HIGH, // Máxima calidad de razonamiento
-                  includeThoughts: false // No necesitamos ver el thinking
-                },
-                maxOutputTokens: 16384
-              }
-            }),
-            SUMMARY_TIMEOUT
-          );
-        } catch (gemini3Error) {
-          // FALLBACK: Si Gemini 3.1 Pro falla, intentar con Gemini 3 Flash
-          logger.warn('Gemini 3.1 Pro falló, intentando con Gemini 3 Flash como fallback');
-          response = await withTimeout(
-            ai.models.generateContent({
-              model: 'gemini-3-flash-preview',
-              contents: SUMMARY_PROMPT[language](fullTranscriptText),
-              config: {
-                thinkingConfig: {
-                  thinkingBudget: 0 // Sin thinking = máxima velocidad
-                },
-                maxOutputTokens: 16384
-              }
-            }),
-            SUMMARY_TIMEOUT
-          );
+        // PASO 3: GPT-6.1 Terra (effort max) vía Edge Function; si falla, Gemini como respaldo.
+        // Sin saldo o tras agotar su timeout, Terra no se reintenta (serían otros 20 minutos)
+        let summaryText = '';
+        if (!skipTerra) {
+          try {
+            summaryText = await generateSummaryWithTerra(fullTranscriptText, language);
+          } catch (terraError) {
+            logger.warn('GPT-6.1 Terra falló, usando Gemini como respaldo:', terraError);
+            const terraMessage = terraError instanceof Error ? terraError.message : String(terraError);
+            terraOutOfCredits = isOpenAIBillingError(terraMessage);
+            skipTerra = terraOutOfCredits || terraMessage.startsWith('Timeout');
+          }
         }
 
-        const sanitizedSummary = sanitizeHtml(response.text ?? '');
+        if (!summaryText) {
+          if (!ai) throw new Error('VITE_GEMINI_API_KEY no está configurada (respaldo de GPT-6.1 Terra)');
+          let response;
+          try {
+            response = await withTimeout(
+              ai.models.generateContent({
+                model: 'gemini-3.1-pro-preview',
+                contents: SUMMARY_PROMPT[language](fullTranscriptText),
+                config: {
+                  thinkingConfig: {
+                    thinkingLevel: ThinkingLevel.HIGH, // Máxima calidad de razonamiento
+                    includeThoughts: false // No necesitamos ver el thinking
+                  },
+                  maxOutputTokens: 16384
+                }
+              }),
+              SUMMARY_TIMEOUT
+            );
+          } catch (gemini3Error) {
+            // FALLBACK: Si Gemini 3.1 Pro falla, intentar con Gemini 3 Flash
+            logger.warn('Gemini 3.1 Pro falló, intentando con Gemini 3 Flash como fallback');
+            response = await withTimeout(
+              ai.models.generateContent({
+                model: 'gemini-3-flash-preview',
+                contents: SUMMARY_PROMPT[language](fullTranscriptText),
+                config: {
+                  thinkingConfig: {
+                    thinkingBudget: 0 // Sin thinking = máxima velocidad
+                  },
+                  maxOutputTokens: 16384
+                }
+              }),
+              SUMMARY_TIMEOUT
+            );
+          }
+          summaryText = response.text ?? '';
+        }
+
+        const sanitizedSummary = sanitizeHtml(summaryText);
 
         if (!sanitizedSummary || sanitizedSummary.trim().length < 50) {
           throw new Error('El resumen generado está vacío o es muy corto');
@@ -1087,12 +1090,15 @@ const MainApp: React.FC = () => {
           clearModuleData(sessionId);
         }
 
-        logger.debug(`✅ Resumen generado exitosamente con Gemini 3 Flash${attempt > 0 ? ` (intento ${attempt + 1})` : ''}`);
+        logger.debug(`✅ Resumen generado exitosamente${attempt > 0 ? ` (intento ${attempt + 1})` : ''}`);
         break;
 
       } catch (err) {
         lastError = err instanceof Error ? err : new Error(String(err));
         logger.error(`❌ Error en intento ${attempt + 1}/${MAX_SUMMARY_RETRIES}:`, lastError.message);
+
+        // Sin créditos (o sin nada más que intentar) reintentar solo hace esperar al usuario
+        if (isGeminiBillingError(lastError.message) || (skipTerra && !ai)) break;
 
         if (attempt < MAX_SUMMARY_RETRIES - 1) {
           const delay = RETRY_DELAYS[attempt] ?? 5000;
@@ -1114,7 +1120,15 @@ const MainApp: React.FC = () => {
       }
 
       // Manejo de errores específicos
-      if (errorMessage.includes('VITE_GEMINI_API_KEY') || errorMessage.includes('401') || errorMessage.includes('403')) {
+      const savedNote = language === 'es'
+        ? 'Tu entrevista está guardada: después de recargar créditos usa "Regenerar Resumen".'
+        : 'Your interview is saved: after topping up credits use "Regenerate Summary".';
+      if (terraOutOfCredits) {
+        // OpenAI es el proveedor principal: con saldo ahí basta, aunque el respaldo de Gemini también falle
+        setError(`${getOpenAIBillingMessage(language)}\n\n${savedNote}`);
+      } else if (isGeminiBillingError(errorMessage)) {
+        setError(`${getGeminiBillingMessage(language)}\n\n${savedNote}`);
+      } else if (errorMessage.includes('VITE_GEMINI_API_KEY') || errorMessage.includes('401') || errorMessage.includes('403')) {
         setError(language === 'es'
           ? `Error de configuración: ${errorMessage}. Verifica tu archivo .env`
           : `Configuration error: ${errorMessage}. Check your .env file`);
@@ -1236,8 +1250,11 @@ const MainApp: React.FC = () => {
     // Si hay currentHandle, estamos reconectando y mantenemos los datos
     // Si hay módulos completados, estamos en transición entre módulos
     const isModuleTransition = completedModules.length > 0;
+    // Reconexión automática desde onclose: aunque no haya handle, NO es sesión nueva.
+    // Sin esto se borraba el transcript y se reiniciaba el contador de intentos (bucle infinito)
+    const isAutoReconnect = isReconnectingRef.current;
 
-    if (!currentHandle && !isModuleTransition) {
+    if (!currentHandle && !isModuleTransition && !isAutoReconnect) {
       // Sesión completamente nueva
       reconnectAttemptsRef.current = 0;
       setTranscript([]);
@@ -1249,7 +1266,7 @@ const MainApp: React.FC = () => {
       setCurrentModule('MODULE_1');
       setCompletedModules([]);
       setModuleTranscripts(createEmptyModuleTranscripts());
-    } else if (!currentHandle && isModuleTransition) {
+    } else if (!currentHandle && isModuleTransition && !isAutoReconnect) {
       // Transición entre módulos - mantener sessionId y datos de módulos anteriores
       reconnectAttemptsRef.current = 0;
       // transcript ya fue limpiado en handleModuleTransition
@@ -1685,9 +1702,13 @@ const MainApp: React.FC = () => {
             // Detectar errores específicos y proporcionar pasos de solución
             let userErrorMessage = '';
 
+            // Créditos agotados (va primero: su mensaje contiene "api" y caería en el check de API key)
+            if (isGeminiBillingError(errorMessage)) {
+              userErrorMessage = getGeminiBillingMessage(language);
+            }
             // Error de API key o API inválida (incluyendo falsos positivos de "leaked key")
             // Ver: https://github.com/googleapis/python-genai/issues/1710
-            if (errorMessage.includes('API') || errorMessage.includes('api') || errorMessage.includes('Invalid') || errorMessage.includes('invalid') || errorMessage.includes('key') || errorMessage.includes('401') || errorMessage.includes('403') || errorMessage.includes('authentication') || errorMessage.includes('unauthorized') || errorMessage.includes('leaked')) {
+            else if (errorMessage.includes('API') || errorMessage.includes('api') || errorMessage.includes('Invalid') || errorMessage.includes('invalid') || errorMessage.includes('key') || errorMessage.includes('401') || errorMessage.includes('403') || errorMessage.includes('authentication') || errorMessage.includes('unauthorized') || errorMessage.includes('leaked')) {
               userErrorMessage = language === 'es'
                 ? `❌ Error de autenticación con Gemini API\n\n📋 Pasos para arreglar:\n1. Genera una NUEVA API key en Google AI Studio\n2. Actualiza VITE_GEMINI_API_KEY en tu archivo .env o en Vercel\n3. Reinicia el servidor de desarrollo (pnpm dev)\n4. Recarga esta página\n\n⚠️ Nota: El modelo de audio nativo puede rechazar keys válidas incorrectamente.\nSi el problema persiste, contacta a soporte de Google AI.\n\nError: ${errorMessage.substring(0, 150)}`
                 : `❌ Gemini API authentication error\n\n📋 Steps to fix:\n1. Generate a NEW API key in Google AI Studio\n2. Update VITE_GEMINI_API_KEY in your .env file or Vercel\n3. Restart the development server (pnpm dev)\n4. Reload this page\n\n⚠️ Note: The native audio model may incorrectly reject valid keys.\nIf the problem persists, contact Google AI support.\n\nError: ${errorMessage.substring(0, 150)}`;
@@ -1731,9 +1752,12 @@ const MainApp: React.FC = () => {
               reconnectAttempts: reconnectAttemptsRef.current
             });
 
+            // Sin créditos reconectar no sirve: el servidor volverá a cerrar con el mismo error
+            const isBillingClose = isGeminiBillingError(e.reason || '');
+
             // Solo intentar reconexión si estamos en sesión activa y no hemos excedido intentos
             // NOTA: Intentamos reconectar incluso sin handle (comenzará nueva sesión pero mantiene transcript)
-            if (appStateRef.current === 'LISTENING' &&
+            if (appStateRef.current === 'LISTENING' && !isBillingClose &&
               reconnectAttemptsRef.current < maxReconnectAttempts) {
 
               // Marcar que estamos reconectando para prevenir race conditions
@@ -1764,25 +1788,28 @@ const MainApp: React.FC = () => {
                 }
               }, 1000);
 
-            } else if (appStateRef.current === 'LISTENING') {
-              // Excedimos intentos - mostrar error final
-              const errorMsg = language === 'es'
-                ? 'La conexión se cerró inesperadamente. Tu progreso está guardado. Puedes usar "Reintentar Conexión" para continuar.'
-                : 'Connection closed unexpectedly. Your progress is saved. You can use "Retry Connection" to continue.';
+            } else if (appStateRef.current === 'LISTENING' || (isBillingClose && appStateRef.current === 'CONNECTING')) {
+              // Excedimos intentos (o no hay créditos) - mostrar error final
+              const errorMsg = isBillingClose
+                ? getGeminiBillingMessage(language)
+                : language === 'es'
+                  ? 'La conexión se cerró inesperadamente. Tu progreso está guardado. Puedes usar "Reintentar Conexión" para continuar.'
+                  : 'Connection closed unexpectedly. Your progress is saved. You can use "Retry Connection" to continue.';
 
               setError(errorMsg);
               setAppState('ERROR');
               cleanupAudio();
 
-              // Guardar checkpoint de emergencia
-              if (user?.id && sessionId) {
+              // Guardar checkpoint de emergencia (refs: este callback se creó al conectar,
+              // el state capturado aquí tendría el transcript vacío y sobrescribiría el checkpoint bueno)
+              if (user?.id && sessionIdRef.current && transcriptRef.current.length > 0) {
                 saveSessionCheckpoint(
                   user.id,
-                  sessionId,
+                  sessionIdRef.current,
                   patientName,
                   language,
                   'LISTENING', // Mantener como LISTENING para recuperación
-                  transcript,
+                  transcriptRef.current,
                   currentInputTranscription.current,
                   currentOutputTranscription.current,
                   sessionStartTime
@@ -1925,6 +1952,12 @@ const MainApp: React.FC = () => {
 
     let lastError: Error | null = null;
     let summaryGenerated = false;
+    let skipTerra = false;
+    let terraOutOfCredits = false;
+
+    // Gemini es solo el respaldo de Terra
+    const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+    const ai = apiKey?.trim() ? new GoogleGenAI({ apiKey }) : null;
 
     for (let attempt = 0; attempt < MAX_SUMMARY_RETRIES; attempt++) {
       try {
@@ -1932,22 +1965,34 @@ const MainApp: React.FC = () => {
           logger.debug(`🔄 Reintento ${attempt + 1}/${MAX_SUMMARY_RETRIES}...`);
         }
 
-        const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
-        if (!apiKey || apiKey.trim() === '') {
-          throw new Error('VITE_GEMINI_API_KEY no está configurada');
+        // GPT-6.1 Terra (effort max) primero; Gemini como respaldo.
+        // Sin saldo o tras agotar su timeout, Terra no se reintenta
+        let summaryText = '';
+        if (!skipTerra) {
+          try {
+            summaryText = await generateSummaryWithTerra(fullTranscriptText, language);
+          } catch (terraError) {
+            logger.warn('GPT-6.1 Terra falló, usando Gemini como respaldo:', terraError);
+            const terraMessage = terraError instanceof Error ? terraError.message : String(terraError);
+            terraOutOfCredits = isOpenAIBillingError(terraMessage);
+            skipTerra = terraOutOfCredits || terraMessage.startsWith('Timeout');
+          }
         }
 
-        const ai = new GoogleGenAI({ apiKey: apiKey as string });
+        if (!summaryText) {
+          if (!ai) throw new Error('VITE_GEMINI_API_KEY no está configurada (respaldo de GPT-6.1 Terra)');
 
-        const response = await withTimeout(
-          ai.models.generateContent({
-            model: 'gemini-3.1-pro-preview',
-            contents: SUMMARY_PROMPT[language](fullTranscriptText),
-          }),
-          SUMMARY_TIMEOUT
-        );
+          const response = await withTimeout(
+            ai.models.generateContent({
+              model: 'gemini-3.1-pro-preview',
+              contents: SUMMARY_PROMPT[language](fullTranscriptText),
+            }),
+            SUMMARY_TIMEOUT
+          );
+          summaryText = response.text ?? '';
+        }
 
-        const sanitizedSummary = sanitizeHtml(response.text ?? '');
+        const sanitizedSummary = sanitizeHtml(summaryText);
 
         if (!sanitizedSummary || sanitizedSummary.trim().length < 50) {
           throw new Error('El resumen generado está vacío o es muy corto');
@@ -2000,6 +2045,8 @@ const MainApp: React.FC = () => {
         lastError = err instanceof Error ? err : new Error(String(err));
         logger.error(`❌ Error en intento ${attempt + 1}:`, lastError.message);
 
+        if (isGeminiBillingError(lastError.message) || (skipTerra && !ai)) break;
+
         if (attempt < MAX_SUMMARY_RETRIES - 1) {
           const delay = RETRY_DELAYS[attempt] ?? 5000;
           await new Promise(resolve => setTimeout(resolve, delay));
@@ -2011,7 +2058,11 @@ const MainApp: React.FC = () => {
     if (!summaryGenerated && lastError) {
       const errorMessage = lastError.message;
 
-      if (errorMessage.includes('Timeout') || errorMessage.includes('timeout')) {
+      if (terraOutOfCredits) {
+        setError(getOpenAIBillingMessage(language));
+      } else if (isGeminiBillingError(errorMessage)) {
+        setError(getGeminiBillingMessage(language));
+      } else if (errorMessage.includes('Timeout') || errorMessage.includes('timeout')) {
         setError(language === 'es'
           ? 'La generación tardó demasiado. Por favor, intenta de nuevo.'
           : 'Generation took too long. Please try again.');

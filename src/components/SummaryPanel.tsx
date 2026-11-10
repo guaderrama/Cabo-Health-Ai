@@ -84,8 +84,8 @@ const SummaryPanel: React.FC<SummaryPanelProps> = ({
             {/* Time estimate message */}
             <p className="text-xs text-slate-500 bg-slate-100 px-4 py-2 rounded-lg">
               {language === 'es'
-                ? '⏱️ Generando con Gemini 3 Flash (30-60 segundos)...'
-                : '⏱️ Generating with Gemini 3 Flash (30-60 seconds)...'}
+                ? '⏱️ Analizando a fondo con GPT-6.1 Terra (puede tardar varios minutos)...'
+                : '⏱️ Deep analysis with GPT-6.1 Terra (this can take several minutes)...'}
             </p>
 
             {/* Reassurance message */}

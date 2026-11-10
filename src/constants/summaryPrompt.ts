@@ -1,5 +1,8 @@
 import { type Language } from '../types';
 
+// GPT-6.1 Terra usa una COPIA en supabase/functions/generate-summary-openai/summaryPrompt.ts.
+// Si cambias este prompt, corre `npm run sync:edge-prompts` y vuelve a desplegar esa función.
+
 export const SUMMARY_PROMPT: Record<Language, (transcript: string) => string> = {
   es: (transcript: string) => `
     Eres un médico experto analista de IA especializado en Medicina Funcional y Entrevista Motivacional.

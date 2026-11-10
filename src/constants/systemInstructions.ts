@@ -1,5 +1,8 @@
 import { type Language } from '../types';
 
+// El chat de texto (GPT-6.1 Terra) usa una COPIA en supabase/functions/chat-openai/systemInstructions.ts.
+// Si cambias estas instrucciones, corre `npm run sync:edge-prompts` y vuelve a desplegar esa función.
+
 const motivationalInterviewingFrame = `
 ═══════════════════════════════════════════════════════════════════════════════
 🎯🎯🎯 MISIÓN CRÍTICA - LEER ANTES DE CADA RESPUESTA 🎯🎯🎯

@@ -14,6 +14,8 @@ import { SUMMARY_PROMPT } from '../constants/summaryPrompt';
 import { GoogleGenAI } from '@google/genai';
 import { sanitizeHtml } from '../utils/sanitizeHtml';
 import { completeSummary } from '../services/summaryQueue';
+import { generateSummaryWithTerra } from '../services/terraSummary';
+import { isOpenAIBillingError, getOpenAIBillingMessage } from '../utils/billingErrors';
 
 // Schema de validación para consultas de Supabase
 // Nota: timestamp puede ser ISO string o epoch number según cómo se guardó
@@ -110,9 +112,6 @@ const DoctorDashboard: React.FC<DoctorDashboardProps> = ({ language }) => {
     setRegenerateError(null);
 
     try {
-      const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
-      if (!apiKey) throw new Error('VITE_GEMINI_API_KEY not configured');
-
       // Build transcript text
       const transcript = consultation.transcript || [];
       const fullTranscriptText = transcript
@@ -126,38 +125,59 @@ const DoctorDashboard: React.FC<DoctorDashboardProps> = ({ language }) => {
       }
 
       const lang = (consultation.language || 'es') as 'es' | 'en';
-      const prompt = SUMMARY_PROMPT[lang](fullTranscriptText);
 
-      // Call Gemini API with fallback
-      const ai = new GoogleGenAI({ apiKey });
-      let response;
-
+      // GPT-6.1 Terra (effort max) first, Gemini as fallback
+      let rawSummary = '';
+      let terraOutOfCredits = false;
       try {
-        response = await Promise.race([
-          ai.models.generateContent({
-            model: 'gemini-3.1-pro-preview',
-            contents: prompt,
-            config: { maxOutputTokens: 16384 },
-          }),
-          new Promise<never>((_, reject) =>
-            setTimeout(() => reject(new Error('Timeout')), 120000)
-          ),
-        ]);
-      } catch (gemini3Error) {
-        logger.warn('Gemini 3.1 Pro failed, falling back to 3 Flash:', gemini3Error);
-        response = await Promise.race([
-          ai.models.generateContent({
-            model: 'gemini-3-flash-preview',
-            contents: prompt,
-            config: { maxOutputTokens: 16384 },
-          }),
-          new Promise<never>((_, reject) =>
-            setTimeout(() => reject(new Error('Timeout')), 120000)
-          ),
-        ]);
+        rawSummary = await generateSummaryWithTerra(fullTranscriptText, lang);
+      } catch (terraError) {
+        logger.warn('GPT-6.1 Terra failed, falling back to Gemini:', terraError);
+        terraOutOfCredits = isOpenAIBillingError(terraError instanceof Error ? terraError.message : String(terraError));
       }
 
-      const summaryText = sanitizeHtml(response.text ?? '');
+      if (!rawSummary) {
+        try {
+          const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+          if (!apiKey) throw new Error('VITE_GEMINI_API_KEY not configured');
+
+          const prompt = SUMMARY_PROMPT[lang](fullTranscriptText);
+          const ai = new GoogleGenAI({ apiKey });
+          let response;
+
+          try {
+            response = await Promise.race([
+              ai.models.generateContent({
+                model: 'gemini-3.1-pro-preview',
+                contents: prompt,
+                config: { maxOutputTokens: 16384 },
+              }),
+              new Promise<never>((_, reject) =>
+                setTimeout(() => reject(new Error('Timeout')), 120000)
+              ),
+            ]);
+          } catch (gemini3Error) {
+            logger.warn('Gemini 3.1 Pro failed, falling back to 3 Flash:', gemini3Error);
+            response = await Promise.race([
+              ai.models.generateContent({
+                model: 'gemini-3-flash-preview',
+                contents: prompt,
+                config: { maxOutputTokens: 16384 },
+              }),
+              new Promise<never>((_, reject) =>
+                setTimeout(() => reject(new Error('Timeout')), 120000)
+              ),
+            ]);
+          }
+          rawSummary = response.text ?? '';
+        } catch (geminiError) {
+          // OpenAI es el proveedor principal: con saldo ahí basta, aunque el respaldo de Gemini falle
+          if (terraOutOfCredits) throw new Error(getOpenAIBillingMessage(language));
+          throw geminiError;
+        }
+      }
+
+      const summaryText = sanitizeHtml(rawSummary);
 
       if (!summaryText || summaryText.trim().length < 50) {
         throw new Error(language === 'es'
@@ -269,7 +289,7 @@ const DoctorDashboard: React.FC<DoctorDashboardProps> = ({ language }) => {
         });
 
       // Lookup patient emails for pending summaries via secure RPC
-      let userEmailMap: Record<string, string> = {};
+      const userEmailMap: Record<string, string> = {};
       if (pendingFiltered.length > 0) {
         const userIds = [...new Set(pendingFiltered.map((p: Record<string, unknown>) => p.user_id as string))];
         const { data: emailData } = await supabase.rpc('get_patient_emails', { user_ids: userIds });

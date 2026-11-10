@@ -11,7 +11,8 @@
     "preview": "pnpm install --prefer-offline && vite preview",
     "install-deps": "pnpm install --prefer-offline",
     "clean": "rm -rf node_modules .pnpm-store pnpm-lock.yaml && pnpm store prune",
-    "analyze-supabase": "node scripts/analyze-supabase.js"
+    "analyze-supabase": "node scripts/analyze-supabase.js",
+    "sync:edge-prompts": "node scripts/sync-edge-prompts.mjs"
   },
   "dependencies": {
     "@google/genai": "^1.31.0",
