@@ -86,8 +86,8 @@ const FinishScreen: React.FC<FinishScreenProps> = ({
           <h2 className="font-semibold text-slate-900">{es ? '¿Qué sigue?' : "What's next?"}</h2>
           <p className="mt-1 text-base leading-relaxed text-slate-700">
             {es
-              ? 'Tu médico lo revisará antes de tu cita. Si algo cambia en tu salud antes de la consulta, coméntaselo directamente.'
-              : 'Your doctor will review it before your appointment. If anything about your health changes before then, tell them directly.'}
+              ? 'Tu médico lo revisará antes de tu cita.'
+              : 'Your doctor will review it before your appointment.'}
           </p>
         </div>
         <div className="mt-6 flex flex-col gap-3">

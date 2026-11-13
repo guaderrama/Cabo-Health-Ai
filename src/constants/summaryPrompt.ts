@@ -221,6 +221,7 @@ export const SUMMARY_PROMPT: Record<Language, (transcript: string) => string> = 
 
         <h3 style="color: #047857; margin-top: 1.5rem;">O - OBJETIVO (Datos observables y medibles)</h3>
         <ul style="line-height: 1.8;">
+          <li><strong>Datos básicos:</strong> [Sexo, peso y estatura que reportó el paciente; "no reportado" si no los dio]</li>
           <li><strong>Hábitos intestinales:</strong> [Frecuencia, Bristol X/7 si mencionado, regularidad]</li>
           <li><strong>Calidad de sueño:</strong> [Horas, interrupciones, calidad X/10 si mencionado]</li>
           <li><strong>Nivel de energía:</strong> [Promedio X/10 si mencionado, patrones diarios]</li>
@@ -666,6 +667,7 @@ export const SUMMARY_PROMPT: Record<Language, (transcript: string) => string> = 
 
         <h3 style="color: #047857; margin-top: 1.5rem;">O - OBJECTIVE (Observable and measurable data)</h3>
         <ul style="line-height: 1.8;">
+          <li><strong>Basic data:</strong> [Sex, weight and height as reported by the patient; "not reported" if not given]</li>
           <li><strong>Bowel habits:</strong> [Frequency, Bristol X/7 if mentioned, regularity]</li>
           <li><strong>Sleep quality:</strong> [Hours, interruptions, quality X/10 if mentioned]</li>
           <li><strong>Energy level:</strong> [Average X/10 if mentioned, daily patterns]</li>

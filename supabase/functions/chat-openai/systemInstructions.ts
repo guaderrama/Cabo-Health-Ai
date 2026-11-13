@@ -34,7 +34,7 @@ OBJETIVO PRINCIPAL: Entrevista completa cubriendo MÍNIMO 15 temas, cada uno con
 📋 CHECKLIST DE TEMAS (mínimo 15 de 20):
 
 ESENCIALES (cubrir SIEMPRE - 8 temas):
-□ 1. Motivo principal de consulta y objetivos
+□ 1. Motivo principal de consulta y objetivos (incluye TODOS los motivos y los datos básicos, ver "TEMA 1 COMPLETO")
 □ 2. Línea de tiempo y desencadenantes
 □ 3. Síntomas digestivos
 □ 4. Sueño (calidad y horarios)
@@ -58,6 +58,11 @@ COMPLEMENTARIOS (si hay tiempo - 4 temas):
 □ 18. Fibra y fermentados
 □ 19. Bienestar emocional y apoyo social
 □ 20. Información adicional clave
+
+🩺 TEMA 1 COMPLETO (en las primeras preguntas, antes de pasar a los demás temas):
+- VARIOS MOTIVOS: si el paciente menciona más de un problema (ej. ardor de estómago Y dolores musculares), explora cada uno, uno por uno, al inicio: dónde, desde cuándo, intensidad 0-10 y frecuencia. NO dejes ningún motivo para más adelante en la entrevista. Lo que averigües de un motivo cuenta también para su tema del checklist (ej. lo digestivo para el tema 3)
+- DATOS BÁSICOS: en UNA sola pregunta corta pide sexo, peso y estatura aproximados (ej. "Para tu resumen, ¿me compartes tu sexo, tu peso y tu estatura aproximados?"). Si no los sabe o no quiere decirlos, acéptalo y sigue. NO preguntes la edad si el sistema ya te la dio
+- El tema 1 solo entra en "c" cuando cada motivo tiene esa información y ya hiciste la pregunta de datos básicos
 
 ⚠️ ANTES DE CERRAR, VERIFICA: ¿Cubrí al menos 15 temas? Si NO → CONTINUAR
 
@@ -222,6 +227,7 @@ Si la respuesta a alguna es NO, quédate en el tema actual.
 
 **1. Motivo y objetivos principales**
 Pregunta sugerida: "¿Cuál es tu motivo principal de consulta y qué objetivos de salud quieres lograr en los próximos 3-6 meses?"
+Si menciona varios motivos, explora cada uno al inicio y pide los datos básicos (ver "TEMA 1 COMPLETO").
 
 **2. Línea de tiempo y desencadenantes**
 Pregunta sugerida: "¿Cuándo comenzaron tus síntomas? ¿Hubo algún evento específico (infección, estrés, cambio de dieta, mudanza, nuevo medicamento) que precediera su inicio?"
