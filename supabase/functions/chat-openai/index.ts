@@ -9,6 +9,7 @@
 import { SYSTEM_INSTRUCTIONS, type Language } from './systemInstructions.ts';
 import { createRateLimiter, errorResponse, getCorsHeaders, getUserId, jsonResponse } from '../_shared/http.ts';
 import { extractOutputText, OPENAI_MODEL, OPENAI_URL, openaiHeaders } from '../_shared/openai.ts';
+import { findReferral, NO_REFERRAL_NOTE, removeReferrals } from './noReferral.ts';
 
 // "low" responde en segundos; más esfuerzo haría esperar al paciente en cada mensaje
 const REASONING_EFFORT = 'low';
@@ -37,6 +38,34 @@ function parseMessages(value: unknown): ChatMessage[] | null {
 
   if (totalChars > MAX_TOTAL_CHARS || messages[messages.length - 1].role !== 'user') return null;
   return messages;
+}
+
+type NovaReply = { ok: true; text: string; usage: unknown } | { ok: false; code: string; message: string };
+
+async function askNova(apiKey: string, instructions: string, messages: ChatMessage[]): Promise<NovaReply> {
+  const res = await fetch(OPENAI_URL, {
+    method: 'POST',
+    headers: openaiHeaders(apiKey),
+    body: JSON.stringify({
+      model: OPENAI_MODEL,
+      instructions,
+      input: messages,
+      reasoning: { effort: REASONING_EFFORT },
+      max_output_tokens: MAX_OUTPUT_TOKENS,
+      store: false,
+    }),
+    signal: AbortSignal.timeout(OPENAI_TIMEOUT_MS),
+  });
+  const data = await res.json();
+  if (!res.ok) {
+    return { ok: false, code: 'OPENAI_ERROR', message: data?.error?.message ?? `HTTP ${res.status}` };
+  }
+  const text = extractOutputText(data);
+  if (!text.trim()) {
+    const reason = data.error?.message ?? data.incomplete_details?.reason ?? `estado ${data.status}`;
+    return { ok: false, code: 'EMPTY_RESPONSE', message: `OpenAI no devolvió texto (${reason})` };
+  }
+  return { ok: true, text, usage: data.usage ?? null };
 }
 
 Deno.serve(async (req) => {
@@ -70,30 +99,25 @@ Deno.serve(async (req) => {
       return errorResponse('RATE_LIMIT_EXCEEDED', 'Demasiados mensajes en la última hora', 429, corsHeaders);
     }
 
-    const res = await fetch(OPENAI_URL, {
-      method: 'POST',
-      headers: openaiHeaders(apiKey),
-      body: JSON.stringify({
-        model: OPENAI_MODEL,
-        instructions: SYSTEM_INSTRUCTIONS[language],
-        input: messages,
-        reasoning: { effort: REASONING_EFFORT },
-        max_output_tokens: MAX_OUTPUT_TOKENS,
-        store: false,
-      }),
-      signal: AbortSignal.timeout(OPENAI_TIMEOUT_MS),
-    });
-    const data = await res.json();
-    if (!res.ok) {
-      return errorResponse('OPENAI_ERROR', data?.error?.message ?? `HTTP ${res.status}`, 502, corsHeaders);
+    const reply = await askNova(apiKey, SYSTEM_INSTRUCTIONS[language], messages);
+    if (!reply.ok) {
+      return errorResponse(reply.code, reply.message, 502, corsHeaders);
+    }
+    let { text, usage } = reply;
+
+    // Nova solo entrevista: si aun así le dice al paciente que busque valoración, vea a un
+    // médico o vaya a urgencias, se le pide reescribir; si insiste, se quitan esas frases.
+    const referral = findReferral(text);
+    if (referral) {
+      console.warn(`chat-openai: respuesta con recomendación al paciente ("${referral}"), se pide reescribir`);
+      const retry = await askNova(apiKey, SYSTEM_INSTRUCTIONS[language] + NO_REFERRAL_NOTE[language], messages)
+        .catch((e) => { console.error('chat-openai: falló el reintento', e); return null; });
+      const candidate = retry?.ok ? retry.text : text;
+      if (retry?.ok) usage = retry.usage;
+      text = findReferral(candidate) ? (removeReferrals(candidate) ?? candidate) : candidate;
     }
 
-    const text = extractOutputText(data);
-    if (!text.trim()) {
-      const reason = data.error?.message ?? data.incomplete_details?.reason ?? `estado ${data.status}`;
-      return errorResponse('EMPTY_RESPONSE', `OpenAI no devolvió texto (${reason})`, 502, corsHeaders);
-    }
-    return jsonResponse({ text, usage: data.usage ?? null }, 200, corsHeaders);
+    return jsonResponse({ text, usage }, 200, corsHeaders);
 
   } catch (error) {
     console.error('chat-openai error:', error);

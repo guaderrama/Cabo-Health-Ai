@@ -101,11 +101,11 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
       danger: false,
     },
     ready: {
-      title: es ? '¿Enviar a tu médico?' : 'Send to your doctor?',
+      title: es ? '¿Enviar a Cabo Health?' : 'Send to Cabo Health?',
       message: es
         ? 'Tu médico recibirá esta conversación y un resumen preparado por Nova.'
         : 'Your doctor will receive this conversation and a summary prepared by Nova.',
-      confirm: es ? 'Enviar a mi médico' : 'Send to my doctor',
+      confirm: es ? 'Enviar a Cabo Health' : 'Send to Cabo Health',
       danger: false,
     },
   };
@@ -221,7 +221,7 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
                 onClick={openEndDialog}
                 className="min-h-[48px] w-full rounded-xl border-2 border-slate-300 bg-white px-4 font-semibold text-slate-800 transition-colors hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
               >
-                {currentModule === 'MODULE_3' ? (es ? 'Terminar y enviar a mi médico' : 'Finish and send to my doctor') : (es ? 'Terminar' : 'Finish')}
+                {currentModule === 'MODULE_3' ? (es ? 'Terminar y enviar a Cabo Health' : 'Finish and send to Cabo Health') : (es ? 'Terminar' : 'Finish')}
               </button>
             </div>
           )}

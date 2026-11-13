@@ -95,7 +95,6 @@ const TextChatPanel: React.FC<TextChatPanelProps> = ({
 
   const coveredCount = topicTracking?.coveredTopics.size ?? 0;
   const currentTopicName = topicTracking?.currentTopic ? TOPIC_NAMES[language][topicTracking.currentTopic] : null;
-  const progress = Math.min(coveredCount / MIN_TOPICS_REQUIRED, 1);
   const patientMessages = transcript.filter(m => m.sender === 'You' && !m.failed).length;
   const lastMessage = transcript[transcript.length - 1];
   const lastIsNova = lastMessage?.sender === 'Nova';
@@ -108,6 +107,16 @@ const TextChatPanel: React.FC<TextChatPanelProps> = ({
   // Cubrir 15 temas no basta: Nova puede seguir preguntando y el aviso la contradiría.
   const novaFinished = closingSaid || (topicsComplete && novaStopped);
   const minutes = Math.floor(elapsedMs / 60000);
+
+  // Nova cubre de 15 a 20 temas y además hace preguntas de cambio, así que al llegar al
+  // último de los 15 se muestra "Últimas preguntas" (no "15 de 15" repetido) y la barra
+  // solo se llena cuando Nova de verdad terminó.
+  const progress = novaFinished ? 1 : Math.min(coveredCount / MIN_TOPICS_REQUIRED, 0.95);
+  const progressLabel = novaFinished
+    ? (es ? 'Preguntas terminadas' : 'Questions finished')
+    : coveredCount >= MIN_TOPICS_REQUIRED - 1
+      ? (es ? 'Últimas preguntas' : 'Last questions')
+      : (es ? `Tema ${coveredCount + 1} de ${MIN_TOPICS_REQUIRED}` : `Topic ${coveredCount + 1} of ${MIN_TOPICS_REQUIRED}`);
 
   // Reloj de la entrevista (usa el inicio real de la sesión, también al recuperarla)
   useEffect(() => {
@@ -299,11 +308,11 @@ const TextChatPanel: React.FC<TextChatPanelProps> = ({
       danger: false,
     },
     ready: {
-      title: es ? '¿Enviar a tu médico?' : 'Send to your doctor?',
+      title: es ? '¿Enviar a Cabo Health?' : 'Send to Cabo Health?',
       message: es
         ? 'Tu médico recibirá esta conversación y un resumen preparado por Nova.'
         : 'Your doctor will receive this conversation and a summary prepared by Nova.',
-      confirm: es ? 'Enviar a mi médico' : 'Send to my doctor',
+      confirm: es ? 'Enviar a Cabo Health' : 'Send to Cabo Health',
       danger: false,
     },
   };
@@ -364,10 +373,8 @@ const TextChatPanel: React.FC<TextChatPanelProps> = ({
           <div className="mt-2">
             <div className="flex items-baseline justify-between gap-2 text-sm">
               <p className="min-w-0 truncate text-slate-700">
-                <span className="font-semibold text-slate-900">
-                  {es ? `Tema ${Math.min(coveredCount + 1, MIN_TOPICS_REQUIRED)} de ${MIN_TOPICS_REQUIRED}` : `Topic ${Math.min(coveredCount + 1, MIN_TOPICS_REQUIRED)} of ${MIN_TOPICS_REQUIRED}`}
-                </span>
-                {currentTopicName && <span> · {currentTopicName}</span>}
+                <span className="font-semibold text-slate-900">{progressLabel}</span>
+                {currentTopicName && !novaFinished && <span> · {currentTopicName}</span>}
               </p>
               <p className="flex-shrink-0 tabular-nums text-slate-600">
                 {minutes} min <span className="hidden sm:inline">{es ? '· aprox. 20–30' : '· about 20–30'}</span>
@@ -377,9 +384,10 @@ const TextChatPanel: React.FC<TextChatPanelProps> = ({
               className="mt-1 h-1.5 overflow-hidden rounded-full bg-slate-200"
               role="progressbar"
               aria-valuemin={0}
-              aria-valuemax={MIN_TOPICS_REQUIRED}
-              aria-valuenow={coveredCount}
-              aria-label={es ? 'Temas cubiertos' : 'Topics covered'}
+              aria-valuemax={100}
+              aria-valuenow={Math.round(progress * 100)}
+              aria-valuetext={progressLabel}
+              aria-label={es ? 'Avance de la entrevista' : 'Interview progress'}
             >
               <div className="h-full rounded-full bg-primary transition-[width]" style={{ width: `${Math.max(progress, 0.03) * 100}%` }} />
             </div>
@@ -480,14 +488,14 @@ const TextChatPanel: React.FC<TextChatPanelProps> = ({
             <div className="mb-3 rounded-xl border border-primary-border bg-primary-soft p-3">
               <p className="text-base text-slate-900">
                 {es
-                  ? 'Nova terminó sus preguntas. Cuando quieras, envía la entrevista a tu médico.'
-                  : 'Nova has finished her questions. Whenever you are ready, send the interview to your doctor.'}
+                  ? 'Nova terminó sus preguntas. Cuando quieras, envía la entrevista a Cabo Health.'
+                  : 'Nova has finished her questions. Whenever you are ready, send the interview to Cabo Health.'}
               </p>
               <button
                 onClick={() => setEndVariant('ready')}
                 className="mt-2 min-h-[48px] w-full rounded-xl bg-primary px-4 font-semibold text-white transition-colors hover:bg-primary-hover focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
               >
-                {es ? 'Enviar a mi médico' : 'Send to my doctor'}
+                {es ? 'Enviar a Cabo Health' : 'Send to Cabo Health'}
               </button>
             </div>
           )}
