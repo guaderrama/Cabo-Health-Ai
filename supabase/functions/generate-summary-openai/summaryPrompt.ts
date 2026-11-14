@@ -218,6 +218,7 @@ export const SUMMARY_PROMPT: Record<Language, (transcript: string) => string> = 
           <li><strong>Factores aliviantes:</strong> [Qué mejora los síntomas]</li>
           <li><strong>Impacto en vida diaria:</strong> [Cómo afecta trabajo, relaciones, sueño]</li>
           <li><strong>Historia temporal:</strong> [Evolución de síntomas en el tiempo]</li>
+          <li><strong>Lo que ya probó:</strong> [Medicamentos, remedios o cambios que intentó para cada síntoma y si le funcionaron; "no reportado" si no lo mencionó]</li>
         </ul>
 
         <h3 style="color: #047857; margin-top: 1.5rem;">O - OBJETIVO (Datos observables y medibles)</h3>
@@ -230,6 +231,7 @@ export const SUMMARY_PROMPT: Record<Language, (transcript: string) => string> = 
           <li><strong>Actividad física:</strong> [Tipo, frecuencia, intensidad]</li>
           <li><strong>Consumo actual:</strong> [Alcohol, cafeína, tabaco - frecuencia/cantidad]</li>
           <li><strong>Medicación/Suplementos:</strong> [Lista completa con dosis]</li>
+          <li><strong>Estudios previos:</strong> [Análisis o estudios que mencionó, cuándo se hicieron y qué salió según el paciente; "no reportado" si no lo mencionó]</li>
         </ul>
 
         <h3 style="color: #047857; margin-top: 1.5rem;">A - ASSESSMENT (Evaluación e impresión clínica)</h3>
@@ -664,6 +666,7 @@ export const SUMMARY_PROMPT: Record<Language, (transcript: string) => string> = 
           <li><strong>Alleviating factors:</strong> [What improves symptoms]</li>
           <li><strong>Impact on daily life:</strong> [How it affects work, relationships, sleep]</li>
           <li><strong>Temporal history:</strong> [Evolution of symptoms over time]</li>
+          <li><strong>Already tried:</strong> [Medications, remedies or changes tried for each symptom and whether they helped; "not reported" if not mentioned]</li>
         </ul>
 
         <h3 style="color: #047857; margin-top: 1.5rem;">O - OBJECTIVE (Observable and measurable data)</h3>
@@ -676,6 +679,7 @@ export const SUMMARY_PROMPT: Record<Language, (transcript: string) => string> = 
           <li><strong>Physical activity:</strong> [Type, frequency, intensity]</li>
           <li><strong>Current consumption:</strong> [Alcohol, caffeine, tobacco - frequency/amount]</li>
           <li><strong>Medication/Supplements:</strong> [Complete list with doses]</li>
+          <li><strong>Previous tests:</strong> [Lab work or tests mentioned, when they were done and the results as the patient reported them; "not reported" if not mentioned]</li>
         </ul>
 
         <h3 style="color: #047857; margin-top: 1.5rem;">A - ASSESSMENT (Evaluation and clinical impression)</h3>

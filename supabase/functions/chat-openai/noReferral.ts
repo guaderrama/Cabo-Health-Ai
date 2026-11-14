@@ -2,12 +2,13 @@
 // NOVA SOLO ENTREVISTA: detecta si una respuesta le dice al paciente qué hacer
 // =============================================================================
 // Las instrucciones ya lo prohíben, pero ante síntomas que empeoran el modelo a veces
-// escribe "es importante que recibas una valoración médica pronto" o "busca atención
-// urgente". Solo se revisan las frases afirmativas: una pregunta como "¿Ya te vio un
-// especialista?" es parte de la entrevista y no cuenta.
+// escribe "es importante que recibas una valoración médica pronto", "eso puede ser señal
+// de un problema grave" o pregunta "¿Puedes ir a urgencias ahora?". Una pregunta de
+// historia como "¿Ya te vio un especialista?" es parte de la entrevista y no cuenta.
 
 const MARKER = /^\[\[TEMAS:\{.*?\}\]\]\n?/;
 
+// Frases afirmativas que le dicen al paciente qué hacer o qué podría tener
 const REFERRAL = new RegExp([
   // Emergencias
   '\\b911\\b',
@@ -28,17 +29,38 @@ const REFERRAL = new RegExp([
   '\\b(see|consult|talk to|speak (to|with)|contact|call|check with|reach out to|visit)\\b (a |an |your )?(doctor|physician|provider|health ?care|specialist|medical professional)',
   // Recomendaciones
   '\\bte (recomiendo|sugiero|aconsejo)\\b', '\\bI (recommend|suggest|advise)\\b',
+  // Alarmas o posibles causas ("puede ser señal de un problema grave")
+  '\\b(puede|pueden|podr[ií]a|podr[ií]an)\\b[^.!?]{0,15}\\bser\\b[^.!?]{0,40}\\b(se[nñ]al|se[nñ]ales|signo|signos|grave|graves|seri[oa]s?|enfermedad|infecci[oó]n|alarma|lesi[oó]n|da[nñ]o|urgencia|problema de salud|problema m[eé]dico)\\b',
+  '\\b(puede|pueden|podr[ií]a|podr[ií]an)\\b[^.!?]{0,10}\\b(indicar|significar|deberse a|tratarse de)\\b',
+  '\\b(se[nñ]al|se[nñ]ales|signo|signos) de (alarma|alerta)\\b', '\\b(algo|problema|cuadro) (grave|serio)\\b',
+  '\\b(may|might|could)\\b[^.!?]{0,10}\\b(indicate|mean|signal|be a sign|be signs|be due to|be caused by)\\b',
+  '\\b(serious|severe) (problem|condition|issue|illness)\\b', '\\bwarning signs?\\b',
+].join('|'), 'i');
+
+// Preguntas que en realidad mandan al paciente a algún lado ("¿Puedes ir a urgencias
+// ahora?"). Las de historia ("¿Has ido a urgencias por esto?") no entran aquí.
+const DIRECTIVE_QUESTION = new RegExp([
+  '\\b911\\b',
+  '\\b(puedes|podr[ií]as|puede|podr[ií]a|te es posible|alcanzas a|te parece|quieres|pueda|puedan)\\b[^.!?]{0,40}\\b(ir|acudir|llegar|llamar|ver|consultar|pedir|buscar|llevarte|acompa[nñ]arte)\\b[^.!?]{0,30}\\b(urgencias|emergencias|hospital|cl[ií]nica|m[eé]dic[oa]|doctor|especialista)\\b',
+  '\\bhay alguien que (te|lo|la) (lleve|acompa[nñ]e|pueda llevar)',
+  '\\b(can|could|would) you\\b[^.!?]{0,40}\\b(go|get|head|call|see|contact|visit|reach)\\b[^.!?]{0,30}\\b(er|emergency|hospital|urgent care|clinic|doctor|physician)\\b',
+  '\\b(is there|do you have) (someone|anyone)\\b[^.!?]{0,40}\\b(take|drive|bring) you\\b',
 ].join('|'), 'i');
 
 const SENTENCE_BREAK = /(?<=[.!?])(\s+)/;
 
+function offendingPart(sentence: string): string | null {
+  const match = sentence.includes('?')
+    ? sentence.match(DIRECTIVE_QUESTION)
+    : sentence.match(REFERRAL) ?? sentence.match(DIRECTIVE_QUESTION);
+  return match?.[0] ?? null;
+}
+
 /** Devuelve el fragmento que recomienda algo al paciente, o null si no hay. */
 export function findReferral(text: string): string | null {
-  const sentences = text.replace(MARKER, '').split(SENTENCE_BREAK);
-  for (const s of sentences) {
-    if (s.includes('?')) continue;
-    const match = s.match(REFERRAL);
-    if (match) return match[0];
+  for (const s of text.replace(MARKER, '').split(SENTENCE_BREAK)) {
+    const part = offendingPart(s);
+    if (part) return part;
   }
   return null;
 }
@@ -53,19 +75,40 @@ export function removeReferrals(text: string): string | null {
   let out = '';
   for (let i = 0; i < parts.length; i += 2) {
     const sentence = parts[i];
-    if (!sentence.includes('?') && REFERRAL.test(sentence)) continue;
+    if (offendingPart(sentence)) continue;
     out += sentence + (parts[i + 1] ?? '');
   }
   out = out.trim();
   return out ? marker + out : null;
 }
 
+const FALLBACK = {
+  es: { thanks: 'Gracias por contármelo, queda registrado.', question: '¿Desde cuándo lo notas y con qué frecuencia te pasa?' },
+  en: { thanks: 'Thank you for telling me, I have noted it.', question: 'When did you first notice this, and how often does it happen?' },
+} as const;
+
+const questionsIn = (text: string) =>
+  text.replace(MARKER, '').split(SENTENCE_BREAK).filter((s) => s.includes('?') && !offendingPart(s));
+
+/**
+ * Respuesta segura cuando los dos intentos de Nova recomendaron algo: quita esas frases y,
+ * si no queda ninguna pregunta, usa una limpia del primer intento o una neutral, para que
+ * el paciente siempre tenga algo que contestar.
+ */
+export function safeReply(retryText: string, firstText: string, language: 'es' | 'en'): string {
+  const marker = retryText.match(MARKER)?.[0] ?? firstText.match(MARKER)?.[0] ?? '';
+  const cleaned = (removeReferrals(retryText) ?? '').replace(MARKER, '').trim();
+  if (cleaned.includes('?')) return marker + cleaned;
+  const question = questionsIn(firstText)[0] ?? FALLBACK[language].question;
+  return `${marker}${cleaned || FALLBACK[language].thanks} ${question}`;
+}
+
 /** Se agrega a las instrucciones cuando hay que pedirle a Nova que reescriba su respuesta. */
 export const NO_REFERRAL_NOTE = {
   es: `
 
-🚫 CORRECCIÓN PARA ESTE TURNO: tu respuesta anterior le dijo al paciente qué hacer (buscar valoración o atención médica, ver a un médico o ir a urgencias). Eso está prohibido (regla absoluta 6): el riesgo ya queda registrado para el resumen del médico. Escribe de nuevo tu respuesta: agradece o refleja en una frase, sin advertencias ni recomendaciones, y haz la siguiente pregunta de la entrevista, con la marca [[TEMAS:...]] al inicio como siempre.`,
+🚫 CORRECCIÓN PARA ESTE TURNO: tu respuesta anterior le dijo al paciente qué hacer o qué podría tener (buscar valoración o atención médica, ver a un médico, ir a urgencias, preguntarle si puede ir a urgencias, o decirle que un síntoma puede ser señal de algo grave). Eso está prohibido (regla absoluta 6): el riesgo ya queda registrado para el resumen del médico. Escribe de nuevo tu respuesta con EXACTAMENTE este formato: la marca [[TEMAS:...]] al inicio como siempre, una frase corta de agradecimiento sin opinar sobre el síntoma, y UNA pregunta de la entrevista (por ejemplo, desde cuándo, con qué frecuencia o cómo es lo que acaba de contar). Nada más: sin advertencias, sin urgencias, sin médicos.`,
   en: `
 
-🚫 CORRECTION FOR THIS TURN: your previous reply told the patient what to do (seek medical evaluation or care, see a doctor or go to the ER). That is forbidden (absolute rule 6): the risk is already recorded for the doctor's summary. Write your reply again: thank or reflect in one sentence, with no warnings or recommendations, and ask the next interview question, with the [[TEMAS:...]] marker at the start as always.`,
+🚫 CORRECTION FOR THIS TURN: your previous reply told the patient what to do or what they might have (seek medical evaluation or care, see a doctor, go to the ER, asking whether they can go to the ER, or saying a symptom may be a sign of something serious). That is forbidden (absolute rule 6): the risk is already recorded for the doctor's summary. Write your reply again in EXACTLY this format: the [[TEMAS:...]] marker at the start as always, one short thank-you sentence with no opinion about the symptom, and ONE interview question (for example, since when, how often or what it is like). Nothing else: no warnings, no ER, no doctors.`,
 } as const;

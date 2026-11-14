@@ -9,7 +9,7 @@
 import { SYSTEM_INSTRUCTIONS, type Language } from './systemInstructions.ts';
 import { createRateLimiter, errorResponse, getCorsHeaders, getUserId, jsonResponse } from '../_shared/http.ts';
 import { extractOutputText, OPENAI_MODEL, OPENAI_URL, openaiHeaders } from '../_shared/openai.ts';
-import { findReferral, NO_REFERRAL_NOTE, removeReferrals } from './noReferral.ts';
+import { findReferral, NO_REFERRAL_NOTE, safeReply } from './noReferral.ts';
 
 // "low" responde en segundos; más esfuerzo haría esperar al paciente en cada mensaje
 const REASONING_EFFORT = 'low';
@@ -106,7 +106,8 @@ Deno.serve(async (req) => {
     let { text, usage } = reply;
 
     // Nova solo entrevista: si aun así le dice al paciente que busque valoración, vea a un
-    // médico o vaya a urgencias, se le pide reescribir; si insiste, se quitan esas frases.
+    // médico o vaya a urgencias, se le pide reescribir; si insiste, se quitan esas frases
+    // y se deja una pregunta para que la entrevista siga.
     const referral = findReferral(text);
     if (referral) {
       console.warn(`chat-openai: respuesta con recomendación al paciente ("${referral}"), se pide reescribir`);
@@ -114,7 +115,12 @@ Deno.serve(async (req) => {
         .catch((e) => { console.error('chat-openai: falló el reintento', e); return null; });
       const candidate = retry?.ok ? retry.text : text;
       if (retry?.ok) usage = retry.usage;
-      text = findReferral(candidate) ? (removeReferrals(candidate) ?? candidate) : candidate;
+      if (findReferral(candidate)) {
+        console.warn('chat-openai: el reintento también recomendaba algo, se limpia la respuesta');
+        text = safeReply(candidate, text, language);
+      } else {
+        text = candidate;
+      }
     }
 
     return jsonResponse({ text, usage }, 200, corsHeaders);

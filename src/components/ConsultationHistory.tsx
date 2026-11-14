@@ -256,7 +256,7 @@ const ConsultationHistory: React.FC<ConsultationHistoryProps> = ({ language, onC
               <p className="text-slate-600">
                 {searchQuery || filterMotivation !== 'all'
                   ? (language === 'es' ? 'No se encontraron consultas' : 'No consultations found')
-                  : (language === 'es' ? 'No tienes consultas registradas aún' : 'No consultations recorded yet')}
+                  : (language === 'es' ? 'Aquí aparecerán las entrevistas que envíes a Cabo Health' : 'Interviews you send to Cabo Health will appear here')}
               </p>
             </div>
           ) : (
