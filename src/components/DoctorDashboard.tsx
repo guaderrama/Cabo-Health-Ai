@@ -130,7 +130,7 @@ const DoctorDashboard: React.FC<DoctorDashboardProps> = ({ language }) => {
       let rawSummary = '';
       let terraOutOfCredits = false;
       try {
-        // Con session_id el servidor la termina aunque se cierre el panel
+        // Con session_id el servidor termina el de una entrevista sin resumen aunque se cierre el panel
         rawSummary = await generateSummaryWithTerra(fullTranscriptText, lang, { sessionId: consultation.session_id });
       } catch (terraError) {
         logger.warn('GPT-6.1 Terra failed, falling back to Gemini:', terraError);

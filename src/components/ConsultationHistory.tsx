@@ -29,8 +29,8 @@ interface ConsultationHistoryProps {
 const ConsultationHistory: React.FC<ConsultationHistoryProps> = ({ language, onClose, userRole = 'patient' }) => {
   const isDoctor = userRole === 'doctor';
   const [consultations, setConsultations] = useState<Consultation[]>([]);
-  // Entrevistas que el paciente ya envió y cuyo resumen todavía se está preparando
-  const [preparing, setPreparing] = useState<Array<{ session_id: string; updated_at: string }>>([]);
+  // Entrevistas que el paciente ya envió y que todavía no tienen resumen
+  const [preparing, setPreparing] = useState<Array<{ session_id: string; updated_at: string; inProgress: boolean }>>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [selectedConsultation, setSelectedConsultation] = useState<Consultation | null>(null);
@@ -81,14 +81,25 @@ const ConsultationHistory: React.FC<ConsultationHistoryProps> = ({ language, onC
       }
 
       if (!isDoctor) {
+        // "processing" o "failed" = ya la envió ("pending" es una entrevista sin terminar)
         const { data: pending } = await supabase
           .from('pending_summaries')
-          .select('session_id, updated_at')
+          .select('session_id, updated_at, openai_response_id, summary_started_at')
           .eq('user_id', user.id)
-          .eq('status', 'processing')
+          .in('status', ['processing', 'failed'])
           .order('updated_at', { ascending: false });
         const saved = new Set((data ?? []).map(c => c.session_id));
-        setPreparing((pending ?? []).filter(p => !saved.has(p.session_id)));
+        // Solo se promete "unos minutos" si el servidor de verdad la está terminando
+        // (finish-summaries se rinde a los 30 minutos)
+        const PREPARING_WINDOW_MS = 30 * 60 * 1000;
+        setPreparing((pending ?? [])
+          .filter(p => !saved.has(p.session_id))
+          .map(p => ({
+            session_id: p.session_id,
+            updated_at: p.updated_at,
+            inProgress: !!p.openai_response_id && !!p.summary_started_at
+              && Date.now() - new Date(p.summary_started_at).getTime() < PREPARING_WINDOW_MS,
+          })));
       }
     } catch (err) {
       logger.error('Error loading consultations:', err);
@@ -281,9 +292,13 @@ const ConsultationHistory: React.FC<ConsultationHistoryProps> = ({ language, onC
                     <span className="font-normal text-slate-600"> · {formatDate(p.updated_at, language)}</span>
                   </p>
                   <p className="mt-1 text-sm text-slate-600">
-                    {language === 'es'
-                      ? 'Estamos preparando el resumen para tu médico. Aparecerá aquí en unos minutos, aunque cierres la página.'
-                      : 'We are preparing the summary for your doctor. It will appear here in a few minutes, even if you close the page.'}
+                    {p.inProgress
+                      ? (language === 'es'
+                        ? 'Estamos preparando el resumen para tu médico. Aparecerá aquí en unos minutos, aunque cierres la página.'
+                        : 'We are preparing the summary for your doctor. It will appear here in a few minutes, even if you close the page.')
+                      : (language === 'es'
+                        ? 'Tu entrevista ya está en Cabo Health.'
+                        : 'Your interview is already at Cabo Health.')}
                   </p>
                 </div>
               ))}

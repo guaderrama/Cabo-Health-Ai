@@ -1,0 +1,90 @@
+// Calificaciones de motivación sacadas del HTML del resumen. La usan la app y el servidor:
+// "npm run sync:edge-prompts" la copia a supabase/functions/_shared/scores.ts.
+// Sin imports, para que la copia funcione igual en Deno.
+
+export interface ExtractedScores {
+  motivationScore: number | null;
+  empathyScore: number | null;
+  readiness: number | null;
+  importance: number | null;
+  confidence: number | null;
+}
+
+/**
+ * Centralized score extraction from summary HTML.
+ * Scopes searches to the correct section to avoid false matches.
+ */
+export function extractScoresFromSummary(summary: string): ExtractedScores {
+  // Strip HTML to get plain text
+  const plainText = summary.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ');
+
+  // Scope: extract only the Motivation Analysis section for readiness/importance/confidence
+  const motivationSection = plainText.match(
+    /(?:Análisis de Motivación|Motivation Analysis)[\s\S]*?(?:Checklist|Notas Clínicas|Clinical Notes|Additional|$)/i
+  )?.[0] || '';
+
+  // Also check the "Readiness to Change" dashboard widget
+  const readinessWidget = plainText.match(
+    /(?:Readiness to Change|Disposición al Cambio)[\s\S]*?(?:Systems Matrix|Matriz de Sistemas|Executive|Resumen Ejecutivo|🔬|$)/i
+  )?.[0] || '';
+
+  // Combined scoped text for motivation scores (section + widget, NOT full text)
+  const scopedText = motivationSection + ' ' + readinessWidget;
+
+  const extractFirst = (text: string, patterns: RegExp[]): number | null => {
+    for (const pattern of patterns) {
+      const match = text.match(pattern);
+      if (match?.[1]) {
+        const val = parseFloat(match[1]);
+        if (!isNaN(val) && val >= 0 && val <= 10) return val;
+      }
+    }
+    return null;
+  };
+
+  // Readiness patterns (ES + EN) - search ONLY in scoped motivation section
+  const readiness = extractFirst(scopedText, [
+    /Readiness\s*(?:general)?[:\s]*(\d+(?:\.\d+)?)\s*\/\s*10/i,
+    /General\s*readiness[:\s]*(\d+(?:\.\d+)?)/i,
+    /Motivación\s*(?:general)?[:\s]*(\d+(?:\.\d+)?)\s*\/\s*10/i,
+    /Overall\s*readiness[:\s]*(\d+(?:\.\d+)?)/i,
+    // Fallback: "Readiness" label followed by score in dashboard widget
+    /Readiness\s*(\d+(?:\.\d+)?)\s*\/\s*10/i,
+    // Con palabras en medio ("Readiness general estimado 7/10"); sin cruzar otra "/10"
+    /Readiness[^\d/]{0,25}?(\d+(?:\.\d+)?)\s*\/\s*10/i,
+  ]);
+
+  // Importance patterns (ES + EN)
+  const importance = extractFirst(scopedText, [
+    /Importancia\s*(?:del\s*cambio)?[:\s]*(\d+(?:\.\d+)?)\s*\/?\s*10/i,
+    /Importance\s*(?:of\s*change)?[:\s]*(\d+(?:\.\d+)?)\s*\/?\s*10/i,
+    /Importance\s*(\d+(?:\.\d+)?)\s*\/\s*10/i,
+    /Importancia\s*(\d+(?:\.\d+)?)\s*\/\s*10/i,
+    // "Importancia estimada 8/10"
+    /Importan(?:cia|ce)[^\d/]{0,25}?(\d+(?:\.\d+)?)\s*\/\s*10/i,
+  ]);
+
+  // Confidence patterns (ES + EN)
+  const confidence = extractFirst(scopedText, [
+    /Confianza\s*(?:en\s*cambiar)?[:\s]*(\d+(?:\.\d+)?)\s*\/?\s*10/i,
+    /Confidence\s*(?:in\s*changing)?[:\s]*(\d+(?:\.\d+)?)\s*\/?\s*10/i,
+    /Confidence\s*(\d+(?:\.\d+)?)\s*\/\s*10/i,
+    /Confianza\s*(\d+(?:\.\d+)?)\s*\/\s*10/i,
+    // "Confianza estimada 6/10"
+    /Confi(?:anza|dence)[^\d/]{0,25}?(\d+(?:\.\d+)?)\s*\/\s*10/i,
+  ]);
+
+  // Motivation score: average of readiness and importance, or just readiness.
+  // Si el resumen no la pudo evaluar queda vacía (null): un 5.0 inventado se veía como dato real.
+  const motivationScore = readiness !== null
+    ? (importance !== null ? (readiness + importance) / 2 : readiness)
+    : null;
+
+  return {
+    motivationScore,
+    empathyScore: confidence,
+    readiness,
+    importance,
+    confidence,
+  };
+}

@@ -50,7 +50,9 @@ const REFERRAL = new RegExp([
 
 // Pregunta médica del paciente ("¿Debería dejar el ibuprofeno?", "¿Será la menopausia?"):
 // en ese turno se le recuerda a Nova que solo la anote para el resumen
-const MEDICAL_QUESTION = /\b(deber[ií]a|debo|tengo que|puedo|es (peligroso|malo|grave|normal|seguro)|ser[aá]|qu[eé] (me )?(recomiendas|sugieres|tomo|hago|estudios|medicamento|pastilla|tengo)|me conviene|should i|can i|do i need|is it (safe|dangerous|bad|normal|serious)|could (it|this) be|what (should|do you recommend))\b/i;
+// Al final va (?!letra) en vez de \b: sin la bandera u, "á" no cuenta como letra y \b no
+// encontraría el final de "será"
+const MEDICAL_QUESTION = /\b(deber[ií]a|debo|tengo que|puedo|es (peligroso|malo|grave|normal|seguro)|ser[aá]|qu[eé] (me )?(recomiendas|sugieres|tomo|hago|estudios|medicamento|pastilla|tengo)|me conviene|should i|can i|do i need|is it (safe|dangerous|bad|normal|serious)|could (it|this) be|what (should|do you recommend))(?![a-záéíóúüñ])/i;
 
 export function isMedicalQuestion(patientText: string): boolean {
   return /[?¿]/.test(patientText) && MEDICAL_QUESTION.test(patientText);
@@ -67,10 +69,14 @@ export const MEDICAL_QUESTION_NOTE = {
 
 const CLOSING = /gracias por compartir todo esto conmigo|thank you for sharing all of this with me/i;
 
-/** Una respuesta normal de Nova siempre trae una pregunta, salvo el cierre. */
+// "Cuéntame…", "Descríbeme…" también le piden algo al paciente, aunque no lleven "?".
+// Solo cuentan al inicio de una frase ("lo que describes" no le pide nada)
+const PROMPTS_PATIENT = /(^|[.!?¿¡:]\s*|\n\s*)(por favor,?\s+|please,?\s+)?(cu[eé]ntame|descr[ií]beme|plat[ií]came|expl[ií]came|dime|tell me|describe|walk me through)(?![a-záéíóúüñ])/i;
+
+/** Una respuesta normal de Nova siempre le pide algo al paciente, salvo el cierre. */
 export function lacksQuestion(text: string): boolean {
   const visible = text.replace(MARKER, '');
-  return !visible.includes('?') && !CLOSING.test(visible);
+  return !visible.includes('?') && !PROMPTS_PATIENT.test(visible) && !CLOSING.test(visible);
 }
 
 // Preguntas que en realidad mandan al paciente a algún lado ("¿Puedes ir a urgencias
@@ -83,13 +89,26 @@ const DIRECTIVE_QUESTION = new RegExp([
   '\\b(is there|do you have) (someone|anyone)\\b[^.!?]{0,40}\\b(take|drive|bring) you\\b',
 ].join('|'), 'i');
 
+// Una pregunta sobre lo que ya pasó no le indica nada al paciente
+const HISTORY_QUESTION = /\b(contarme si|decirme si|llegaste a|fuiste|has (ido|visto|consultado|tenido que)|te (vio|vieron|ha visto|han visto|revisaron)|acudiste|consultaste|visitaste|tuviste que|alguna vez|tell me (if|whether)|did you|have you (seen|been|had to))(?![a-záéíóúüñ])/i;
+
 const SENTENCE_BREAK = /(?<=[.!?])(\s+)/;
 
+// Una pregunta puede mezclar historia e indicación ("¿Has consultado a un médico o puedes ir
+// a urgencias hoy?"): se revisa cada parte por separado
+const CLAUSE_BREAK = /\s+(?:o|u|y|e|or|and)\s+|[,;:]\s*/i;
+
 function offendingPart(sentence: string): string | null {
-  const match = sentence.includes('?')
-    ? sentence.match(DIRECTIVE_QUESTION)
-    : sentence.match(REFERRAL) ?? sentence.match(DIRECTIVE_QUESTION);
-  return match?.[0] ?? null;
+  if (sentence.includes('?')) {
+    if (/\b911\b/.test(sentence)) return '911';
+    for (const clause of sentence.split(CLAUSE_BREAK)) {
+      if (HISTORY_QUESTION.test(clause)) continue;
+      const match = clause.match(DIRECTIVE_QUESTION);
+      if (match) return match[0];
+    }
+    return null;
+  }
+  return (sentence.match(REFERRAL) ?? sentence.match(DIRECTIVE_QUESTION))?.[0] ?? null;
 }
 
 /** Devuelve el fragmento que recomienda algo al paciente, o null si no hay. */
@@ -134,10 +153,20 @@ const questionsIn = (text: string) =>
 export function safeReply(retryText: string, firstText: string, language: 'es' | 'en'): string {
   const marker = retryText.match(MARKER)?.[0] ?? firstText.match(MARKER)?.[0] ?? '';
   const cleaned = (removeReferrals(retryText) ?? '').replace(MARKER, '').trim();
-  if (cleaned.includes('?')) return marker + cleaned;
+  if (cleaned && !lacksQuestion(cleaned)) return marker + cleaned;
   const question = questionsIn(firstText)[0] ?? FALLBACK[language].question;
   return `${marker}${cleaned || FALLBACK[language].thanks} ${question}`;
 }
+
+/** Se agrega cuando la respuesta de Nova no le pidió nada al paciente. */
+export const NO_QUESTION_NOTE = {
+  es: `
+
+🚫 CORRECCIÓN PARA ESTE TURNO: tu respuesta anterior no incluyó ninguna pregunta y el paciente se quedaría sin saber qué contestar. Escribe de nuevo tu respuesta con la marca [[TEMAS:...]] al inicio como siempre, una frase corta de agradecimiento o reflejo, y UNA pregunta de la entrevista. Sin consejos ni recomendaciones.`,
+  en: `
+
+🚫 CORRECTION FOR THIS TURN: your previous reply did not include any question, so the patient would not know what to answer. Write your reply again with the [[TEMAS:...]] marker at the start as always, one short thank-you or reflection sentence, and ONE interview question. No advice or recommendations.`,
+} as const;
 
 /** Se agrega a las instrucciones cuando hay que pedirle a Nova que reescriba su respuesta. */
 export const NO_REFERRAL_NOTE = {

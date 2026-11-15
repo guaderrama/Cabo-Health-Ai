@@ -9,7 +9,7 @@ const TOPIC_MARKER_REGEX = /^\[\[TEMAS:(\{.*?\})\]\]\n?/;
 export const MIN_TOPICS_REQUIRED = 15;
 
 // Temas esenciales (siempre deben cubrirse)
-export const ESSENTIAL_TOPICS = [1, 2, 3, 4, 5, 6, 7, 8, 16, 19];
+export const ESSENTIAL_TOPICS = [1, 2, 3, 4, 5, 6, 7, 8, 15, 16, 19];
 
 interface UseTopicTrackingReturn {
   tracking: TopicTracking;

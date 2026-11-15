@@ -9,7 +9,7 @@
 import { SYSTEM_INSTRUCTIONS, type Language } from './systemInstructions.ts';
 import { createRateLimiter, errorResponse, getCorsHeaders, getUserId, jsonResponse } from '../_shared/http.ts';
 import { extractOutputText, OPENAI_MODEL, OPENAI_URL, openaiHeaders } from '../_shared/openai.ts';
-import { findReferral, isMedicalQuestion, lacksQuestion, MEDICAL_QUESTION_NOTE, NO_REFERRAL_NOTE, safeReply } from './noReferral.ts';
+import { findReferral, isMedicalQuestion, lacksQuestion, MEDICAL_QUESTION_NOTE, NO_QUESTION_NOTE, NO_REFERRAL_NOTE, safeReply } from './noReferral.ts';
 
 // "low" responde en segundos; más esfuerzo haría esperar al paciente en cada mensaje
 const REASONING_EFFORT = 'low';
@@ -117,7 +117,8 @@ Deno.serve(async (req) => {
     const problem = needsRewrite(text);
     if (problem) {
       console.warn(`chat-openai: respuesta con problema ("${problem}"), se pide reescribir`);
-      const retry = await askNova(apiKey, instructions + NO_REFERRAL_NOTE[language], messages)
+      const note = problem === 'sin pregunta' ? NO_QUESTION_NOTE[language] : NO_REFERRAL_NOTE[language];
+      const retry = await askNova(apiKey, instructions + note, messages)
         .catch((e) => { console.error('chat-openai: falló el reintento', e); return null; });
       const candidate = retry?.ok ? retry.text : text;
       if (retry?.ok) usage = retry.usage;

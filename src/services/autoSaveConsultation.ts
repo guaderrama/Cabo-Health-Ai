@@ -29,7 +29,12 @@ export async function autoSaveConsultation(params: {
   const { userId, userEmail, sessionId, patientName, patientDob, transcript, summary, language, sessionDuration } = params;
 
   try {
-    // Check if already saved (e.g., patient already clicked "Send to Doctor")
+    const { motivationScore, empathyScore } = extractScoresFromSummary(summary);
+    // "failed" is a UI-only flag (message that never reached Nova)
+    const cleanTranscript = transcript.map(({ failed: _failed, ...msg }) => msg);
+
+    // The server may have saved it first (generate-summary-openai / finish-summaries). Its summary
+    // stays (the page may only have a Gemini fallback); the page adds the final transcript.
     const { data: existing } = await supabase
       .from('consultations')
       .select('id')
@@ -37,11 +42,18 @@ export async function autoSaveConsultation(params: {
       .maybeSingle();
 
     if (existing) {
-      logger.debug('📋 Consultation already saved for session:', sessionId);
+      const { error: updateError } = await supabase
+        .from('consultations')
+        .update({
+          transcript: cleanTranscript,
+          message_count: transcript.length,
+          ...(patientDob ? { patient_dob: patientDob } : {}),
+        })
+        .eq('id', existing.id);
+      if (updateError) throw updateError;
+      logger.debug('📋 Consultation already saved, updated with the final transcript:', sessionId);
       return { success: true };
     }
-
-    const { motivationScore, empathyScore } = extractScoresFromSummary(summary);
 
     const { error } = await supabase
       .from('consultations')
@@ -52,8 +64,7 @@ export async function autoSaveConsultation(params: {
         patient_dob: patientDob || null,
         patient_email: userEmail || null,
         language,
-        // "failed" is a UI-only flag (message that never reached Nova)
-        transcript: transcript.map(({ failed: _failed, ...msg }) => msg),
+        transcript: cleanTranscript,
         summary,
         motivation_score: motivationScore,
         empathy_score: empathyScore,

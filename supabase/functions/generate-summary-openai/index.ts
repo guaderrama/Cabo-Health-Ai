@@ -21,7 +21,8 @@ import { PENDING_COLUMNS, saveFinishedSummary, type PendingRow } from '../_share
 async function linkPendingSummary(
   sessionId: string, responseId: string, userId: string, isDoctor: boolean, email: string | null, patientDob: unknown,
 ): Promise<void> {
-  const filter = `session_id=eq.${encodeURIComponent(sessionId)}${isDoctor ? '' : `&user_id=eq.${userId}`}`;
+  // Una entrevista que ya tiene su resumen no vuelve a "processing"
+  const filter = `session_id=eq.${encodeURIComponent(sessionId)}&status=neq.completed${isDoctor ? '' : `&user_id=eq.${userId}`}`;
   const values: Record<string, unknown> = {
     openai_response_id: responseId,
     summary_started_at: new Date().toISOString(),
@@ -120,6 +121,16 @@ Deno.serve(async (req) => {
 
       const res = await fetch(`${OPENAI_URL}/${id}`, { headers });
       const data = await res.json();
+      if (res.status === 404 && body.action === 'poll') {
+        // La tarea del servidor pudo terminarlo y borrarlo de OpenAI mientras la página esperaba:
+        // se entrega el mismo resumen guardado, para que la página no lo rehaga con Gemini
+        const [saved] = await dbSelect<{ user_id: string; status: string; summary: string | null }>(
+          'pending_summaries', `openai_response_id=eq.${id}&select=user_id,status,summary`,
+        );
+        if (saved?.status === 'completed' && saved.summary && (saved.user_id === userId || user.isDoctor)) {
+          return jsonResponse({ status: 'completed', summary: saved.summary, usage: null }, 200, corsHeaders);
+        }
+      }
       if (!res.ok) {
         return errorResponse('OPENAI_ERROR', data?.error?.message ?? `HTTP ${res.status}`, 502, corsHeaders);
       }

@@ -16,6 +16,8 @@ const MAX_PER_RUN = 10;
 const MIN_AGE_MS = 30 * 1000;
 // Igual que el límite del navegador: después de esto se da por perdido (el médico puede regenerarlo)
 const GIVE_UP_AFTER_MS = 30 * 60 * 1000;
+// Un error al guardar puede ser pasajero (red, base de datos): se reintenta cada minuto mucho más tiempo
+const GIVE_UP_ON_ERRORS_AFTER_MS = 3 * 60 * 60 * 1000;
 const NO_HEADERS = {};
 
 Deno.serve(async (req) => {
@@ -27,7 +29,8 @@ Deno.serve(async (req) => {
 
   const rows = await dbSelect<PendingRow>(
     'pending_summaries',
-    `status=eq.processing&openai_response_id=not.is.null&select=${PENDING_COLUMNS}&order=summary_started_at.asc&limit=${MAX_PER_RUN}`,
+    // También "failed": si la página se rindió pero OpenAI sí terminó, el servidor aún lo guarda
+    `status=in.(processing,failed)&openai_response_id=not.is.null&select=${PENDING_COLUMNS}&order=summary_started_at.asc&limit=${MAX_PER_RUN}`,
   );
 
   const results: Array<{ session: string; result: string }> = [];
@@ -71,6 +74,12 @@ Deno.serve(async (req) => {
       await fetch(responseUrl, { method: 'DELETE', headers }).catch(() => {});
     } catch (error) {
       console.error(`finish-summaries: ${row.session_id}`, error);
+      // Si el error se repite, no se queda ocupando lugar ni guardado en OpenAI para siempre
+      if (age > GIVE_UP_ON_ERRORS_AFTER_MS) {
+        await fetch(responseUrl, { method: 'DELETE', headers }).catch(() => {});
+        await markSummaryFailed(row, `No se pudo guardar el resumen: ${error instanceof Error ? error.message : String(error)}`)
+          .catch((e) => console.error('finish-summaries: no se pudo marcar como fallido', e));
+      }
       results.push({ session: row.session_id, result: 'error' });
     }
   }

@@ -1,5 +1,7 @@
-// Calificaciones de motivación sacadas del HTML del resumen. COPIA de extractScoresFromSummary
-// en src/utils/consultation.ts: si cambias una, cambia la otra.
+// GENERADO desde src/utils/summaryScores.ts con "npm run sync:edge-prompts". No lo edites aquí.
+// Calificaciones de motivación sacadas del HTML del resumen. La usan la app y el servidor:
+// "npm run sync:edge-prompts" la copia a supabase/functions/_shared/scores.ts.
+// Sin imports, para que la copia funcione igual en Deno.
 
 export interface ExtractedScores {
   motivationScore: number | null;
@@ -9,6 +11,10 @@ export interface ExtractedScores {
   confidence: number | null;
 }
 
+/**
+ * Centralized score extraction from summary HTML.
+ * Scopes searches to the correct section to avoid false matches.
+ */
 export function extractScoresFromSummary(summary: string): ExtractedScores {
   // Strip HTML to get plain text
   const plainText = summary.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ');

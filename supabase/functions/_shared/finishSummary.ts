@@ -51,9 +51,9 @@ export async function saveFinishedSummary(row: PendingRow, summary: string): Pro
   await dbDelete('session_checkpoints', `session_id=eq.${encodeURIComponent(row.session_id)}`);
 }
 
-/** Solo si sigue "processing": si el navegador ya lo terminó, no se toca. */
+/** Solo si no tiene resumen: si el navegador ya lo terminó, no se toca. Quita el enlace a OpenAI. */
 export async function markSummaryFailed(row: PendingRow, message: string): Promise<void> {
-  await dbUpdate('pending_summaries', `id=eq.${row.id}&status=eq.processing`, {
+  await dbUpdate('pending_summaries', `id=eq.${row.id}&status=in.(processing,failed)`, {
     status: 'failed',
     error_message: message.slice(0, 500),
     openai_response_id: null,
