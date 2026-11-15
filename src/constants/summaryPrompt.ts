@@ -225,6 +225,7 @@ export const SUMMARY_PROMPT: Record<Language, (transcript: string) => string> = 
         <ul style="line-height: 1.8;">
           <li><strong>Datos básicos:</strong> [Sexo, peso y estatura que reportó el paciente; "no reportado" si no los dio]</li>
           <li><strong>Hábitos intestinales:</strong> [Frecuencia, Bristol X/7 si mencionado, regularidad]</li>
+          <li><strong>Historia intestinal:</strong> [Alimentos que le caen mal y en cuánto tiempo, antibióticos en el último año, infección estomacal o viaje antes del inicio, relación con el estrés y señales de alarma digestivas (sangre, heces negras, pérdida de peso, dificultad para tragar, diarrea nocturna, cáncer de colon en la familia); "no reportado" si no lo mencionó]</li>
           <li><strong>Calidad de sueño:</strong> [Horas, interrupciones, calidad X/10 si mencionado]</li>
           <li><strong>Nivel de energía:</strong> [Promedio X/10 si mencionado, patrones diarios]</li>
           <li><strong>Nivel de estrés:</strong> [X/10 si mencionado, fuentes principales]</li>
@@ -679,6 +680,7 @@ export const SUMMARY_PROMPT: Record<Language, (transcript: string) => string> = 
         <ul style="line-height: 1.8;">
           <li><strong>Basic data:</strong> [Sex, weight and height as reported by the patient; "not reported" if not given]</li>
           <li><strong>Bowel habits:</strong> [Frequency, Bristol X/7 if mentioned, regularity]</li>
+          <li><strong>Gut history:</strong> [Foods that disagree and how soon, antibiotics in the last year, stomach infection or travel before onset, relation to stress and digestive warning signs (blood, black stools, weight loss, trouble swallowing, nighttime diarrhea, family history of colon cancer); "not reported" if not mentioned]</li>
           <li><strong>Sleep quality:</strong> [Hours, interruptions, quality X/10 if mentioned]</li>
           <li><strong>Energy level:</strong> [Average X/10 if mentioned, daily patterns]</li>
           <li><strong>Stress level:</strong> [X/10 if mentioned, primary sources]</li>
