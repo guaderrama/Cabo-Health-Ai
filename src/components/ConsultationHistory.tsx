@@ -29,6 +29,8 @@ interface ConsultationHistoryProps {
 const ConsultationHistory: React.FC<ConsultationHistoryProps> = ({ language, onClose, userRole = 'patient' }) => {
   const isDoctor = userRole === 'doctor';
   const [consultations, setConsultations] = useState<Consultation[]>([]);
+  // Entrevistas que el paciente ya envió y cuyo resumen todavía se está preparando
+  const [preparing, setPreparing] = useState<Array<{ session_id: string; updated_at: string }>>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [selectedConsultation, setSelectedConsultation] = useState<Consultation | null>(null);
@@ -76,6 +78,17 @@ const ConsultationHistory: React.FC<ConsultationHistoryProps> = ({ language, onC
 
       if (data) {
         setConsultations(data);
+      }
+
+      if (!isDoctor) {
+        const { data: pending } = await supabase
+          .from('pending_summaries')
+          .select('session_id, updated_at')
+          .eq('user_id', user.id)
+          .eq('status', 'processing')
+          .order('updated_at', { ascending: false });
+        const saved = new Set((data ?? []).map(c => c.session_id));
+        setPreparing((pending ?? []).filter(p => !saved.has(p.session_id)));
       }
     } catch (err) {
       logger.error('Error loading consultations:', err);
@@ -246,7 +259,7 @@ const ConsultationHistory: React.FC<ConsultationHistoryProps> = ({ language, onC
                 {language === 'es' ? 'Reintentar' : 'Retry'}
               </button>
             </div>
-          ) : filteredConsultations.length === 0 ? (
+          ) : filteredConsultations.length === 0 && preparing.length === 0 ? (
             <div className="text-center py-12">
               <div className="w-16 h-16 bg-slate-100 rounded-full mx-auto flex items-center justify-center mb-4">
                 <svg className="w-8 h-8 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -261,6 +274,19 @@ const ConsultationHistory: React.FC<ConsultationHistoryProps> = ({ language, onC
             </div>
           ) : (
             <div className="space-y-4">
+              {preparing.map((p) => (
+                <div key={p.session_id} className="border border-slate-200 rounded-lg p-5 bg-slate-50" role="status">
+                  <p className="font-semibold text-slate-800">
+                    {language === 'es' ? 'Enviada a Cabo Health' : 'Sent to Cabo Health'}
+                    <span className="font-normal text-slate-600"> · {formatDate(p.updated_at, language)}</span>
+                  </p>
+                  <p className="mt-1 text-sm text-slate-600">
+                    {language === 'es'
+                      ? 'Estamos preparando el resumen para tu médico. Aparecerá aquí en unos minutos, aunque cierres la página.'
+                      : 'We are preparing the summary for your doctor. It will appear here in a few minutes, even if you close the page.'}
+                  </p>
+                </div>
+              ))}
               {filteredConsultations.map((consultation) => {
                 const motivationLevel = getMotivationLevel(consultation.motivation_score);
 

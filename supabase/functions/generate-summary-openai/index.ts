@@ -9,9 +9,41 @@
 //   { action: 'cancel', id }                   -> { status: 'cancelled' }
 // El prompt se arma aquí (no se acepta del cliente) para que la función no sea
 // un proxy abierto a OpenAI para cualquier usuario registrado.
+// Si 'start' trae session_id, el resumen queda ligado a su fila de pending_summaries:
+// así lo termina el servidor (finish-summaries) aunque el paciente cierre la página.
 import { SUMMARY_PROMPT, type Language } from './summaryPrompt.ts';
-import { createRateLimiter, errorResponse, getCorsHeaders, getUserId, jsonResponse } from '../_shared/http.ts';
+import { createRateLimiter, errorResponse, getCorsHeaders, getUser, jsonResponse } from '../_shared/http.ts';
 import { extractOutputText, OPENAI_MODEL, OPENAI_URL, openaiHeaders } from '../_shared/openai.ts';
+import { dbSelect, dbUpdate } from '../_shared/db.ts';
+import { PENDING_COLUMNS, saveFinishedSummary, type PendingRow } from '../_shared/finishSummary.ts';
+
+/** Liga el resumen recién iniciado a la entrevista: del paciente dueño, o de cualquiera si lo inicia un médico. */
+async function linkPendingSummary(
+  sessionId: string, responseId: string, userId: string, isDoctor: boolean, email: string | null, patientDob: unknown,
+): Promise<void> {
+  const filter = `session_id=eq.${encodeURIComponent(sessionId)}${isDoctor ? '' : `&user_id=eq.${userId}`}`;
+  const values: Record<string, unknown> = {
+    openai_response_id: responseId,
+    summary_started_at: new Date().toISOString(),
+    status: 'processing',
+    error_message: null,
+  };
+  if (typeof patientDob === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(patientDob)) values.patient_dob = patientDob;
+  if (!isDoctor && email) values.patient_email = email;
+  await dbUpdate('pending_summaries', filter, values);
+}
+
+/** Si el resumen pertenece a una entrevista, la deja guardada (o le quita el enlace si OpenAI falló). */
+async function saveIfLinked(responseId: string, summaryText: string): Promise<void> {
+  const [row] = await dbSelect<PendingRow>('pending_summaries', `openai_response_id=eq.${responseId}&select=${PENDING_COLUMNS}`);
+  if (!row || row.status === 'completed') return;
+  if (summaryText.trim().length >= 50) {
+    await saveFinishedSummary(row, summaryText);
+  } else {
+    // El navegador reintenta con Gemini; la tarea del servidor ya no tiene nada que recoger
+    await dbUpdate('pending_summaries', `id=eq.${row.id}`, { openai_response_id: null });
+  }
+}
 
 const REASONING_EFFORT = 'max';
 const MAX_OUTPUT_TOKENS = 100000; // Incluye tokens de razonamiento; el HTML visible ocupa ~8-12k
@@ -31,10 +63,11 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const userId = await getUserId(req);
-    if (!userId) {
+    const user = await getUser(req);
+    if (!user) {
       return errorResponse('UNAUTHORIZED', 'Token inválido', 401, corsHeaders);
     }
+    const userId = user.id;
 
     const apiKey = Deno.env.get('OPENAI_API_KEY');
     if (!apiKey) {
@@ -72,6 +105,10 @@ Deno.serve(async (req) => {
       if (!res.ok) {
         return errorResponse('OPENAI_ERROR', data?.error?.message ?? `HTTP ${res.status}`, 502, corsHeaders);
       }
+      if (typeof body.session_id === 'string' && body.session_id) {
+        await linkPendingSummary(body.session_id, data.id, user.id, user.isDoctor, user.email, body.patient_dob)
+          .catch((e) => console.error('generate-summary-openai: no se pudo ligar el resumen a su entrevista', e));
+      }
       return jsonResponse({ id: data.id, status: data.status }, 200, corsHeaders);
     }
 
@@ -96,6 +133,7 @@ Deno.serve(async (req) => {
       if (body.action === 'cancel') {
         if (isRunning) await fetch(`${OPENAI_URL}/${id}/cancel`, { method: 'POST', headers });
         await fetch(`${OPENAI_URL}/${id}`, { method: 'DELETE', headers }).catch(() => {});
+        await dbUpdate('pending_summaries', `openai_response_id=eq.${id}`, { openai_response_id: null }).catch(() => {});
         return jsonResponse({ status: 'cancelled' }, 200, corsHeaders);
       }
 
@@ -103,11 +141,16 @@ Deno.serve(async (req) => {
         return jsonResponse({ status: data.status }, 200, corsHeaders);
       }
 
+      // Se guarda en el servidor ANTES de borrarlo de OpenAI, por si la página se cierra justo ahora
+      const summaryText = data.status === 'completed' ? extractOutputText(data) : '';
+      await saveIfLinked(id, summaryText)
+        .catch((e) => console.error('generate-summary-openai: no se pudo guardar el resumen en el servidor', e));
+
       // Estado final: borrar de OpenAI, es información médica y ya no se necesita allá
       await fetch(`${OPENAI_URL}/${id}`, { method: 'DELETE', headers }).catch(() => {});
 
       if (data.status === 'completed') {
-        return jsonResponse({ status: 'completed', summary: extractOutputText(data), usage: data.usage ?? null }, 200, corsHeaders);
+        return jsonResponse({ status: 'completed', summary: summaryText, usage: data.usage ?? null }, 200, corsHeaders);
       }
       return jsonResponse({
         status: data.status,

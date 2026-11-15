@@ -88,13 +88,16 @@ const getTextActivationMessage = (lang: Language, age: number | null = null) => 
   ? `[Sesión de TEXTO iniciada - Por favor saluda al paciente y comienza la entrevista completa${age !== null ? `. El paciente tiene ${age} años; no le preguntes su edad` : ''}]`
   : `[TEXT session started - Please greet the patient and begin the complete interview${age !== null ? `. The patient is ${age} years old; do not ask their age` : ''}]`;
 
-// La duración real va al inicio del texto del resumen (antes decía "Duración: no disponible")
-const withDurationHeader = (transcriptText: string, seconds: number, lang: Language) => {
-  if (seconds <= 0) return transcriptText;
-  const minutes = Math.max(1, Math.round(seconds / 60));
-  return lang === 'es'
-    ? `[Duración de la entrevista: ${minutes} minutos]\n${transcriptText}`
-    : `[Interview duration: ${minutes} minutes]\n${transcriptText}`;
+// La duración real y la edad van al inicio del texto del resumen: Nova conoce la edad
+// (no se la pregunta al paciente), pero sin esto el resumen no la recibía
+const withDurationHeader = (transcriptText: string, seconds: number, lang: Language, age: number | null = null) => {
+  const header: string[] = [];
+  if (seconds > 0) {
+    const minutes = Math.max(1, Math.round(seconds / 60));
+    header.push(lang === 'es' ? `[Duración de la entrevista: ${minutes} minutos]` : `[Interview duration: ${minutes} minutes]`);
+  }
+  if (age !== null) header.push(lang === 'es' ? `[Edad del paciente: ${age} años]` : `[Patient age: ${age} years]`);
+  return header.length ? `${header.join('\n')}\n${transcriptText}` : transcriptText;
 };
 
 // Temas cubiertos en modo TEXTO, para que una entrevista recuperada no empiece en 0
@@ -1025,7 +1028,7 @@ const MainApp: React.FC = () => {
     const sessionDuration = sessionStartTimeRef.current
       ? Math.floor((Date.now() - sessionStartTimeRef.current) / 1000)
       : 0;
-    const summaryInput = withDurationHeader(fullTranscriptText, sessionDuration, language);
+    const summaryInput = withDurationHeader(fullTranscriptText, sessionDuration, language, ageFromDateOfBirth(patientDob));
 
     if (user?.id) {
       const saveResult = await savePendingSummaryWithRetry(
@@ -1090,7 +1093,7 @@ const MainApp: React.FC = () => {
         let summaryText = '';
         if (!skipTerra) {
           try {
-            summaryText = await generateSummaryWithTerra(summaryInput, language);
+            summaryText = await generateSummaryWithTerra(summaryInput, language, { sessionId, patientDob });
           } catch (terraError) {
             logger.warn('GPT-6.1 Terra falló, usando Gemini como respaldo:', terraError);
             const terraMessage = terraError instanceof Error ? terraError.message : String(terraError);
@@ -2039,7 +2042,8 @@ const MainApp: React.FC = () => {
     const summaryInput = withDurationHeader(
       fullTranscriptText,
       sessionStartTimeRef.current ? Math.floor((Date.now() - sessionStartTimeRef.current) / 1000) : 0,
-      language
+      language,
+      ageFromDateOfBirth(patientDob)
     );
 
     // Configuración de reintentos
@@ -2067,7 +2071,7 @@ const MainApp: React.FC = () => {
         let summaryText = '';
         if (!skipTerra) {
           try {
-            summaryText = await generateSummaryWithTerra(summaryInput, language);
+            summaryText = await generateSummaryWithTerra(summaryInput, language, { sessionId, patientDob });
           } catch (terraError) {
             logger.warn('GPT-6.1 Terra falló, usando Gemini como respaldo:', terraError);
             const terraMessage = terraError instanceof Error ? terraError.message : String(terraError);

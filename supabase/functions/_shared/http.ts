@@ -31,8 +31,10 @@ export function errorResponse(code: string, message: string, status: number, cor
   return jsonResponse({ error: { code, message } }, status, corsHeaders);
 }
 
+export interface AuthUser { id: string; email: string | null; isDoctor: boolean }
+
 // El anon key también es un JWT válido: hay que confirmar que es un usuario real
-export async function getUserId(req: Request): Promise<string | null> {
+export async function getUser(req: Request): Promise<AuthUser | null> {
   const authHeader = req.headers.get('authorization');
   if (!authHeader) return null;
 
@@ -42,7 +44,12 @@ export async function getUserId(req: Request): Promise<string | null> {
   if (!res.ok) return null;
 
   const user = await res.json();
-  return typeof user?.id === 'string' ? user.id : null;
+  if (typeof user?.id !== 'string') return null;
+  return { id: user.id, email: user.email ?? null, isDoctor: user.app_metadata?.role === 'doctor' };
+}
+
+export async function getUserId(req: Request): Promise<string | null> {
+  return (await getUser(req))?.id ?? null;
 }
 
 // Límite en memoria por instancia: frena abusos, no es una cuota exacta

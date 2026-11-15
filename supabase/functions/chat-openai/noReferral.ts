@@ -35,7 +35,43 @@ const REFERRAL = new RegExp([
   '\\b(se[nñ]al|se[nñ]ales|signo|signos) de (alarma|alerta)\\b', '\\b(algo|problema|cuadro) (grave|serio)\\b',
   '\\b(may|might|could)\\b[^.!?]{0,10}\\b(indicate|mean|signal|be a sign|be signs|be due to|be caused by)\\b',
   '\\b(serious|severe) (problem|condition|issue|illness)\\b', '\\bwarning signs?\\b',
+  // Explicaciones médicas, riesgos e indicaciones ("las pastillas con estrógeno aumentan el
+  // riesgo...", "no se recomiendan", "no la suspendas sin consultar")
+  '\\b(podr[ií]a|podr[ií]an|puede|pueden)\\b[^.!?]{0,10}\\bser\\b[^.!?]{0,30}\\b(aura|migra[nñ]a|ansiedad|depresi[oó]n|menopausia|perimenopausia|tiroides|hipotiroidismo|hipertiroidismo|diabetes|prediabetes|gastritis|reflujo|colitis|artritis|artrosis|anemia|apnea|s[ií]ntoma de|efecto (secundario|adverso))\\b',
+  '\\b(aumenta|aumentan|eleva|elevan|incrementa|incrementan|reduce|reducen|disminuye|disminuyen)\\b[^.!?]{0,15}\\briesgo\\b',
+  '\\bse (recomienda|recomiendan|aconseja|aconsejan|sugiere|sugieren)\\b', '\\b(es|ser[ií]a) (recomendable|aconsejable|conveniente)\\b', '\\bconviene\\b',
+  '\\b(no )?(la |lo |las |los )?(suspendas|dejes de tomar|combines|mezcles)\\b', '\\bno (la |lo |las |los )?(tomes|dejes)\\b',
+  '\\b(suele|suelen) (deberse|estar relacionad|causar|indicar)', '\\bes (normal|com[uú]n|frecuente) (que|a tu edad|en la|en el|durante)\\b',
+  '\\b(increases?|raises?|reduces?|lowers?) (the |your )?risk\\b', '\\b(is|are) (not )?(recommended|advised)\\b',
+  "\\b(don't|do not) (stop|take|mix|combine)\\b", '\\bit would be (best|better|wise)\\b',
+  '\\b(could|might|may) be (an? )?(aura|migraine|anxiety|depression|menopause|perimenopause|thyroid|infection|symptom of|side effect)\\b',
+  "\\bit(?:'s| is) (normal|common) (to|for|at your age)\\b",
 ].join('|'), 'i');
+
+// Pregunta médica del paciente ("¿Debería dejar el ibuprofeno?", "¿Será la menopausia?"):
+// en ese turno se le recuerda a Nova que solo la anote para el resumen
+const MEDICAL_QUESTION = /\b(deber[ií]a|debo|tengo que|puedo|es (peligroso|malo|grave|normal|seguro)|ser[aá]|qu[eé] (me )?(recomiendas|sugieres|tomo|hago|estudios|medicamento|pastilla|tengo)|me conviene|should i|can i|do i need|is it (safe|dangerous|bad|normal|serious)|could (it|this) be|what (should|do you recommend))\b/i;
+
+export function isMedicalQuestion(patientText: string): boolean {
+  return /[?¿]/.test(patientText) && MEDICAL_QUESTION.test(patientText);
+}
+
+export const MEDICAL_QUESTION_NOTE = {
+  es: `
+
+⚠️ NOTA PARA ESTE TURNO: el último mensaje del paciente parece incluir una pregunta médica. Si lo es (sobre su salud, síntomas, medicamentos, estudios, riesgos o qué debería hacer), NO la respondas: no expliques, no menciones riesgos ni posibles causas, no digas qué hacer ni que consulte a nadie. Di solo "Anotaré tu pregunta para el resumen." y sigue con la siguiente pregunta de la entrevista, con la marca [[TEMAS:...]] al inicio como siempre. Si no es una pregunta médica, ignora esta nota.`,
+  en: `
+
+⚠️ NOTE FOR THIS TURN: the patient's last message seems to include a medical question. If it is one (about their health, symptoms, medications, tests, risks or what they should do), do NOT answer it: no explanations, no risks or possible causes, no telling them what to do or to consult anyone. Just say "I'll note your question for the summary." and continue with the next interview question, with the [[TEMAS:...]] marker at the start as always. If it is not a medical question, ignore this note.`,
+} as const;
+
+const CLOSING = /gracias por compartir todo esto conmigo|thank you for sharing all of this with me/i;
+
+/** Una respuesta normal de Nova siempre trae una pregunta, salvo el cierre. */
+export function lacksQuestion(text: string): boolean {
+  const visible = text.replace(MARKER, '');
+  return !visible.includes('?') && !CLOSING.test(visible);
+}
 
 // Preguntas que en realidad mandan al paciente a algún lado ("¿Puedes ir a urgencias
 // ahora?"). Las de historia ("¿Has ido a urgencias por esto?") no entran aquí.

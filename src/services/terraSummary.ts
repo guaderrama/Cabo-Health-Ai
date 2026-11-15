@@ -28,12 +28,24 @@ function invokeTerra(body: Record<string, unknown>): Promise<TerraResult> {
   return invokeOpenAIFunction<TerraResult>(FUNCTION_NAME, body);
 }
 
+/** Liga el resumen a su entrevista para que el servidor lo termine aunque se cierre la página. */
+export interface TerraSummaryLink {
+  sessionId?: string;
+  patientDob?: string;
+}
+
 /**
  * Returns the summary HTML. Throws on failure, timeout or an "incomplete" response,
  * so the caller can fall back to Gemini.
  */
-export async function generateSummaryWithTerra(transcriptText: string, language: Language): Promise<string> {
-  const started = await invokeTerra({ action: 'start', transcript: transcriptText, language });
+export async function generateSummaryWithTerra(transcriptText: string, language: Language, link: TerraSummaryLink = {}): Promise<string> {
+  const started = await invokeTerra({
+    action: 'start',
+    transcript: transcriptText,
+    language,
+    session_id: link.sessionId,
+    patient_dob: link.patientDob,
+  });
   if (!started.id) {
     throw new Error('GPT-6.1 Terra: no se recibió ID de respuesta');
   }

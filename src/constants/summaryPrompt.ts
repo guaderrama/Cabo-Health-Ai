@@ -16,6 +16,7 @@ export const SUMMARY_PROMPT: Record<Language, (transcript: string) => string> = 
       <div class="section" style="margin-bottom: 2rem; padding: 1.5rem; background: #f8fafc; border-left: 4px solid #0F766E; border-radius: 8px;">
         <h2 style="color: #0F766E; margin-bottom: 1rem;">👤 Información del Paciente</h2>
         <table style="width: 100%; border-collapse: collapse;">
+          <tr><td style="padding: 0.5rem; font-weight: 600;">Edad:</td><td style="padding: 0.5rem;">[La del encabezado "[Edad del paciente: N años]"; "no reportada" si no viene]</td></tr>
           <tr><td style="padding: 0.5rem; font-weight: 600;">Motivo principal de consulta:</td><td style="padding: 0.5rem;">[Descripción breve y específica]</td></tr>
           <tr><td style="padding: 0.5rem; font-weight: 600;">Objetivos del paciente:</td><td style="padding: 0.5rem;">[Lista de objetivos mencionados]</td></tr>
           <tr><td style="padding: 0.5rem; font-weight: 600;">Duración de síntomas:</td><td style="padding: 0.5rem;">[Tiempo desde inicio]</td></tr>
@@ -425,6 +426,11 @@ export const SUMMARY_PROMPT: Record<Language, (transcript: string) => string> = 
     4. Marca claramente en el checklist: ✓ (cubierto completamente), ⚠ (parcial), ✗ (no cubierto)
     5. El resumen debe ser tan COMPLETO que el médico pueda tomar decisiones sin leer la transcripción
     6. Incluye el score "Readiness general: [X/10]" en la sección de motivación para el filtro automático
+       **CÓMO PUNTUAR LA DISPOSICIÓN AL CAMBIO:** Nova NO pregunta escalas al paciente (es entrevista motivacional); hace 4 preguntas abiertas de cambio: deseo y razones, intentos anteriores, capacidad y obstáculos, y compromiso. ESTIMA Importancia, Confianza y Readiness (1-10) a partir de esas respuestas y de lo que dijo en toda la entrevista, y escribe SIEMPRE un número con el formato "X/10" seguido de una justificación breve con citas del paciente:
+       - Importancia: cuánto le importa cambiar y por qué (razones personales concretas suben la puntuación; metas vagas la bajan)
+       - Confianza: qué tan capaz se ve (pasos concretos e intentos anteriores que funcionaron la suben; "no sé", obstáculos sin solución o intentos abandonados sin reflexión la bajan)
+       - Readiness: compromiso con algo concreto y pronto (un paso específico para las próximas semanas la sube; "tal vez", "algún día" la bajan)
+       Solo si el paciente no respondió NINGUNA pregunta de cambio escribe "No evaluable" y explica por qué
 
     7. **DASHBOARD VISUAL - LLENAR CON DATOS REALES:**
        - Alertas Críticas: Contar el número de RED FLAGS detectados (dolor ≥7/10, sangre, pérdida peso, etc.)
@@ -464,6 +470,7 @@ export const SUMMARY_PROMPT: Record<Language, (transcript: string) => string> = 
       <div class="section" style="margin-bottom: 2rem; padding: 1.5rem; background: #f8fafc; border-left: 4px solid #0F766E; border-radius: 8px;">
         <h2 style="color: #0F766E; margin-bottom: 1rem;">👤 Patient Information</h2>
         <table style="width: 100%; border-collapse: collapse;">
+          <tr><td style="padding: 0.5rem; font-weight: 600;">Age:</td><td style="padding: 0.5rem;">[From the header "[Patient age: N years]"; "not reported" if missing]</td></tr>
           <tr><td style="padding: 0.5rem; font-weight: 600;">Primary reason for consultation:</td><td style="padding: 0.5rem;">[Brief specific description]</td></tr>
           <tr><td style="padding: 0.5rem; font-weight: 600;">Patient's objectives:</td><td style="padding: 0.5rem;">[List of mentioned goals]</td></tr>
           <tr><td style="padding: 0.5rem; font-weight: 600;">Duration of symptoms:</td><td style="padding: 0.5rem;">[Time since onset]</td></tr>
@@ -870,6 +877,11 @@ export const SUMMARY_PROMPT: Record<Language, (transcript: string) => string> = 
     4. Clearly mark in the checklist: ✓ (fully covered), ⚠ (partial), ✗ (not covered)
     5. The summary must be so COMPLETE that the doctor can make decisions without reading the transcript
     6. Include the "General readiness: [X/10]" score in the motivation section for automatic filtering
+       **HOW TO SCORE READINESS TO CHANGE:** Nova does NOT ask the patient for scales (it is motivational interviewing); it asks 4 open change questions: desire and reasons, previous attempts, ability and obstacles, and commitment. ESTIMATE Importance, Confidence and Readiness (1-10) from those answers and from the whole interview, and ALWAYS write a number in the format "X/10" followed by a brief justification quoting the patient:
+       - Importance: how much changing matters to them and why (concrete personal reasons raise it; vague goals lower it)
+       - Confidence: how able they see themselves (concrete steps and past attempts that worked raise it; "I don't know", unsolved obstacles or attempts dropped without reflection lower it)
+       - Readiness: commitment to something concrete and soon (a specific step for the coming weeks raises it; "maybe", "someday" lower it)
+       Only if the patient answered NONE of the change questions write "Not assessable" and explain why
 
     7. **VISUAL DASHBOARD - FILL WITH REAL DATA:**
        - Critical Alerts: Count the number of RED FLAGS detected (pain ≥7/10, blood, weight loss, etc.)
